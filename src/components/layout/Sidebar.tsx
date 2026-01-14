@@ -7,7 +7,8 @@ import {
   BookOpen, 
   Bell,
   Store,
-  X
+  X,
+  User
 } from 'lucide-react';
 import { useStore } from '@/context/StoreContext';
 
@@ -20,7 +21,8 @@ const navItems = [
   { path: '/dashboard', icon: LayoutDashboard, label: 'ড্যাশবোর্ড' },
   { path: '/sell', icon: ShoppingCart, label: 'বিক্রি করুন' },
   { path: '/products', icon: Package, label: 'পণ্যসমূহ' },
-  { path: '/accounts', icon: Calculator, label: 'হিসাব' },
+  { path: '/shop-accounts', icon: Calculator, label: 'দোকানের হিসাব' },
+  { path: '/personal-accounts', icon: User, label: 'ব্যক্তিগত হিসাব' },
   { path: '/credit-book', icon: BookOpen, label: 'বাকির খাতা' },
   { path: '/notifications', icon: Bell, label: 'বিজ্ঞপ্তি' },
 ];
@@ -56,9 +58,9 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
                 </div>
                 <div>
                   <h1 className="font-bold text-foreground text-lg">
-                    {storeInfo?.name || 'আমার দোকান'}
+                    Dokan 360
                   </h1>
-                  <p className="text-xs text-muted-foreground">স্টক ম্যানেজমেন্ট</p>
+                  <p className="text-xs text-muted-foreground">{storeInfo?.name || 'আমার দোকান'}</p>
                 </div>
               </div>
               <button 
@@ -98,7 +100,7 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
           {/* Footer */}
           <div className="p-4 border-t border-sidebar-border">
             <p className="text-xs text-muted-foreground text-center">
-              © ২০২৬ স্টক ম্যানেজার
+              © ২০২৬ Dokan 360
             </p>
           </div>
         </div>

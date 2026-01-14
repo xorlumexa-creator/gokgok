@@ -9,7 +9,8 @@ import Index from "./pages/Index";
 import Dashboard from "./pages/Dashboard";
 import Sell from "./pages/Sell";
 import Products from "./pages/Products";
-import Accounts from "./pages/Accounts";
+import ShopAccounts from "./pages/ShopAccounts";
+import PersonalAccounts from "./pages/PersonalAccounts";
 import CreditBook from "./pages/CreditBook";
 import Notifications from "./pages/Notifications";
 import NotFound from "./pages/NotFound";
@@ -38,9 +39,12 @@ function AppRoutes() {
         <Route path="/dashboard" element={<Dashboard />} />
         <Route path="/sell" element={<Sell />} />
         <Route path="/products" element={<Products />} />
-        <Route path="/accounts" element={<Accounts />} />
+        <Route path="/shop-accounts" element={<ShopAccounts />} />
+        <Route path="/personal-accounts" element={<PersonalAccounts />} />
         <Route path="/credit-book" element={<CreditBook />} />
         <Route path="/notifications" element={<Notifications />} />
+        {/* Redirect old route */}
+        <Route path="/accounts" element={<Navigate to="/shop-accounts" replace />} />
       </Route>
       <Route path="*" element={<NotFound />} />
     </Routes>
