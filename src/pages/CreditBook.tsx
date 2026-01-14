@@ -1,20 +1,27 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { BookOpen, Search, User, Phone, Plus, X, CheckCircle } from 'lucide-react';
 import { useStore } from '@/context/StoreContext';
 import { Button } from '@/components/ui/button';
 import { toast } from '@/hooks/use-toast';
 
 export default function CreditBook() {
-  const { customers, addCustomer, updateCustomerDue } = useStore();
+  const { customers, addCustomer, payCustomerDue } = useStore();
   const [searchTerm, setSearchTerm] = useState('');
   const [showAddForm, setShowAddForm] = useState(false);
   const [showPaymentModal, setShowPaymentModal] = useState<string | null>(null);
   const [paymentAmount, setPaymentAmount] = useState('');
   const [formData, setFormData] = useState({ name: '', phone: '' });
 
-  const filteredCustomers = customers.filter(c =>
-    c.name.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  // Filter by name or phone
+  const filteredCustomers = useMemo(() => {
+    if (!searchTerm.trim()) return customers;
+    const lowerSearch = searchTerm.toLowerCase();
+    return customers.filter(c =>
+      c.name.toLowerCase().includes(lowerSearch) ||
+      c.displayName.toLowerCase().includes(lowerSearch) ||
+      (c.phone && c.phone.includes(searchTerm))
+    );
+  }, [customers, searchTerm]);
 
   const totalDue = customers.reduce((sum, c) => sum + c.totalDue, 0);
   const customersWithDue = customers.filter(c => c.totalDue > 0);
@@ -43,10 +50,27 @@ export default function CreditBook() {
       return;
     }
 
-    updateCustomerDue(customerId, -amount);
-    toast({ title: `৳${amount} পরিশোধ হয়েছে ✓` });
+    const customer = customers.find(c => c.id === customerId);
+    if (!customer) return;
+
+    if (amount > customer.totalDue) {
+      toast({ title: "বাকির বেশি পরিশোধ করা যাবে না", variant: "destructive" });
+      return;
+    }
+
+    // Pay and get proportional profit
+    const proportionalProfit = payCustomerDue(customerId, amount);
+    
+    toast({ 
+      title: `৳${amount} পরিশোধ হয়েছে ✓`,
+      description: `৳${proportionalProfit.toFixed(2)} নগদ লাভে যোগ হয়েছে`
+    });
     setShowPaymentModal(null);
     setPaymentAmount('');
+  };
+
+  const getPayingCustomer = () => {
+    return customers.find(c => c.id === showPaymentModal);
   };
 
   return (
@@ -79,14 +103,14 @@ export default function CreditBook() {
         </p>
       </div>
 
-      {/* Search */}
+      {/* Search by name or phone */}
       <div className="relative">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
         <input
           type="text"
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
-          placeholder="গ্রাহক খুঁজুন..."
+          placeholder="নাম বা ফোন নম্বর দিয়ে খুঁজুন..."
           className="input-field pl-10"
         />
       </div>
@@ -113,6 +137,9 @@ export default function CreditBook() {
                   className="input-field"
                   autoFocus
                 />
+                <p className="text-xs text-muted-foreground mt-1">
+                  💡 একই নামে গ্রাহক থাকলে স্বয়ংক্রিয়ভাবে নম্বর যোগ হবে (যেমন: রহিম, রহিম1, রহিম2)
+                </p>
               </div>
               <div>
                 <label className="block text-sm font-medium mb-2">মোবাইল নম্বর (ঐচ্ছিক)</label>
@@ -150,6 +177,20 @@ export default function CreditBook() {
             </div>
 
             <div className="space-y-4">
+              {getPayingCustomer() && (
+                <div className="p-4 bg-muted/50 rounded-xl">
+                  <p className="text-sm text-muted-foreground">গ্রাহক</p>
+                  <p className="font-semibold text-foreground">{getPayingCustomer()?.displayName}</p>
+                  <p className="text-sm text-muted-foreground mt-2">মোট বাকি</p>
+                  <p className="text-xl font-bold text-due">৳{getPayingCustomer()?.totalDue.toLocaleString()}</p>
+                  {getPayingCustomer()?.pendingProfit && getPayingCustomer()!.pendingProfit > 0 && (
+                    <p className="text-xs text-muted-foreground mt-1">
+                      (পেন্ডিং লাভ: ৳{getPayingCustomer()?.pendingProfit.toFixed(2)})
+                    </p>
+                  )}
+                </div>
+              )}
+
               <div>
                 <label className="block text-sm font-medium mb-2">টাকার পরিমাণ (৳)</label>
                 <input
@@ -160,7 +201,15 @@ export default function CreditBook() {
                   className="input-field text-2xl font-bold text-center"
                   autoFocus
                   min="0"
+                  max={getPayingCustomer()?.totalDue || 0}
                 />
+              </div>
+
+              <div className="p-3 bg-profit/10 rounded-lg">
+                <p className="text-xs text-muted-foreground">
+                  💡 পরিশোধের সাথে আনুপাতিক লাভ নগদে যোগ হবে। 
+                  যেমন: ৳30 বাকিতে ৳5 লাভ থাকলে, ৳10 পরিশোধে ৳1.67 লাভ যোগ হবে।
+                </p>
               </div>
 
               <Button 
@@ -192,7 +241,10 @@ export default function CreditBook() {
                   }`} />
                 </div>
                 <div>
-                  <p className="font-semibold text-foreground">{customer.name}</p>
+                  <p className="font-semibold text-foreground">{customer.displayName}</p>
+                  {customer.name !== customer.displayName && (
+                    <p className="text-xs text-muted-foreground">({customer.name})</p>
+                  )}
                   {customer.phone && (
                     <p className="text-sm text-muted-foreground flex items-center gap-1">
                       <Phone className="w-3 h-3" />
@@ -208,6 +260,11 @@ export default function CreditBook() {
                 }`}>
                   ৳{customer.totalDue.toLocaleString()}
                 </p>
+                {customer.pendingProfit > 0 && (
+                  <p className="text-xs text-muted-foreground">
+                    লাভ: ৳{customer.pendingProfit.toFixed(2)}
+                  </p>
+                )}
                 {customer.totalDue > 0 && (
                   <button
                     onClick={() => setShowPaymentModal(customer.id)}

@@ -49,6 +49,7 @@ export function OnboardingModal() {
         price: parseFloat(p.price) || 0,
         profit: parseFloat(p.profit) || 0,
         stock: parseInt(p.stock) || 0,
+        productType: 'unit' as const,
       }));
 
     completeOnboarding(storeName, validProducts);
