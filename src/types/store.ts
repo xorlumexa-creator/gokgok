@@ -1,33 +1,21 @@
-export type ProductType = 'unit' | 'weight';
-export type UnitSellMode = 'box' | 'single';
-export type WeightUnit = 'kg' | 'gram';
+// Unified unit type for all products
+export type UnitType = 'piece' | 'kg' | 'gram' | 'hali' | 'dozen' | 'box';
 
 export interface Product {
   id: string;
   name: string;
-  price: number;
-  profit: number;
+  unitType: UnitType;
+  price: number; // Price per unit
+  profit: number; // Profit per unit
   stock: number;
   createdAt: Date;
-  // New fields for product types
-  productType: ProductType;
-  // For weight-based products
-  weightUnit?: WeightUnit;
-  pricePerUnit?: number; // Price per kg or gram
-  profitPerUnit?: number;
-  // For unit-based products with box option
-  sellMode?: UnitSellMode;
+  // For box type - contains how many pieces
   unitsPerBox?: number;
-  boxPrice?: number;
-  boxProfit?: number;
-  unitPrice?: number; // Calculated: boxPrice / unitsPerBox
-  unitProfit?: number; // Calculated: boxProfit / unitsPerBox
 }
 
 export interface CartItem {
   product: Product;
   quantity: number;
-  weightAmount?: number;
   totalPrice: number;
   totalProfit: number;
 }
@@ -37,15 +25,13 @@ export interface Sale {
   productId: string;
   productName: string;
   quantity: number;
+  unitType: UnitType;
   totalPrice: number;
   profit: number;
   customerId?: string;
   customerName?: string;
   isPaid: boolean;
   createdAt: Date;
-  // For tracking weight-based sales
-  weightAmount?: number;
-  weightUnit?: WeightUnit;
 }
 
 export interface Customer {
@@ -97,3 +83,16 @@ export interface PersonalAccountStats {
   weekCashProfit: number;
   monthCashProfit: number;
 }
+
+// Helper to get unit label in Bengali
+export const getUnitLabel = (unitType: UnitType): string => {
+  const labels: Record<UnitType, string> = {
+    piece: 'পিস',
+    kg: 'কেজি',
+    gram: 'গ্রাম',
+    hali: 'হালি',
+    dozen: 'ডজন',
+    box: 'বক্স'
+  };
+  return labels[unitType];
+};

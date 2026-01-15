@@ -44,13 +44,17 @@ export function OnboardingModal() {
   const handleComplete = () => {
     const validProducts = products
       .filter(p => p.name.trim())
-      .map(p => ({
-        name: p.name.trim(),
-        price: parseFloat(p.price) || 0,
-        profit: parseFloat(p.profit) || 0,
-        stock: parseInt(p.stock) || 0,
-        productType: 'unit' as const,
-      }));
+      .map(p => {
+        const price = parseFloat(p.price) || 0;
+        const profit = parseFloat(p.profit) || 0;
+        return {
+          name: p.name.trim(),
+          price,
+          profit: Math.min(profit, price), // Ensure profit <= price
+          stock: parseInt(p.stock) || 0,
+          unitType: 'piece' as const,
+        };
+      });
 
     completeOnboarding(storeName, validProducts);
     setStep(3);
