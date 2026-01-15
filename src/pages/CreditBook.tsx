@@ -1,27 +1,51 @@
 import { useState, useMemo } from 'react';
-import { BookOpen, Search, User, Phone, Plus, X, CheckCircle } from 'lucide-react';
+import { BookOpen, Search, User, Phone, Plus, X, CheckCircle, AlertTriangle } from 'lucide-react';
 import { useStore } from '@/context/StoreContext';
 import { Button } from '@/components/ui/button';
 import { toast } from '@/hooks/use-toast';
 
 export default function CreditBook() {
-  const { customers, addCustomer, payCustomerDue } = useStore();
+  const { 
+    customers, 
+    addCustomer, 
+    payCustomerDue, 
+    getExistingCustomersByName, 
+    generateCustomerDisplayName,
+    getUnpaidCustomers 
+  } = useStore();
+  
+  const [searchType, setSearchType] = useState<'name' | 'phone'>('name');
   const [searchTerm, setSearchTerm] = useState('');
   const [showAddForm, setShowAddForm] = useState(false);
   const [showPaymentModal, setShowPaymentModal] = useState<string | null>(null);
   const [paymentAmount, setPaymentAmount] = useState('');
   const [formData, setFormData] = useState({ name: '', phone: '' });
+  const [showUnpaidOnly, setShowUnpaidOnly] = useState(false);
 
-  // Filter by name or phone
+  // Get unpaid customers (no payment in last month)
+  const unpaidCustomers = useMemo(() => getUnpaidCustomers(), [getUnpaidCustomers]);
+
+  // Check for existing customers with same name when adding new
+  const existingCustomersWithSameName = useMemo(() => {
+    return getExistingCustomersByName(formData.name);
+  }, [formData.name, getExistingCustomersByName]);
+
+  // Filter by name or phone based on search type
   const filteredCustomers = useMemo(() => {
-    if (!searchTerm.trim()) return customers;
+    let baseList = showUnpaidOnly ? unpaidCustomers : customers;
+    
+    if (!searchTerm.trim()) return baseList;
+    
+    if (searchType === 'phone') {
+      return baseList.filter(c => c.phone && c.phone.includes(searchTerm.trim()));
+    }
+    
     const lowerSearch = searchTerm.toLowerCase();
-    return customers.filter(c =>
+    return baseList.filter(c =>
       c.name.toLowerCase().includes(lowerSearch) ||
-      c.displayName.toLowerCase().includes(lowerSearch) ||
-      (c.phone && c.phone.includes(searchTerm))
+      c.displayName.toLowerCase().includes(lowerSearch)
     );
-  }, [customers, searchTerm]);
+  }, [customers, unpaidCustomers, searchTerm, searchType, showUnpaidOnly]);
 
   const totalDue = customers.reduce((sum, c) => sum + c.totalDue, 0);
   const customersWithDue = customers.filter(c => c.totalDue > 0);
@@ -103,14 +127,72 @@ export default function CreditBook() {
         </p>
       </div>
 
-      {/* Search by name or phone */}
+      {/* Unpaid Alert */}
+      {unpaidCustomers.length > 0 && (
+        <button
+          onClick={() => setShowUnpaidOnly(!showUnpaidOnly)}
+          className={`w-full p-4 rounded-xl border-2 transition-all flex items-center gap-3 ${
+            showUnpaidOnly 
+              ? 'border-due bg-due/10' 
+              : 'border-amber-300 bg-amber-50'
+          }`}
+        >
+          <AlertTriangle className={`w-6 h-6 ${showUnpaidOnly ? 'text-due' : 'text-amber-600'}`} />
+          <div className="text-left flex-1">
+            <p className="font-semibold text-foreground">
+              {unpaidCustomers.length}জন গ্রাহক এক মাসে কোন টাকা দেননি
+            </p>
+            <p className="text-sm text-muted-foreground">
+              {showUnpaidOnly ? 'সব গ্রাহক দেখুন' : 'শুধু এদের দেখুন'}
+            </p>
+          </div>
+        </button>
+      )}
+
+      {/* Search Type Toggle */}
+      <div className="flex gap-2">
+        <button
+          onClick={() => {
+            setSearchType('name');
+            setSearchTerm('');
+          }}
+          className={`flex-1 py-3 px-4 rounded-xl border-2 transition-all flex items-center justify-center gap-2 ${
+            searchType === 'name' 
+              ? 'border-primary bg-primary/5 text-primary' 
+              : 'border-border bg-card text-muted-foreground'
+          }`}
+        >
+          <User className="w-5 h-5" />
+          <span className="font-medium">নাম দিয়ে খুঁজুন</span>
+        </button>
+        <button
+          onClick={() => {
+            setSearchType('phone');
+            setSearchTerm('');
+          }}
+          className={`flex-1 py-3 px-4 rounded-xl border-2 transition-all flex items-center justify-center gap-2 ${
+            searchType === 'phone' 
+              ? 'border-primary bg-primary/5 text-primary' 
+              : 'border-border bg-card text-muted-foreground'
+          }`}
+        >
+          <Phone className="w-5 h-5" />
+          <span className="font-medium">ফোন দিয়ে খুঁজুন</span>
+        </button>
+      </div>
+
+      {/* Search Input */}
       <div className="relative">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
+        {searchType === 'name' ? (
+          <User className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
+        ) : (
+          <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
+        )}
         <input
-          type="text"
+          type={searchType === 'phone' ? 'tel' : 'text'}
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
-          placeholder="নাম বা ফোন নম্বর দিয়ে খুঁজুন..."
+          placeholder={searchType === 'phone' ? "ফোন নম্বর দিন..." : "গ্রাহকের নাম লিখুন..."}
           className="input-field pl-10"
         />
       </div>
@@ -137,9 +219,30 @@ export default function CreditBook() {
                   className="input-field"
                   autoFocus
                 />
-                <p className="text-xs text-muted-foreground mt-1">
-                  💡 একই নামে গ্রাহক থাকলে স্বয়ংক্রিয়ভাবে নম্বর যোগ হবে (যেমন: রহিম, রহিম1, রহিম2)
-                </p>
+                
+                {/* Show existing customers with same name */}
+                {existingCustomersWithSameName.length > 0 && (
+                  <div className="mt-3 p-4 bg-amber-50 border border-amber-200 rounded-xl">
+                    <p className="text-sm font-semibold text-amber-800 flex items-center gap-2">
+                      <AlertTriangle className="w-4 h-4" />
+                      "{formData.name}" নামে {existingCustomersWithSameName.length}জন গ্রাহক আছে:
+                    </p>
+                    <ul className="mt-2 space-y-1">
+                      {existingCustomersWithSameName.map((c, index) => (
+                        <li key={c.id} className="text-sm text-amber-700 flex items-center gap-2">
+                          <span className="font-medium">{index + 1}.</span>
+                          <span className="font-semibold">{c.displayName}</span>
+                          {c.phone && <span className="text-xs">({c.phone})</span>}
+                        </li>
+                      ))}
+                    </ul>
+                    <div className="mt-3 p-2 bg-primary/10 rounded-lg">
+                      <p className="text-sm text-primary font-medium">
+                        ✓ নতুন গ্রাহক হবে: <strong>{generateCustomerDisplayName(formData.name)}</strong>
+                      </p>
+                    </div>
+                  </div>
+                )}
               </div>
               <div>
                 <label className="block text-sm font-medium mb-2">মোবাইল নম্বর (ঐচ্ছিক)</label>
@@ -181,6 +284,9 @@ export default function CreditBook() {
                 <div className="p-4 bg-muted/50 rounded-xl">
                   <p className="text-sm text-muted-foreground">গ্রাহক</p>
                   <p className="font-semibold text-foreground">{getPayingCustomer()?.displayName}</p>
+                  {getPayingCustomer()?.phone && (
+                    <p className="text-sm text-muted-foreground">{getPayingCustomer()?.phone}</p>
+                  )}
                   <p className="text-sm text-muted-foreground mt-2">মোট বাকি</p>
                   <p className="text-xl font-bold text-due">৳{getPayingCustomer()?.totalDue.toLocaleString()}</p>
                   {getPayingCustomer()?.pendingProfit && getPayingCustomer()!.pendingProfit > 0 && (
@@ -226,57 +332,65 @@ export default function CreditBook() {
 
       {/* Customer List */}
       <div className="space-y-3">
-        {filteredCustomers.map((customer) => (
-          <div
-            key={customer.id}
-            className="card-elevated p-4"
-          >
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-4">
-                <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${
-                  customer.totalDue > 0 ? 'bg-due/10' : 'bg-accent'
-                }`}>
-                  <User className={`w-6 h-6 ${
-                    customer.totalDue > 0 ? 'text-due' : 'text-primary'
-                  }`} />
+        {filteredCustomers.map((customer) => {
+          const isUnpaid = unpaidCustomers.some(c => c.id === customer.id);
+          return (
+            <div
+              key={customer.id}
+              className={`card-elevated p-4 ${isUnpaid ? 'border-l-4 border-l-due' : ''}`}
+            >
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-4">
+                  <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${
+                    customer.totalDue > 0 ? 'bg-due/10' : 'bg-accent'
+                  }`}>
+                    <User className={`w-6 h-6 ${
+                      customer.totalDue > 0 ? 'text-due' : 'text-primary'
+                    }`} />
+                  </div>
+                  <div>
+                    <p className="font-semibold text-foreground">{customer.displayName}</p>
+                    {customer.name !== customer.displayName && (
+                      <p className="text-xs text-muted-foreground">({customer.name})</p>
+                    )}
+                    {customer.phone && (
+                      <p className="text-sm text-muted-foreground flex items-center gap-1">
+                        <Phone className="w-3 h-3" />
+                        {customer.phone}
+                      </p>
+                    )}
+                    {isUnpaid && (
+                      <p className="text-xs text-due font-medium mt-1">
+                        ⚠️ ১ মাসে পরিশোধ করেননি
+                      </p>
+                    )}
+                  </div>
                 </div>
-                <div>
-                  <p className="font-semibold text-foreground">{customer.displayName}</p>
-                  {customer.name !== customer.displayName && (
-                    <p className="text-xs text-muted-foreground">({customer.name})</p>
-                  )}
-                  {customer.phone && (
-                    <p className="text-sm text-muted-foreground flex items-center gap-1">
-                      <Phone className="w-3 h-3" />
-                      {customer.phone}
+
+                <div className="text-right">
+                  <p className={`text-xl font-bold ${
+                    customer.totalDue > 0 ? 'text-due' : 'text-foreground'
+                  }`}>
+                    ৳{customer.totalDue.toLocaleString()}
+                  </p>
+                  {customer.pendingProfit > 0 && (
+                    <p className="text-xs text-muted-foreground">
+                      লাভ: ৳{customer.pendingProfit.toFixed(2)}
                     </p>
                   )}
+                  {customer.totalDue > 0 && (
+                    <button
+                      onClick={() => setShowPaymentModal(customer.id)}
+                      className="text-sm text-primary hover:underline mt-1"
+                    >
+                      বাকি নিন →
+                    </button>
+                  )}
                 </div>
               </div>
-
-              <div className="text-right">
-                <p className={`text-xl font-bold ${
-                  customer.totalDue > 0 ? 'text-due' : 'text-foreground'
-                }`}>
-                  ৳{customer.totalDue.toLocaleString()}
-                </p>
-                {customer.pendingProfit > 0 && (
-                  <p className="text-xs text-muted-foreground">
-                    লাভ: ৳{customer.pendingProfit.toFixed(2)}
-                  </p>
-                )}
-                {customer.totalDue > 0 && (
-                  <button
-                    onClick={() => setShowPaymentModal(customer.id)}
-                    className="text-sm text-primary hover:underline mt-1"
-                  >
-                    বাকি নিন →
-                  </button>
-                )}
-              </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
 
       {filteredCustomers.length === 0 && (
