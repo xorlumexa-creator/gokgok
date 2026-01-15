@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { Product, Sale, Customer, StoreInfo, DashboardStats, Expense, PersonalAccountStats, CartItem } from '@/types/store';
+import { Product, Sale, Customer, StoreInfo, DashboardStats, Expense, PersonalAccountStats, UnitType } from '@/types/store';
 
 interface StoreContextType {
   storeInfo: StoreInfo | null;
@@ -41,12 +41,28 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   const [products, setProducts] = useState<Product[]>(() => {
     const saved = localStorage.getItem('products');
-    return saved ? JSON.parse(saved) : [];
+    if (saved) {
+      // Migration: add unitType if missing
+      const parsed = JSON.parse(saved);
+      return parsed.map((p: any) => ({
+        ...p,
+        unitType: p.unitType || (p.productType === 'weight' ? (p.weightUnit || 'kg') : 'piece'),
+      }));
+    }
+    return [];
   });
 
   const [sales, setSales] = useState<Sale[]>(() => {
     const saved = localStorage.getItem('sales');
-    return saved ? JSON.parse(saved) : [];
+    if (saved) {
+      // Migration: add unitType if missing
+      const parsed = JSON.parse(saved);
+      return parsed.map((s: any) => ({
+        ...s,
+        unitType: s.unitType || 'piece',
+      }));
+    }
+    return [];
   });
 
   const [customers, setCustomers] = useState<Customer[]>(() => {
@@ -148,11 +164,28 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   };
 
   const addProduct = (product: Omit<Product, 'id' | 'createdAt'>) => {
-    setProducts(prev => [...prev, { ...product, id: generateId(), createdAt: new Date() }]);
+    // Ensure profit doesn't exceed price
+    const safeProfit = Math.min(Math.max(0, product.profit), product.price);
+    setProducts(prev => [...prev, { 
+      ...product, 
+      profit: safeProfit,
+      id: generateId(), 
+      createdAt: new Date() 
+    }]);
   };
 
   const updateProduct = (id: string, productUpdate: Partial<Product>) => {
-    setProducts(prev => prev.map(p => p.id === id ? { ...p, ...productUpdate } : p));
+    setProducts(prev => prev.map(p => {
+      if (p.id === id) {
+        const updated = { ...p, ...productUpdate };
+        // Ensure profit doesn't exceed price
+        if (updated.profit > updated.price) {
+          updated.profit = updated.price;
+        }
+        return updated;
+      }
+      return p;
+    }));
   };
 
   const deleteProduct = (id: string) => {

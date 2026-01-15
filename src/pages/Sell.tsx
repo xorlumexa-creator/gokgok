@@ -3,7 +3,7 @@ import { ShoppingCart, Search, Plus, Minus, CheckCircle, User, X, Calculator, Ph
 import { useStore } from '@/context/StoreContext';
 import { Button } from '@/components/ui/button';
 import { toast } from '@/hooks/use-toast';
-import { CartItem, Product } from '@/types/store';
+import { CartItem, Product, getUnitLabel } from '@/types/store';
 
 export default function Sell() {
   const { 
@@ -30,6 +30,10 @@ export default function Sell() {
   // Customer search state
   const [customerSearchType, setCustomerSearchType] = useState<'name' | 'phone'>('name');
   const [customerSearchTerm, setCustomerSearchTerm] = useState('');
+
+  // Quantity input for direct typing
+  const [editingQuantity, setEditingQuantity] = useState<string | null>(null);
+  const [tempQuantity, setTempQuantity] = useState('');
 
   const filteredProducts = products.filter(p => 
     p.name.toLowerCase().includes(searchTerm.toLowerCase()) && p.stock > 0
@@ -97,6 +101,15 @@ export default function Sell() {
     }));
   };
 
+  const handleQuantityInput = (productId: string) => {
+    const qty = parseFloat(tempQuantity) || 0;
+    if (qty > 0) {
+      updateCartQuantity(productId, qty);
+    }
+    setEditingQuantity(null);
+    setTempQuantity('');
+  };
+
   const removeFromCart = (productId: string) => {
     setCart(cart.filter(item => item.product.id !== productId));
   };
@@ -146,6 +159,7 @@ export default function Sell() {
       productId: item.product.id,
       productName: item.product.name,
       quantity: item.quantity,
+      unitType: item.product.unitType,
       totalPrice: item.totalPrice,
       profit: Math.max(0, item.totalProfit),
       isPaid
@@ -205,8 +219,11 @@ export default function Sell() {
                 </span>
               )}
               <p className="font-semibold text-foreground truncate">{p.name}</p>
-              <p className="text-lg font-bold text-primary">৳{p.price}</p>
-              <p className="text-xs text-muted-foreground">{p.stock}টি স্টকে</p>
+              <div className="flex items-center gap-1">
+                <p className="text-lg font-bold text-primary">৳{p.price}</p>
+                <span className="text-xs text-muted-foreground">/{getUnitLabel(p.unitType)}</span>
+              </div>
+              <p className="text-xs text-muted-foreground">{p.stock} {getUnitLabel(p.unitType)} স্টকে</p>
             </button>
           );
         })}
@@ -238,20 +255,47 @@ export default function Sell() {
               <div key={item.product.id} className="flex items-center justify-between p-3 bg-muted/50 rounded-xl">
                 <div className="flex-1">
                   <p className="font-medium text-foreground">{item.product.name}</p>
-                  <p className="text-sm text-muted-foreground">৳{item.product.price} × {item.quantity}</p>
+                  <p className="text-sm text-muted-foreground">
+                    ৳{item.product.price}/{getUnitLabel(item.product.unitType)} × {item.quantity}
+                  </p>
                 </div>
                 <div className="flex items-center gap-3">
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-1">
                     <button
                       onClick={() => updateCartQuantity(item.product.id, item.quantity - 1)}
-                      className="p-1 bg-background rounded-lg hover:bg-muted"
+                      className="p-1.5 bg-background rounded-lg hover:bg-muted"
                     >
                       <Minus className="w-4 h-4" />
                     </button>
-                    <span className="w-8 text-center font-bold">{item.quantity}</span>
+                    
+                    {/* Editable quantity */}
+                    {editingQuantity === item.product.id ? (
+                      <input
+                        type="number"
+                        value={tempQuantity}
+                        onChange={(e) => setTempQuantity(e.target.value)}
+                        onBlur={() => handleQuantityInput(item.product.id)}
+                        onKeyDown={(e) => e.key === 'Enter' && handleQuantityInput(item.product.id)}
+                        className="w-16 text-center font-bold bg-card rounded-lg border border-border p-1"
+                        autoFocus
+                        min="0"
+                        step={item.product.unitType === 'kg' || item.product.unitType === 'gram' ? '0.1' : '1'}
+                      />
+                    ) : (
+                      <button
+                        onClick={() => {
+                          setEditingQuantity(item.product.id);
+                          setTempQuantity(item.quantity.toString());
+                        }}
+                        className="w-12 text-center font-bold bg-card rounded-lg py-1 hover:bg-muted"
+                      >
+                        {item.quantity}
+                      </button>
+                    )}
+                    
                     <button
                       onClick={() => updateCartQuantity(item.product.id, item.quantity + 1)}
-                      className="p-1 bg-background rounded-lg hover:bg-muted"
+                      className="p-1.5 bg-background rounded-lg hover:bg-muted"
                     >
                       <Plus className="w-4 h-4" />
                     </button>
