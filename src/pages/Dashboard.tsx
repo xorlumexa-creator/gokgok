@@ -1,13 +1,16 @@
-import { TrendingUp, Wallet, AlertCircle, Package, Banknote, CreditCard } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { TrendingUp, Wallet, AlertCircle, Package, Banknote, CreditCard, ShoppingCart, Coins } from 'lucide-react';
 import { useStore } from '@/context/StoreContext';
 import { StatCard } from '@/components/dashboard/StatCard';
 import { QuickActions } from '@/components/dashboard/QuickActions';
 import { RecentSales } from '@/components/dashboard/RecentSales';
 import { LowStockAlert } from '@/components/dashboard/LowStockAlert';
+import { Button } from '@/components/ui/button';
 
 export default function Dashboard() {
   const { getDashboardStats, storeInfo } = useStore();
   const stats = getDashboardStats();
+  const navigate = useNavigate();
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -18,6 +21,15 @@ export default function Dashboard() {
         </h1>
         <p className="text-muted-foreground">আজকের ব্যবসার সারসংক্ষেপ দেখুন</p>
       </div>
+
+      {/* Big Sell Button */}
+      <Button
+        onClick={() => navigate('/sell')}
+        className="w-full py-8 text-xl font-bold rounded-2xl bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary/70 shadow-lg transform hover:scale-[1.02] transition-all duration-200"
+      >
+        <ShoppingCart className="w-8 h-8 mr-3" />
+        বিক্রি করুন
+      </Button>
 
       {/* Today's Earnings Card */}
       <div className="card-elevated p-4 bg-gradient-to-r from-primary/10 to-primary/5">
@@ -64,11 +76,22 @@ export default function Dashboard() {
           variant="profit"
         />
         <StatCard
+          title="বাকি লাভ"
+          value={`৳${stats.totalBakiProfit.toLocaleString()}`}
+          subtitle="পেন্ডিং আছে"
+          icon={Coins}
+          variant="warning"
+        />
+        <StatCard
           title="মোট বাকি"
           value={`৳${stats.totalDue.toLocaleString()}`}
           icon={AlertCircle}
           variant="due"
         />
+      </div>
+
+      {/* Product Stats */}
+      <div className="grid grid-cols-2 gap-4">
         <StatCard
           title="মোট পণ্য"
           value={stats.totalProducts}

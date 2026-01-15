@@ -24,6 +24,14 @@ export interface Product {
   unitProfit?: number; // Calculated: boxProfit / unitsPerBox
 }
 
+export interface CartItem {
+  product: Product;
+  quantity: number;
+  weightAmount?: number;
+  totalPrice: number;
+  totalProfit: number;
+}
+
 export interface Sale {
   id: string;
   productId: string;
@@ -49,6 +57,8 @@ export interface Customer {
   // Track profit pending from unpaid sales for proportional calculation
   pendingProfit: number;
   createdAt: Date;
+  // Track last payment date for unpaid notification
+  lastPaymentDate?: Date;
 }
 
 export interface Expense {
@@ -74,6 +84,7 @@ export interface DashboardStats {
   todayCreditSales: number;
   todayCreditProfit: number;
   totalDue: number;
+  totalBakiProfit: number; // Pending profit from baki sales
   lowStockProducts: number;
   totalProducts: number;
 }
