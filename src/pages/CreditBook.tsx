@@ -50,21 +50,26 @@ export default function CreditBook() {
   const totalDue = customers.reduce((sum, c) => sum + c.totalDue, 0);
   const customersWithDue = customers.filter(c => c.totalDue > 0);
 
+  const [initialDue, setInitialDue] = useState('');
+
   const handleAddCustomer = () => {
     if (!formData.name.trim()) {
       toast({ title: "গ্রাহকের নাম দিন", variant: "destructive" });
       return;
     }
 
+    const dueAmount = Math.max(0, parseFloat(initialDue) || 0);
+
     addCustomer({
       name: formData.name.trim(),
       phone: formData.phone.trim(),
-      totalDue: 0,
+      totalDue: dueAmount,
     });
 
     toast({ title: "নতুন গ্রাহক যোগ হয়েছে ✓" });
     setShowAddForm(false);
     setFormData({ name: '', phone: '' });
+    setInitialDue('');
   };
 
   const handlePayment = (customerId: string) => {
@@ -253,6 +258,18 @@ export default function CreditBook() {
                   placeholder="01XXXXXXXXX"
                   className="input-field"
                 />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-2">প্রাথমিক বাকি (৳) - ঐচ্ছিক</label>
+                <input
+                  type="number"
+                  value={initialDue}
+                  onChange={(e) => setInitialDue(e.target.value)}
+                  placeholder="0"
+                  min="0"
+                  className="input-field"
+                />
+                <p className="text-xs text-muted-foreground mt-1">গ্রাহকের আগে থেকে বাকি থাকলে এখানে দিন</p>
               </div>
 
               <div className="flex gap-3 pt-4">

@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { ShoppingCart, Search, Plus, Minus, CheckCircle, User, X, Calculator, Phone } from 'lucide-react';
+import { ShoppingCart, Search, Plus, Minus, CheckCircle, User, X, Calculator, Phone, BookOpen } from 'lucide-react';
 import { useStore } from '@/context/StoreContext';
 import { Button } from '@/components/ui/button';
 import { toast } from '@/hooks/use-toast';
@@ -11,6 +11,7 @@ export default function Sell() {
     customers, 
     addMultipleSales, 
     addCustomer, 
+    updateCustomerDue,
     searchCustomersByName, 
     searchCustomersByPhone,
     getExistingCustomersByName,
@@ -35,6 +36,15 @@ export default function Sell() {
   const [editingQuantity, setEditingQuantity] = useState<string | null>(null);
   const [tempQuantity, setTempQuantity] = useState('');
 
+  // Optional baki when customer pays less
+  const [showBakiOption, setShowBakiOption] = useState(false);
+  const [bakiCustomerSearchType, setBakiCustomerSearchType] = useState<'name' | 'phone'>('name');
+  const [bakiCustomerSearchTerm, setBakiCustomerSearchTerm] = useState('');
+  const [bakiSelectedCustomer, setBakiSelectedCustomer] = useState<string | null>(null);
+  const [bakiNewCustomerName, setBakiNewCustomerName] = useState('');
+  const [bakiNewCustomerPhone, setBakiNewCustomerPhone] = useState('');
+  const [showBakiNewCustomer, setShowBakiNewCustomer] = useState(false);
+
   const filteredProducts = products.filter(p => 
     p.name.toLowerCase().includes(searchTerm.toLowerCase()) && p.stock > 0
   );
@@ -48,15 +58,30 @@ export default function Sell() {
     return searchCustomersByName(customerSearchTerm);
   }, [customerSearchTerm, customerSearchType, customers, searchCustomersByName, searchCustomersByPhone]);
 
+  // Search for baki customers
+  const bakiFilteredCustomers = useMemo(() => {
+    if (!bakiCustomerSearchTerm.trim()) return customers;
+    if (bakiCustomerSearchType === 'phone') {
+      return searchCustomersByPhone(bakiCustomerSearchTerm);
+    }
+    return searchCustomersByName(bakiCustomerSearchTerm);
+  }, [bakiCustomerSearchTerm, bakiCustomerSearchType, customers, searchCustomersByName, searchCustomersByPhone]);
+
   // Check for existing customers with same name
   const existingCustomersWithSameName = useMemo(() => {
     return getExistingCustomersByName(newCustomerName);
   }, [newCustomerName, getExistingCustomersByName]);
 
+  // Check for existing baki customers with same name
+  const existingBakiCustomersWithSameName = useMemo(() => {
+    return getExistingCustomersByName(bakiNewCustomerName);
+  }, [bakiNewCustomerName, getExistingCustomersByName]);
+
   // Cart calculations
   const totalPrice = cart.reduce((sum, item) => sum + item.totalPrice, 0);
   const totalProfit = cart.reduce((sum, item) => sum + item.totalProfit, 0);
   const change = parseFloat(customerPaid) - totalPrice;
+  const bakiAmount = Math.abs(change);
 
   const addToCart = (product: Product) => {
     const existingItem = cart.find(item => item.product.id === product.id);
@@ -124,9 +149,54 @@ export default function Sell() {
     setCustomerSearchTerm('');
     setShowCalculator(false);
     setCustomerPaid('');
+    setShowBakiOption(false);
+    setBakiSelectedCustomer(null);
+    setBakiNewCustomerName('');
+    setBakiNewCustomerPhone('');
+    setShowBakiNewCustomer(false);
+    setBakiCustomerSearchTerm('');
   };
 
-  const handleSale = () => {
+  // Handle saving remaining amount to baki
+  const handleSaveToBaki = () => {
+    let customerId = bakiSelectedCustomer;
+    let customerDisplayName = '';
+
+    if (bakiNewCustomerName.trim()) {
+      // Create new customer
+      const newCustomer = addCustomer({
+        name: bakiNewCustomerName.trim(),
+        phone: bakiNewCustomerPhone.trim(),
+        totalDue: 0,
+      });
+      customerId = newCustomer.id;
+      customerDisplayName = newCustomer.displayName;
+    } else if (bakiSelectedCustomer) {
+      const customer = customers.find(c => c.id === bakiSelectedCustomer);
+      customerDisplayName = customer?.displayName || '';
+    }
+
+    if (!customerId) {
+      toast({ title: "গ্রাহক নির্বাচন করুন", variant: "destructive" });
+      return;
+    }
+
+    // Calculate proportional profit for baki amount
+    const proportionalProfit = totalProfit > 0 ? (totalProfit / totalPrice) * bakiAmount : 0;
+
+    // Add baki to customer
+    updateCustomerDue(customerId, bakiAmount, proportionalProfit);
+
+    toast({ 
+      title: `৳${bakiAmount} বাকি সংরক্ষিত হয়েছে ✓`,
+      description: `${customerDisplayName}-এর হিসাবে যোগ হয়েছে`
+    });
+
+    // Complete the sale (paid portion)
+    completeSale(true, parseFloat(customerPaid));
+  };
+
+  const completeSale = (partialPaid: boolean = false, paidAmount?: number) => {
     if (cart.length === 0) {
       toast({ title: "কার্ট খালি আছে", variant: "destructive" });
       return;
@@ -162,10 +232,10 @@ export default function Sell() {
       unitType: item.product.unitType,
       totalPrice: item.totalPrice,
       profit: Math.max(0, item.totalProfit),
-      isPaid
+      isPaid: isPaid || partialPaid
     }));
 
-    addMultipleSales(salesData, customerId || undefined, customerName || undefined, isPaid);
+    addMultipleSales(salesData, customerId || undefined, customerName || undefined, isPaid || partialPaid);
 
     toast({
       title: "বিক্রি সম্পন্ন! ✅",
@@ -173,6 +243,10 @@ export default function Sell() {
     });
 
     clearCart();
+  };
+
+  const handleSale = () => {
+    completeSale();
   };
 
   return (
@@ -506,7 +580,11 @@ export default function Sell() {
                 <input
                   type="number"
                   value={customerPaid}
-                  onChange={(e) => setCustomerPaid(e.target.value)}
+                  onChange={(e) => {
+                    setCustomerPaid(e.target.value);
+                    setShowBakiOption(false);
+                    setBakiSelectedCustomer(null);
+                  }}
                   placeholder="0"
                   className="w-32 p-2 text-right font-bold bg-card rounded-lg border border-border"
                   autoFocus
@@ -519,9 +597,156 @@ export default function Sell() {
                 </div>
               )}
               {customerPaid && parseFloat(customerPaid) < totalPrice && (
-                <div className="flex justify-between items-center p-3 bg-due/10 rounded-lg">
-                  <span className="font-bold text-due">বাকি থাকবে</span>
-                  <span className="text-2xl font-bold text-due">৳{Math.abs(change).toFixed(0)}</span>
+                <div className="space-y-3">
+                  <div className="flex justify-between items-center p-3 bg-due/10 rounded-lg">
+                    <span className="font-bold text-due">বাকি থাকবে</span>
+                    <span className="text-2xl font-bold text-due">৳{bakiAmount.toFixed(0)}</span>
+                  </div>
+
+                  {/* Optional: Save to Baki Khata */}
+                  {!showBakiOption ? (
+                    <button
+                      onClick={() => setShowBakiOption(true)}
+                      className="w-full py-3 px-4 rounded-xl border-2 border-dashed border-due/50 text-due hover:bg-due/5 transition-all flex items-center justify-center gap-2"
+                    >
+                      <BookOpen className="w-5 h-5" />
+                      বাকি খাতায় সংরক্ষণ করুন (ঐচ্ছিক)
+                    </button>
+                  ) : (
+                    <div className="p-4 bg-due/5 border border-due/20 rounded-xl space-y-3">
+                      <p className="font-medium text-foreground flex items-center gap-2">
+                        <BookOpen className="w-5 h-5 text-due" />
+                        বাকি খাতায় যোগ করুন
+                      </p>
+
+                      {/* Search Type Toggle */}
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => {
+                            setBakiCustomerSearchType('name');
+                            setBakiCustomerSearchTerm('');
+                          }}
+                          className={`flex-1 py-2 px-3 rounded-lg text-sm transition-all ${
+                            bakiCustomerSearchType === 'name' 
+                              ? 'bg-due text-white' 
+                              : 'bg-muted text-muted-foreground'
+                          }`}
+                        >
+                          <User className="w-4 h-4 inline mr-1" />
+                          নাম
+                        </button>
+                        <button
+                          onClick={() => {
+                            setBakiCustomerSearchType('phone');
+                            setBakiCustomerSearchTerm('');
+                          }}
+                          className={`flex-1 py-2 px-3 rounded-lg text-sm transition-all ${
+                            bakiCustomerSearchType === 'phone' 
+                              ? 'bg-due text-white' 
+                              : 'bg-muted text-muted-foreground'
+                          }`}
+                        >
+                          <Phone className="w-4 h-4 inline mr-1" />
+                          ফোন
+                        </button>
+                      </div>
+
+                      {/* Customer Search */}
+                      {!showBakiNewCustomer && (
+                        <>
+                          <div className="relative">
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                            <input
+                              type={bakiCustomerSearchType === 'phone' ? 'tel' : 'text'}
+                              value={bakiCustomerSearchTerm}
+                              onChange={(e) => setBakiCustomerSearchTerm(e.target.value)}
+                              placeholder={bakiCustomerSearchType === 'phone' ? "ফোন নম্বর দিন..." : "নাম লিখুন..."}
+                              className="input-field pl-10"
+                            />
+                          </div>
+                          
+                          {bakiFilteredCustomers.length > 0 && (
+                            <div className="max-h-32 overflow-y-auto space-y-2">
+                              {bakiFilteredCustomers.slice(0, 5).map(c => (
+                                <button
+                                  key={c.id}
+                                  onClick={() => {
+                                    setBakiSelectedCustomer(c.id);
+                                    setBakiCustomerSearchTerm('');
+                                  }}
+                                  className={`w-full p-2 text-left rounded-lg border text-sm transition-all ${
+                                    bakiSelectedCustomer === c.id 
+                                      ? 'border-due bg-due/10' 
+                                      : 'border-border hover:border-due/50'
+                                  }`}
+                                >
+                                  <p className="font-medium">{c.displayName}</p>
+                                  {c.phone && <p className="text-xs text-muted-foreground">{c.phone}</p>}
+                                </button>
+                              ))}
+                            </div>
+                          )}
+
+                          <button
+                            onClick={() => setShowBakiNewCustomer(true)}
+                            className="text-sm text-due hover:underline"
+                          >
+                            + নতুন গ্রাহক যোগ করুন
+                          </button>
+                        </>
+                      )}
+
+                      {showBakiNewCustomer && (
+                        <div className="space-y-2">
+                          <input
+                            type="text"
+                            value={bakiNewCustomerName}
+                            onChange={(e) => setBakiNewCustomerName(e.target.value)}
+                            placeholder="গ্রাহকের নাম"
+                            className="input-field"
+                          />
+                          {existingBakiCustomersWithSameName.length > 0 && (
+                            <p className="text-xs text-amber-600">
+                              ⚠️ এই নামে গ্রাহক আছে। নতুন নাম হবে: {generateCustomerDisplayName(bakiNewCustomerName)}
+                            </p>
+                          )}
+                          <input
+                            type="tel"
+                            value={bakiNewCustomerPhone}
+                            onChange={(e) => setBakiNewCustomerPhone(e.target.value)}
+                            placeholder="ফোন নম্বর (ঐচ্ছিক)"
+                            className="input-field"
+                          />
+                          <button
+                            onClick={() => setShowBakiNewCustomer(false)}
+                            className="text-sm text-muted-foreground hover:underline"
+                          >
+                            ← বিদ্যমান গ্রাহক নির্বাচন
+                          </button>
+                        </div>
+                      )}
+
+                      <div className="flex gap-2">
+                        <Button
+                          variant="outline"
+                          onClick={() => {
+                            setShowBakiOption(false);
+                            setBakiSelectedCustomer(null);
+                          }}
+                          className="flex-1"
+                        >
+                          বাতিল
+                        </Button>
+                        <Button
+                          onClick={handleSaveToBaki}
+                          disabled={!bakiSelectedCustomer && !bakiNewCustomerName.trim()}
+                          className="flex-1 bg-due hover:bg-due/90"
+                        >
+                          ৳{bakiAmount.toFixed(0)} বাকি রাখুন
+                        </Button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
