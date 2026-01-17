@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { Product, Sale, Customer, StoreInfo, DashboardStats, Expense, PersonalAccountStats, UnitType } from '@/types/store';
+import { Product, Sale, Customer, StoreInfo, DashboardStats, Expense, PersonalAccountStats, UnitType, PreOrder, PreOrderStatus, BulkSaleRecord } from '@/types/store';
 
 interface StoreContextType {
   storeInfo: StoreInfo | null;
@@ -7,6 +7,8 @@ interface StoreContextType {
   sales: Sale[];
   customers: Customer[];
   expenses: Expense[];
+  preOrders: PreOrder[];
+  bulkSaleRecords: BulkSaleRecord[];
   isOnboarded: boolean;
   setStoreInfo: (info: StoreInfo) => void;
   addProduct: (product: Omit<Product, 'id' | 'createdAt'>) => void;
@@ -15,6 +17,7 @@ interface StoreContextType {
   addSale: (sale: Omit<Sale, 'id' | 'createdAt'>) => void;
   addMultipleSales: (sales: Omit<Sale, 'id' | 'createdAt'>[], customerId?: string, customerName?: string, isPaid?: boolean) => void;
   addCustomer: (customer: Omit<Customer, 'id' | 'createdAt' | 'displayName' | 'pendingProfit' | 'lastPaymentDate'>) => Customer;
+  updateCustomer: (id: string, customer: Partial<Customer>) => void;
   updateCustomerDue: (id: string, amount: number, profitAmount?: number) => void;
   payCustomerDue: (id: string, paymentAmount: number) => number; // Returns proportional profit
   completeOnboarding: (storeName: string, initialProducts: Omit<Product, 'id' | 'createdAt'>[]) => void;
@@ -27,6 +30,11 @@ interface StoreContextType {
   searchCustomersByPhone: (phone: string) => Customer[];
   searchCustomersByName: (name: string) => Customer[];
   getUnpaidCustomers: () => Customer[]; // Customers with no payment in last month
+  getCustomersDueFor30Days: () => Customer[]; // Customers with baki > 30 days
+  addPreOrder: (preOrder: Omit<PreOrder, 'id' | 'createdAt'>) => void;
+  updatePreOrderStatus: (id: string, status: PreOrderStatus) => void;
+  getWeeklyBulkSales: () => BulkSaleRecord[];
+  getTodaysSalesSerial: () => number;
 }
 
 const StoreContext = createContext<StoreContextType | undefined>(undefined);
@@ -75,6 +83,23 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     return saved ? JSON.parse(saved) : [];
   });
 
+  const [preOrders, setPreOrders] = useState<PreOrder[]>(() => {
+    const saved = localStorage.getItem('preOrders');
+    return saved ? JSON.parse(saved) : [];
+  });
+
+  const [bulkSaleRecords, setBulkSaleRecords] = useState<BulkSaleRecord[]>(() => {
+    const saved = localStorage.getItem('bulkSaleRecords');
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      // Clean up records older than 7 days
+      const oneWeekAgo = new Date();
+      oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
+      return parsed.filter((r: BulkSaleRecord) => new Date(r.createdAt) > oneWeekAgo);
+    }
+    return [];
+  });
+
   const isOnboarded = storeInfo?.isOnboarded ?? false;
 
   useEffect(() => {
@@ -98,6 +123,14 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     localStorage.setItem('expenses', JSON.stringify(expenses));
   }, [expenses]);
+
+  useEffect(() => {
+    localStorage.setItem('preOrders', JSON.stringify(preOrders));
+  }, [preOrders]);
+
+  useEffect(() => {
+    localStorage.setItem('bulkSaleRecords', JSON.stringify(bulkSaleRecords));
+  }, [bulkSaleRecords]);
 
   // Generate unique display name for customers with same name
   const generateCustomerDisplayName = (name: string): string => {
@@ -163,6 +196,49 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     });
   };
 
+  // Get customers whose baki is older than 30 days and haven't paid anything
+  const getCustomersDueFor30Days = (): Customer[] => {
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+    return customers.filter(c => {
+      if (c.totalDue <= 0) return false;
+      
+      // Check if baki was created more than 30 days ago
+      const bakiDate = c.bakiCreatedAt ? new Date(c.bakiCreatedAt) : new Date(c.createdAt);
+      if (bakiDate > thirtyDaysAgo) return false;
+      
+      // If they've made any payment, don't include them
+      if (c.lastPaymentDate) return false;
+      
+      return true;
+    });
+  };
+
+  // Get today's sales serial number
+  const getTodaysSalesSerial = (): number => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
+    const todaysRecords = bulkSaleRecords.filter(r => {
+      const recordDate = new Date(r.createdAt);
+      recordDate.setHours(0, 0, 0, 0);
+      return recordDate.getTime() === today.getTime();
+    });
+    
+    return todaysRecords.length + 1;
+  };
+
+  // Get weekly bulk sales (last 7 days)
+  const getWeeklyBulkSales = (): BulkSaleRecord[] => {
+    const oneWeekAgo = new Date();
+    oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
+    
+    return bulkSaleRecords
+      .filter(r => new Date(r.createdAt) > oneWeekAgo)
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  };
+
   const addProduct = (product: Omit<Product, 'id' | 'createdAt'>) => {
     // Ensure profit doesn't exceed price
     const safeProfit = Math.min(Math.max(0, product.profit), product.price);
@@ -223,6 +299,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     const newSales: Sale[] = [];
     let totalDue = 0;
     let totalProfit = 0;
+    let totalPrice = 0;
+    const productNames: string[] = [];
 
     salesList.forEach(sale => {
       const safeSale = {
@@ -235,6 +313,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       };
 
       newSales.push({ ...safeSale, id: generateId(), createdAt: new Date() });
+      productNames.push(sale.productName);
+      totalPrice += safeSale.totalPrice;
+      totalProfit += safeSale.profit;
 
       // Update product stock
       const product = products.find(p => p.id === sale.productId);
@@ -244,11 +325,23 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
       if (!isPaid) {
         totalDue += safeSale.totalPrice;
-        totalProfit += safeSale.profit;
       }
     });
 
     setSales(prev => [...prev, ...newSales]);
+
+    // Add bulk sale record for dashboard
+    if (salesList.length > 0) {
+      const serialNumber = getTodaysSalesSerial();
+      setBulkSaleRecords(prev => [...prev, {
+        id: generateId(),
+        serialNumber,
+        productNames,
+        totalPrice,
+        totalProfit,
+        createdAt: new Date()
+      }]);
+    }
 
     // Update customer due if credit sale
     if (!isPaid && customerId) {
@@ -264,10 +357,17 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       displayName,
       pendingProfit: 0,
       totalDue: Math.max(0, customer.totalDue), // Ensure non-negative
-      createdAt: new Date()
+      createdAt: new Date(),
+      bakiCreatedAt: customer.totalDue > 0 ? new Date() : undefined
     };
     setCustomers(prev => [...prev, newCustomer]);
     return newCustomer;
+  };
+
+  const updateCustomer = (id: string, customerUpdate: Partial<Customer>) => {
+    setCustomers(prev => prev.map(c => 
+      c.id === id ? { ...c, ...customerUpdate } : c
+    ));
   };
 
   const updateCustomerDue = (id: string, amount: number, profitAmount?: number) => {
@@ -275,13 +375,18 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     const safeAmount = Math.max(0, amount);
     const safeProfitAmount = profitAmount ? Math.max(0, profitAmount) : 0;
 
-    setCustomers(prev => prev.map(c => 
-      c.id === id ? { 
-        ...c, 
-        totalDue: Math.max(0, c.totalDue + safeAmount),
-        pendingProfit: Math.max(0, c.pendingProfit + safeProfitAmount)
-      } : c
-    ));
+    setCustomers(prev => prev.map(c => {
+      if (c.id === id) {
+        const newDue = Math.max(0, c.totalDue + safeAmount);
+        return { 
+          ...c, 
+          totalDue: newDue,
+          pendingProfit: Math.max(0, c.pendingProfit + safeProfitAmount),
+          bakiCreatedAt: c.bakiCreatedAt || (newDue > 0 ? new Date() : undefined)
+        };
+      }
+      return c;
+    }));
   };
 
   // When customer pays baki, calculate proportional profit and add to cash profit
@@ -314,6 +419,31 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       amount: Math.max(0, expense.amount)
     };
     setExpenses(prev => [...prev, { ...safeExpense, id: generateId(), createdAt: new Date() }]);
+  };
+
+  // Pre-order functions
+  const addPreOrder = (preOrder: Omit<PreOrder, 'id' | 'createdAt'>) => {
+    // Deduct stock when saving
+    if (preOrder.stockReserved) {
+      preOrder.items.forEach(item => {
+        const product = products.find(p => p.id === item.productId);
+        if (product) {
+          updateProduct(item.productId, { stock: Math.max(0, product.stock - item.quantity) });
+        }
+      });
+    }
+    
+    setPreOrders(prev => [...prev, { 
+      ...preOrder, 
+      id: generateId(), 
+      createdAt: new Date() 
+    }]);
+  };
+
+  const updatePreOrderStatus = (id: string, status: PreOrderStatus) => {
+    setPreOrders(prev => prev.map(o => 
+      o.id === id ? { ...o, status } : o
+    ));
   };
 
   const getProductSuggestions = (query: string): Product[] => {
@@ -413,6 +543,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       sales,
       customers,
       expenses,
+      preOrders,
+      bulkSaleRecords,
       isOnboarded,
       setStoreInfo,
       addProduct,
@@ -421,6 +553,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       addSale,
       addMultipleSales,
       addCustomer,
+      updateCustomer,
       updateCustomerDue,
       payCustomerDue,
       completeOnboarding,
@@ -432,7 +565,12 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       getExistingCustomersByName,
       searchCustomersByPhone,
       searchCustomersByName,
-      getUnpaidCustomers
+      getUnpaidCustomers,
+      getCustomersDueFor30Days,
+      addPreOrder,
+      updatePreOrderStatus,
+      getWeeklyBulkSales,
+      getTodaysSalesSerial
     }}>
       {children}
     </StoreContext.Provider>

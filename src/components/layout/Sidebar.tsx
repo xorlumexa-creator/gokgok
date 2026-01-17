@@ -8,7 +8,8 @@ import {
   Bell,
   Store,
   X,
-  User
+  User,
+  CalendarCheck
 } from 'lucide-react';
 import { useStore } from '@/context/StoreContext';
 
@@ -21,6 +22,7 @@ const navItems = [
   { path: '/dashboard', icon: LayoutDashboard, label: 'ড্যাশবোর্ড' },
   { path: '/sell', icon: ShoppingCart, label: 'বিক্রি করুন' },
   { path: '/products', icon: Package, label: 'পণ্যসমূহ' },
+  { path: '/pre-orders', icon: CalendarCheck, label: 'আগাম অর্ডার' },
   { path: '/shop-accounts', icon: Calculator, label: 'দোকানের হিসাব' },
   { path: '/personal-accounts', icon: User, label: 'ব্যক্তিগত হিসাব' },
   { path: '/credit-book', icon: BookOpen, label: 'বাকির খাতা' },

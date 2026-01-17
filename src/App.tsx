@@ -12,6 +12,7 @@ import Subscription from "./pages/Subscription";
 import Dashboard from "./pages/Dashboard";
 import Sell from "./pages/Sell";
 import Products from "./pages/Products";
+import PreOrders from "./pages/PreOrders";
 import ShopAccounts from "./pages/ShopAccounts";
 import PersonalAccounts from "./pages/PersonalAccounts";
 import CreditBook from "./pages/CreditBook";
@@ -62,6 +63,7 @@ function AppRoutes() {
         <Route path="/dashboard" element={<Dashboard />} />
         <Route path="/sell" element={<Sell />} />
         <Route path="/products" element={<Products />} />
+        <Route path="/pre-orders" element={<PreOrders />} />
         <Route path="/shop-accounts" element={<ShopAccounts />} />
         <Route path="/personal-accounts" element={<PersonalAccounts />} />
         <Route path="/credit-book" element={<CreditBook />} />

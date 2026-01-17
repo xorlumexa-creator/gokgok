@@ -1,17 +1,22 @@
 import { useState, useMemo } from 'react';
-import { BookOpen, Search, User, Phone, Plus, X, CheckCircle, AlertTriangle } from 'lucide-react';
+import { BookOpen, Search, User, Phone, Plus, X, CheckCircle, AlertTriangle, MessageCircle, Send, Edit3 } from 'lucide-react';
 import { useStore } from '@/context/StoreContext';
 import { Button } from '@/components/ui/button';
 import { toast } from '@/hooks/use-toast';
+import { format } from 'date-fns';
+import { bn } from 'date-fns/locale';
 
 export default function CreditBook() {
   const { 
     customers, 
+    storeInfo,
     addCustomer, 
+    updateCustomer,
     payCustomerDue, 
     getExistingCustomersByName, 
     generateCustomerDisplayName,
-    getUnpaidCustomers 
+    getUnpaidCustomers,
+    getCustomersDueFor30Days
   } = useStore();
   
   const [searchType, setSearchType] = useState<'name' | 'phone'>('name');
@@ -19,11 +24,30 @@ export default function CreditBook() {
   const [showAddForm, setShowAddForm] = useState(false);
   const [showPaymentModal, setShowPaymentModal] = useState<string | null>(null);
   const [paymentAmount, setPaymentAmount] = useState('');
-  const [formData, setFormData] = useState({ name: '', phone: '' });
+  const [formData, setFormData] = useState({ name: '', phone: '', whatsappNumber: '' });
   const [showUnpaidOnly, setShowUnpaidOnly] = useState(false);
+  const [initialDue, setInitialDue] = useState('');
+
+  // WhatsApp Reminder State
+  const [showReminderSection, setShowReminderSection] = useState(false);
+  const [reminderMessage, setReminderMessage] = useState('');
+  const [editingMessage, setEditingMessage] = useState(false);
 
   // Get unpaid customers (no payment in last month)
   const unpaidCustomers = useMemo(() => getUnpaidCustomers(), [getUnpaidCustomers]);
+  
+  // Get customers with baki > 30 days (for reminder)
+  const customersDueFor30Days = useMemo(() => getCustomersDueFor30Days(), [getCustomersDueFor30Days]);
+
+  // Default reminder message template
+  const defaultReminderMessage = `আসসালামু আলাইকুম,
+
+আপনার সদয় অবগতির জন্য জানানো যাচ্ছে যে,
+${storeInfo?.name || 'আমাদের দোকানে'} এ আপনার বাকি টাকা বর্তমানে
+৳[AMOUNT]।
+
+সুবিধা হলে পরিশোধ করবেন।
+ধন্যবাদ।`;
 
   // Check for existing customers with same name when adding new
   const existingCustomersWithSameName = useMemo(() => {
@@ -50,8 +74,6 @@ export default function CreditBook() {
   const totalDue = customers.reduce((sum, c) => sum + c.totalDue, 0);
   const customersWithDue = customers.filter(c => c.totalDue > 0);
 
-  const [initialDue, setInitialDue] = useState('');
-
   const handleAddCustomer = () => {
     if (!formData.name.trim()) {
       toast({ title: "গ্রাহকের নাম দিন", variant: "destructive" });
@@ -63,12 +85,13 @@ export default function CreditBook() {
     addCustomer({
       name: formData.name.trim(),
       phone: formData.phone.trim(),
+      whatsappNumber: formData.whatsappNumber.trim() || formData.phone.trim(),
       totalDue: dueAmount,
     });
 
     toast({ title: "নতুন গ্রাহক যোগ হয়েছে ✓" });
     setShowAddForm(false);
-    setFormData({ name: '', phone: '' });
+    setFormData({ name: '', phone: '', whatsappNumber: '' });
     setInitialDue('');
   };
 
@@ -102,6 +125,38 @@ export default function CreditBook() {
     return customers.find(c => c.id === showPaymentModal);
   };
 
+  // Send WhatsApp message
+  const sendWhatsAppMessage = (customer: typeof customers[0]) => {
+    const phone = customer.whatsappNumber || customer.phone;
+    if (!phone) {
+      toast({ title: "WhatsApp নম্বর নেই", variant: "destructive" });
+      return;
+    }
+
+    // Format phone number (remove spaces, add country code if needed)
+    let formattedPhone = phone.replace(/\s+/g, '').replace(/^0/, '88');
+    if (!formattedPhone.startsWith('88')) {
+      formattedPhone = '88' + formattedPhone;
+    }
+
+    // Replace [AMOUNT] placeholder with actual amount
+    const message = (reminderMessage || defaultReminderMessage)
+      .replace('[AMOUNT]', customer.totalDue.toLocaleString());
+
+    // Create WhatsApp deep link
+    const whatsappUrl = `https://wa.me/${formattedPhone}?text=${encodeURIComponent(message)}`;
+    
+    // Open WhatsApp
+    window.open(whatsappUrl, '_blank');
+  };
+
+  const handleShowReminders = () => {
+    setShowReminderSection(!showReminderSection);
+    if (!reminderMessage) {
+      setReminderMessage(defaultReminderMessage);
+    }
+  };
+
   return (
     <div className="space-y-6 animate-fade-in">
       <div className="flex items-center justify-between">
@@ -131,6 +186,98 @@ export default function CreditBook() {
           {customersWithDue.length}জন গ্রাহক
         </p>
       </div>
+
+      {/* 30+ Days Reminder Button */}
+      {customersDueFor30Days.length > 0 && (
+        <button
+          onClick={handleShowReminders}
+          className={`w-full p-4 rounded-xl border-2 transition-all flex items-center gap-3 ${
+            showReminderSection 
+              ? 'border-green-500 bg-green-50' 
+              : 'border-primary bg-primary/5'
+          }`}
+        >
+          <MessageCircle className={`w-6 h-6 ${showReminderSection ? 'text-green-600' : 'text-primary'}`} />
+          <div className="text-left flex-1">
+            <p className="font-semibold text-foreground">
+              ১ মাসের বেশি বাকি আছে ({customersDueFor30Days.length}জন)
+            </p>
+            <p className="text-sm text-muted-foreground">
+              {showReminderSection ? 'রিমাইন্ডার বন্ধ করুন' : 'WhatsApp এ মনে করিয়ে দিন'}
+            </p>
+          </div>
+        </button>
+      )}
+
+      {/* WhatsApp Reminder Section */}
+      {showReminderSection && customersDueFor30Days.length > 0 && (
+        <div className="card-elevated p-4 space-y-4 animate-fade-in">
+          {/* Message Editor */}
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <label className="text-sm font-medium">বার্তা (সম্পাদনা করতে পারবেন):</label>
+              <button
+                onClick={() => setEditingMessage(!editingMessage)}
+                className="text-sm text-primary flex items-center gap-1"
+              >
+                <Edit3 className="w-4 h-4" />
+                {editingMessage ? 'সংরক্ষণ' : 'সম্পাদনা'}
+              </button>
+            </div>
+            {editingMessage ? (
+              <textarea
+                value={reminderMessage}
+                onChange={(e) => setReminderMessage(e.target.value)}
+                className="input-field min-h-[150px] text-sm"
+                placeholder="বার্তা লিখুন..."
+              />
+            ) : (
+              <div className="p-3 bg-muted/50 rounded-xl text-sm whitespace-pre-line">
+                {reminderMessage}
+              </div>
+            )}
+            <p className="text-xs text-muted-foreground mt-2">
+              💡 [AMOUNT] এর জায়গায় স্বয়ংক্রিয়ভাবে বাকির পরিমাণ বসবে
+            </p>
+          </div>
+
+          {/* Customer List for Reminder */}
+          <div className="border-t border-border pt-4">
+            <p className="text-sm font-medium mb-3">গ্রাহক তালিকা:</p>
+            <p className="text-xs text-muted-foreground mb-3">
+              ⚠️ গ্রাহকের সম্মতিতে WhatsApp বার্তা পাঠানো হবে
+            </p>
+            <div className="space-y-2 max-h-60 overflow-y-auto">
+              {customersDueFor30Days.map((customer) => (
+                <div
+                  key={customer.id}
+                  className="flex items-center justify-between p-3 bg-muted/30 rounded-xl"
+                >
+                  <div>
+                    <p className="font-medium">{customer.displayName}</p>
+                    <p className="text-sm text-muted-foreground">
+                      {customer.whatsappNumber || customer.phone || 'নম্বর নেই'}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      বাকি: ৳{customer.totalDue.toLocaleString()} | 
+                      {customer.bakiCreatedAt && ` তারিখ: ${format(new Date(customer.bakiCreatedAt), 'dd MMM yyyy', { locale: bn })}`}
+                    </p>
+                  </div>
+                  <Button
+                    onClick={() => sendWhatsAppMessage(customer)}
+                    disabled={!customer.whatsappNumber && !customer.phone}
+                    className="bg-green-500 hover:bg-green-600 text-white px-4"
+                    size="sm"
+                  >
+                    <Send className="w-4 h-4 mr-1" />
+                    পাঠান
+                  </Button>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Unpaid Alert */}
       {unpaidCustomers.length > 0 && (
@@ -256,6 +403,19 @@ export default function CreditBook() {
                   value={formData.phone}
                   onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
                   placeholder="01XXXXXXXXX"
+                  className="input-field"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-2">
+                  <MessageCircle className="w-4 h-4 inline mr-1" />
+                  WhatsApp নম্বর (ঐচ্ছিক)
+                </label>
+                <input
+                  type="tel"
+                  value={formData.whatsappNumber}
+                  onChange={(e) => setFormData({ ...formData, whatsappNumber: e.target.value })}
+                  placeholder="আলাদা হলে দিন, না হলে ফোন নম্বর ব্যবহার হবে"
                   className="input-field"
                 />
               </div>
