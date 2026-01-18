@@ -1,85 +1,109 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Store, Mail, Lock, Eye, EyeOff, Loader2 } from 'lucide-react';
+import { Store, Lock, Eye, EyeOff, Loader2, User, MapPin } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from '@/hooks/use-toast';
-import type { User, Session } from '@supabase/supabase-js';
+import { PhoneInput } from '@/components/auth/PhoneInput';
+import { LocationPicker } from '@/components/auth/LocationPicker';
+import { countries, Country, defaultCountry } from '@/data/countries';
+import type { User as SupabaseUser, Session } from '@supabase/supabase-js';
 
 export default function Auth() {
   const navigate = useNavigate();
   const [isLogin, setIsLogin] = useState(true);
-  const [email, setEmail] = useState('');
+  const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [user, setUser] = useState<User | null>(null);
-  const [session, setSession] = useState<Session | null>(null);
+  const [user, setUser] = useState<SupabaseUser | null>(null);
+  const [selectedCountry, setSelectedCountry] = useState<Country>(defaultCountry);
+  
+  // Signup fields
+  const [name, setName] = useState('');
+  const [address, setAddress] = useState('');
 
   useEffect(() => {
-    // Set up auth state listener FIRST
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (event, session) => {
-        setSession(session);
         setUser(session?.user ?? null);
       }
     );
 
-    // THEN check for existing session
     supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
       setUser(session?.user ?? null);
     });
 
     return () => subscription.unsubscribe();
   }, []);
 
-  // Redirect if already logged in
   useEffect(() => {
     if (user) {
-      // Check subscription status and redirect accordingly
       setTimeout(() => {
-        checkSubscriptionStatus();
+        checkProfileAndRedirect();
       }, 0);
     }
   }, [user]);
 
-  const checkSubscriptionStatus = async () => {
+  const checkProfileAndRedirect = async () => {
     if (!user) return;
     
     try {
       const { data: profile, error } = await supabase
         .from('profiles')
-        .select('subscription_status, trial_start_date')
+        .select('subscription_status, trial_start_date, shop_name')
         .eq('user_id', user.id)
         .single();
 
       if (error) throw error;
 
+      // Check if trial expired or subscription needed
+      if (profile?.subscription_status === 'trial') {
+        const trialStart = new Date(profile.trial_start_date);
+        const now = new Date();
+        const daysPassed = Math.floor((now.getTime() - trialStart.getTime()) / (1000 * 60 * 60 * 24));
+        
+        if (daysPassed >= 7) {
+          // Trial expired
+          navigate('/subscription');
+          return;
+        }
+      }
+
       if (profile?.subscription_status === 'trial' || profile?.subscription_status === 'active') {
-        navigate('/dashboard');
+        // Check if onboarding is complete
+        if (!profile?.shop_name) {
+          navigate('/');
+        } else {
+          navigate('/dashboard');
+        }
       } else {
         navigate('/subscription');
       }
     } catch (error) {
-      // If profile doesn't exist, redirect to subscription
       navigate('/subscription');
     }
   };
 
+  const getFullPhoneNumber = () => {
+    const cleanPhone = phone.startsWith('0') ? phone.slice(1) : phone;
+    return `${selectedCountry.dialCode}${cleanPhone}`;
+  };
+
   const validateInputs = () => {
-    if (!email.trim()) {
-      toast({ title: "ইমেইল দিন", variant: "destructive" });
-      return false;
-    }
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(email)) {
-      toast({ title: "সঠিক ইমেইল দিন", variant: "destructive" });
+    if (!phone.trim() || phone.length < 8) {
+      toast({ title: "সঠিক ফোন নম্বর দিন", variant: "destructive" });
       return false;
     }
     if (!password || password.length < 6) {
       toast({ title: "পাসওয়ার্ড কমপক্ষে ৬ অক্ষরের হতে হবে", variant: "destructive" });
       return false;
+    }
+    if (!isLogin) {
+      if (!name.trim()) {
+        toast({ title: "আপনার নাম দিন", variant: "destructive" });
+        return false;
+      }
     }
     return true;
   };
@@ -89,14 +113,17 @@ export default function Auth() {
     
     setLoading(true);
     try {
+      // Create email from phone for Supabase auth
+      const email = `${getFullPhoneNumber().replace(/\+/g, '')}@dokan360.app`;
+      
       const { error } = await supabase.auth.signInWithPassword({
-        email: email.trim(),
+        email,
         password,
       });
 
       if (error) {
         if (error.message.includes('Invalid login credentials')) {
-          toast({ title: "ভুল ইমেইল বা পাসওয়ার্ড", variant: "destructive" });
+          toast({ title: "ভুল ফোন নম্বর বা পাসওয়ার্ড", variant: "destructive" });
         } else {
           toast({ title: error.message, variant: "destructive" });
         }
@@ -116,28 +143,44 @@ export default function Auth() {
     
     setLoading(true);
     try {
+      const fullPhone = getFullPhoneNumber();
+      const email = `${fullPhone.replace(/\+/g, '')}@dokan360.app`;
       const redirectUrl = `${window.location.origin}/`;
       
-      const { error } = await supabase.auth.signUp({
-        email: email.trim(),
+      const { data, error } = await supabase.auth.signUp({
+        email,
         password,
         options: {
-          emailRedirectTo: redirectUrl
+          emailRedirectTo: redirectUrl,
+          data: {
+            full_name: name,
+            phone: fullPhone,
+            country: selectedCountry.code,
+            address: address,
+          }
         }
       });
 
       if (error) {
         if (error.message.includes('User already registered')) {
-          toast({ title: "এই ইমেইল দিয়ে আগেই অ্যাকাউন্ট করা হয়েছে", variant: "destructive" });
+          toast({ title: "এই ফোন নম্বর দিয়ে আগেই অ্যাকাউন্ট করা হয়েছে", variant: "destructive" });
         } else {
           toast({ title: error.message, variant: "destructive" });
         }
         return;
       }
 
+      // Update profile with additional info
+      if (data.user) {
+        await supabase.from('profiles').update({
+          phone: fullPhone,
+          email: email,
+        }).eq('user_id', data.user.id);
+      }
+
       toast({ 
         title: "অ্যাকাউন্ট তৈরি হয়েছে! ✓",
-        description: "এখন সাবস্ক্রিপশন বেছে নিন"
+        description: "৭ দিনের ফ্রি ট্রায়াল শুরু হয়েছে"
       });
     } catch (error: any) {
       toast({ title: error.message || "অ্যাকাউন্ট তৈরি করতে সমস্যা হয়েছে", variant: "destructive" });
@@ -184,21 +227,46 @@ export default function Auth() {
           </div>
 
           <div className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium mb-2">ইমেইল</label>
-              <div className="relative">
-                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
+            {/* Signup - Name */}
+            {!isLogin && (
+              <div>
+                <label className="block text-sm font-medium mb-2">
+                  <User className="w-4 h-4 inline mr-1" />
+                  আপনার নাম
+                </label>
                 <input
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="your@email.com"
-                  className="input-field pl-10"
-                  autoComplete="email"
+                  type="text"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder="পুরো নাম"
+                  className="input-field"
+                  autoComplete="name"
                 />
               </div>
+            )}
+
+            {/* Phone Number */}
+            <div>
+              <label className="block text-sm font-medium mb-2">WhatsApp ফোন নম্বর</label>
+              <PhoneInput
+                value={phone}
+                onChange={setPhone}
+                selectedCountry={selectedCountry}
+                onCountryChange={setSelectedCountry}
+                placeholder="1XXXXXXXXX"
+                autoFocus={isLogin}
+              />
             </div>
 
+            {/* Signup - Address */}
+            {!isLogin && (
+              <LocationPicker
+                address={address}
+                onAddressChange={setAddress}
+              />
+            )}
+
+            {/* Password */}
             <div>
               <label className="block text-sm font-medium mb-2">পাসওয়ার্ড</label>
               <div className="relative">
