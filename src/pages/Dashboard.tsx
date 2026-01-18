@@ -93,7 +93,7 @@ export default function Dashboard() {
           variant="profit"
         />
         <StatCard
-          title="বাকি লাভ"
+          title="বাকির লাভ"
           value={`৳${stats.totalBakiProfit.toLocaleString()}`}
           subtitle="পেন্ডিং আছে"
           icon={Coins}

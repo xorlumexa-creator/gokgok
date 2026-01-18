@@ -1,16 +1,25 @@
-import { Plus, Trash2, Package } from 'lucide-react';
+import { Plus, Trash2, Package, ChevronDown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { useState } from 'react';
+import { UnitType, getUnitLabel } from '@/types/store';
+
+interface ProductUnitInput {
+  name: string;
+  price: string;
+}
 
 interface ProductInput {
   name: string;
-  price: string;
-  profit: string;
   stock: string;
+  units: ProductUnitInput[];
 }
 
 interface AddProductsStepProps {
   products: ProductInput[];
-  onProductChange: (index: number, field: keyof ProductInput, value: string) => void;
+  onProductChange: (index: number, field: keyof Omit<ProductInput, 'units'>, value: string) => void;
+  onProductUnitChange: (productIndex: number, unitIndex: number, field: keyof ProductUnitInput, value: string) => void;
+  onAddProductUnit: (productIndex: number) => void;
+  onRemoveProductUnit: (productIndex: number, unitIndex: number) => void;
   onAddProduct: () => void;
   onRemoveProduct: (index: number) => void;
   onBack: () => void;
@@ -20,12 +29,15 @@ interface AddProductsStepProps {
 export function AddProductsStep({
   products,
   onProductChange,
+  onProductUnitChange,
+  onAddProductUnit,
+  onRemoveProductUnit,
   onAddProduct,
   onRemoveProduct,
   onBack,
   onComplete
 }: AddProductsStepProps) {
-  const hasValidProducts = products.some(p => p.name.trim().length > 0);
+  const hasValidProducts = products.some(p => p.name.trim().length > 0 && p.units.some(u => u.name.trim() && parseFloat(u.price) > 0));
 
   return (
     <div className="animate-fade-in">
@@ -34,10 +46,10 @@ export function AddProductsStep({
           <Package className="w-8 h-8 text-primary" />
         </div>
         <h2 className="text-xl font-bold text-foreground mb-2">
-          কিছু প্রোডাক্ট যোগ করুন 📦
+          কিছু পণ্য যোগ করুন 📦
         </h2>
-        <p className="text-muted-foreground">
-          শুধু ৩–৫ প্রোডাক্ট দিয়ে শুরু করুন। পরে আরও যোগ করা যাবে।
+        <p className="text-muted-foreground text-sm">
+          শুধু ৩-৫টি পণ্য দিয়ে শুরু করুন। পরে আরও যোগ করা যাবে।
         </p>
       </div>
 
@@ -50,7 +62,7 @@ export function AddProductsStep({
           >
             <div className="flex items-center justify-between mb-3">
               <span className="text-sm font-medium text-muted-foreground">
-                প্রোডাক্ট #{index + 1}
+                পণ্য #{index + 1}
               </span>
               {products.length > 1 && (
                 <button
@@ -62,51 +74,77 @@ export function AddProductsStep({
               )}
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
-              <div className="col-span-2">
-                <input
-                  type="text"
-                  value={product.name}
-                  onChange={(e) => onProductChange(index, 'name', e.target.value)}
-                  placeholder="প্রোডাক্টের নাম"
-                  className="input-field"
-                />
-              </div>
+            <div className="space-y-3">
+              {/* Product Name */}
+              <input
+                type="text"
+                value={product.name}
+                onChange={(e) => onProductChange(index, 'name', e.target.value)}
+                placeholder="পণ্যের নাম (যেমন: ডিম, চাল)"
+                className="input-field"
+              />
+              
+              {/* Stock */}
               <div>
-                <input
-                  type="number"
-                  value={product.price}
-                  onChange={(e) => onProductChange(index, 'price', e.target.value)}
-                  placeholder="মূল্য (৳)"
-                  className="input-field"
-                  min="0"
-                />
-              </div>
-              <div>
-                <input
-                  type="number"
-                  value={product.profit}
-                  onChange={(e) => onProductChange(index, 'profit', e.target.value)}
-                  placeholder="লাভ / ইউনিট (৳)"
-                  className="input-field"
-                  min="0"
-                />
-              </div>
-              <div className="col-span-2">
+                <label className="text-xs text-muted-foreground mb-1 block">মোট স্টক</label>
                 <input
                   type="number"
                   value={product.stock}
                   onChange={(e) => onProductChange(index, 'stock', e.target.value)}
-                  placeholder="স্টক সংখ্যা"
+                  placeholder="যত পণ্য বর্তমানে আছে"
                   className="input-field"
                   min="0"
                 />
               </div>
+
+              {/* Units Section */}
+              <div className="border-t border-border pt-3 mt-3">
+                <label className="text-xs text-muted-foreground mb-2 block">একক ও দাম:</label>
+                <div className="space-y-2">
+                  {product.units.map((unit, unitIndex) => (
+                    <div key={unitIndex} className="flex gap-2 items-center">
+                      <input
+                        type="text"
+                        value={unit.name}
+                        onChange={(e) => onProductUnitChange(index, unitIndex, 'name', e.target.value)}
+                        placeholder="একক (যেমন: ১ পিস, ১ ডজন)"
+                        className="input-field flex-1"
+                      />
+                      <div className="relative w-28">
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">৳</span>
+                        <input
+                          type="number"
+                          value={unit.price}
+                          onChange={(e) => onProductUnitChange(index, unitIndex, 'price', e.target.value)}
+                          placeholder="দাম"
+                          className="input-field pl-7"
+                          min="0"
+                        />
+                      </div>
+                      {product.units.length > 1 && (
+                        <button
+                          onClick={() => onRemoveProductUnit(index, unitIndex)}
+                          className="p-2 text-muted-foreground hover:text-destructive"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+                <button
+                  onClick={() => onAddProductUnit(index)}
+                  className="mt-2 text-sm text-primary hover:underline flex items-center gap-1"
+                >
+                  <Plus className="w-4 h-4" />
+                  আরেকটি একক যোগ করুন
+                </button>
+              </div>
             </div>
 
             {index === 0 && (
-              <p className="text-xs text-muted-foreground mt-2">
-                💡 লাভ = বিক্রয়মূল্য − ক্রয়মূল্য
+              <p className="text-xs text-muted-foreground mt-3 p-2 bg-muted/50 rounded-lg">
+                💡 উদাহরণ: ডিম → একক: "১ পিস" দাম ১২৳, "১ ডজন" দাম ১৩৫৳, "৩০ পিস" দাম ৩২০৳
               </p>
             )}
           </div>
@@ -119,7 +157,7 @@ export function AddProductsStep({
           className="w-full mt-4 py-3 border-2 border-dashed border-border rounded-xl text-muted-foreground hover:border-primary hover:text-primary transition-colors flex items-center justify-center gap-2"
         >
           <Plus className="w-5 h-5" />
-          আরেকটি প্রোডাক্ট যোগ করুন
+          আরেকটি পণ্য যোগ করুন
         </button>
       )}
 

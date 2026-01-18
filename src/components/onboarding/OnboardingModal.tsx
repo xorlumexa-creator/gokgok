@@ -1,21 +1,31 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { WelcomeStep } from './WelcomeStep';
 import { AddProductsStep } from './AddProductsStep';
 import { CompletionStep } from './CompletionStep';
 import { useStore } from '@/context/StoreContext';
 import { useNavigate } from 'react-router-dom';
 
-interface ProductInput {
+interface ProductUnitInput {
   name: string;
   price: string;
-  profit: string;
-  stock: string;
 }
 
+interface ProductInput {
+  name: string;
+  stock: string;
+  units: ProductUnitInput[];
+}
+
+const createEmptyProduct = (): ProductInput => ({
+  name: '',
+  stock: '',
+  units: [{ name: '', price: '' }],
+});
+
 const initialProducts: ProductInput[] = [
-  { name: '', price: '', profit: '', stock: '' },
-  { name: '', price: '', profit: '', stock: '' },
-  { name: '', price: '', profit: '', stock: '' },
+  createEmptyProduct(),
+  createEmptyProduct(),
+  createEmptyProduct(),
 ];
 
 export function OnboardingModal() {
@@ -25,15 +35,48 @@ export function OnboardingModal() {
   const { completeOnboarding } = useStore();
   const navigate = useNavigate();
 
-  const handleProductChange = (index: number, field: keyof ProductInput, value: string) => {
+  const handleProductChange = (index: number, field: keyof Omit<ProductInput, 'units'>, value: string) => {
     setProducts(prev => prev.map((p, i) => 
       i === index ? { ...p, [field]: value } : p
     ));
   };
 
+  const handleProductUnitChange = (productIndex: number, unitIndex: number, field: keyof ProductUnitInput, value: string) => {
+    setProducts(prev => prev.map((p, i) => {
+      if (i !== productIndex) return p;
+      return {
+        ...p,
+        units: p.units.map((u, j) => 
+          j === unitIndex ? { ...u, [field]: value } : u
+        ),
+      };
+    }));
+  };
+
+  const handleAddProductUnit = (productIndex: number) => {
+    setProducts(prev => prev.map((p, i) => {
+      if (i !== productIndex) return p;
+      return {
+        ...p,
+        units: [...p.units, { name: '', price: '' }],
+      };
+    }));
+  };
+
+  const handleRemoveProductUnit = (productIndex: number, unitIndex: number) => {
+    setProducts(prev => prev.map((p, i) => {
+      if (i !== productIndex) return p;
+      if (p.units.length <= 1) return p;
+      return {
+        ...p,
+        units: p.units.filter((_, j) => j !== unitIndex),
+      };
+    }));
+  };
+
   const handleAddProduct = () => {
     if (products.length < 5) {
-      setProducts(prev => [...prev, { name: '', price: '', profit: '', stock: '' }]);
+      setProducts(prev => [...prev, createEmptyProduct()]);
     }
   };
 
@@ -43,16 +86,27 @@ export function OnboardingModal() {
 
   const handleComplete = () => {
     const validProducts = products
-      .filter(p => p.name.trim())
+      .filter(p => p.name.trim() && p.units.some(u => u.name.trim() && parseFloat(u.price) > 0))
       .map(p => {
-        const price = parseFloat(p.price) || 0;
-        const profit = parseFloat(p.profit) || 0;
+        // Get first valid unit as base price
+        const validUnits = p.units.filter(u => u.name.trim() && parseFloat(u.price) > 0);
+        const basePrice = parseFloat(validUnits[0]?.price) || 0;
+        
+        // Create product units array
+        const productUnits = validUnits.map((u, idx) => ({
+          id: `unit_${Date.now()}_${idx}`,
+          name: u.name.trim(),
+          price: parseFloat(u.price) || 0,
+          conversionValue: 1, // Default, can be calculated if needed
+        }));
+
         return {
           name: p.name.trim(),
-          price,
-          profit: Math.min(profit, price), // Ensure profit <= price
+          price: basePrice,
+          profit: 0, // Will be calculated per sale
           stock: parseInt(p.stock) || 0,
           unitType: 'piece' as const,
+          units: productUnits,
         };
       });
 
@@ -64,7 +118,7 @@ export function OnboardingModal() {
     navigate('/dashboard');
   };
 
-  const validProductCount = products.filter(p => p.name.trim()).length;
+  const validProductCount = products.filter(p => p.name.trim() && p.units.some(u => u.name.trim())).length;
 
   return (
     <div className="fixed inset-0 bg-background/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
@@ -95,6 +149,9 @@ export function OnboardingModal() {
           <AddProductsStep
             products={products}
             onProductChange={handleProductChange}
+            onProductUnitChange={handleProductUnitChange}
+            onAddProductUnit={handleAddProductUnit}
+            onRemoveProductUnit={handleRemoveProductUnit}
             onAddProduct={handleAddProduct}
             onRemoveProduct={handleRemoveProduct}
             onBack={() => setStep(1)}
