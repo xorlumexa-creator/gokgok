@@ -95,6 +95,25 @@ export interface Expense {
   createdAt: Date;
 }
 
+// Custom earning entry (for adding custom income)
+export interface CustomEarning {
+  id: string;
+  description: string;
+  amount: number;
+  category: string;
+  createdAt: Date;
+}
+
+// Baki payment record - tracks profit from baki payments
+export interface BakiPaymentRecord {
+  id: string;
+  customerId: string;
+  customerName: string;
+  paymentAmount: number;
+  profitEarned: number; // Proportional profit earned from this payment
+  createdAt: Date;
+}
+
 export interface StoreInfo {
   name: string;
   trialStartDate: Date;
@@ -117,11 +136,17 @@ export interface DashboardStats {
 
 export interface PersonalAccountStats {
   totalCashProfit: number; // Earning from cash sales
+  totalBakiProfit: number; // Profit earned from baki payments
+  totalCustomEarnings: number; // Custom added earnings
+  totalEarnings: number; // Sum of all earnings
   totalExpenses: number;
   netEarning: number;
   todayCashProfit: number;
   weekCashProfit: number;
   monthCashProfit: number;
+  todayBakiProfit: number;
+  weekBakiProfit: number;
+  monthBakiProfit: number;
 }
 
 // Bulk sale record for dashboard display

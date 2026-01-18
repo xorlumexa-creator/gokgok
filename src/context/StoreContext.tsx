@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { Product, Sale, Customer, StoreInfo, DashboardStats, Expense, PersonalAccountStats, UnitType, PreOrder, PreOrderStatus, BulkSaleRecord } from '@/types/store';
+import { Product, Sale, Customer, StoreInfo, DashboardStats, Expense, PersonalAccountStats, UnitType, PreOrder, PreOrderStatus, BulkSaleRecord, BakiPaymentRecord, CustomEarning } from '@/types/store';
 
 interface StoreContextType {
   storeInfo: StoreInfo | null;
@@ -9,6 +9,8 @@ interface StoreContextType {
   expenses: Expense[];
   preOrders: PreOrder[];
   bulkSaleRecords: BulkSaleRecord[];
+  bakiPaymentRecords: BakiPaymentRecord[];
+  customEarnings: CustomEarning[];
   isOnboarded: boolean;
   setStoreInfo: (info: StoreInfo) => void;
   addProduct: (product: Omit<Product, 'id' | 'createdAt'>) => void;
@@ -24,6 +26,7 @@ interface StoreContextType {
   getDashboardStats: () => DashboardStats;
   getPersonalAccountStats: () => PersonalAccountStats;
   addExpense: (expense: Omit<Expense, 'id' | 'createdAt'>) => void;
+  addCustomEarning: (earning: Omit<CustomEarning, 'id' | 'createdAt'>) => void;
   getProductSuggestions: (query: string) => Product[];
   generateCustomerDisplayName: (name: string) => string;
   getExistingCustomersByName: (name: string) => Customer[];
@@ -100,6 +103,18 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     return [];
   });
 
+  // NEW: Track baki payment profits
+  const [bakiPaymentRecords, setBakiPaymentRecords] = useState<BakiPaymentRecord[]>(() => {
+    const saved = localStorage.getItem('bakiPaymentRecords');
+    return saved ? JSON.parse(saved) : [];
+  });
+
+  // NEW: Track custom earnings
+  const [customEarnings, setCustomEarnings] = useState<CustomEarning[]>(() => {
+    const saved = localStorage.getItem('customEarnings');
+    return saved ? JSON.parse(saved) : [];
+  });
+
   const isOnboarded = storeInfo?.isOnboarded ?? false;
 
   useEffect(() => {
@@ -131,6 +146,16 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     localStorage.setItem('bulkSaleRecords', JSON.stringify(bulkSaleRecords));
   }, [bulkSaleRecords]);
+
+  // NEW: Persist baki payment records
+  useEffect(() => {
+    localStorage.setItem('bakiPaymentRecords', JSON.stringify(bakiPaymentRecords));
+  }, [bakiPaymentRecords]);
+
+  // NEW: Persist custom earnings
+  useEffect(() => {
+    localStorage.setItem('customEarnings', JSON.stringify(customEarnings));
+  }, [customEarnings]);
 
   // Generate unique display name for customers with same name
   const generateCustomerDisplayName = (name: string): string => {
@@ -389,7 +414,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     }));
   };
 
-  // When customer pays baki, calculate proportional profit and add to cash profit
+  // When customer pays baki, calculate proportional profit and RECORD IT
   const payCustomerDue = (id: string, paymentAmount: number): number => {
     const customer = customers.find(c => c.id === id);
     if (!customer || customer.totalDue <= 0 || paymentAmount <= 0) return 0;
@@ -410,6 +435,18 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       } : c
     ));
 
+    // RECORD the baki payment profit so it shows in Personal Accounts
+    if (proportionalProfit > 0) {
+      setBakiPaymentRecords(prev => [...prev, {
+        id: generateId(),
+        customerId: id,
+        customerName: customer.displayName,
+        paymentAmount,
+        profitEarned: proportionalProfit,
+        createdAt: new Date()
+      }]);
+    }
+
     return Math.max(0, proportionalProfit);
   };
 
@@ -419,6 +456,15 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       amount: Math.max(0, expense.amount)
     };
     setExpenses(prev => [...prev, { ...safeExpense, id: generateId(), createdAt: new Date() }]);
+  };
+
+  // NEW: Add custom earning
+  const addCustomEarning = (earning: Omit<CustomEarning, 'id' | 'createdAt'>) => {
+    const safeEarning = {
+      ...earning,
+      amount: Math.max(0, earning.amount)
+    };
+    setCustomEarnings(prev => [...prev, { ...safeEarning, id: generateId(), createdAt: new Date() }]);
   };
 
   // Pre-order functions
@@ -512,9 +558,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
     const thisMonthStart = new Date(today.getFullYear(), today.getMonth(), 1);
 
-    // Only count cash (paid) sales profit
+    // Cash sales profit (paid sales)
     const cashSales = sales.filter(s => s.isPaid);
-    
     const todayCashSales = cashSales.filter(s => new Date(s.createdAt) >= today);
     const weekCashSales = cashSales.filter(s => new Date(s.createdAt) >= thisWeekStart);
     const monthCashSales = cashSales.filter(s => new Date(s.createdAt) >= thisMonthStart);
@@ -524,15 +569,37 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     const weekCashProfit = weekCashSales.reduce((sum, s) => sum + s.profit, 0);
     const monthCashProfit = monthCashSales.reduce((sum, s) => sum + s.profit, 0);
 
+    // Baki payment profits (profit earned when customers pay back baki)
+    const todayBakiPayments = bakiPaymentRecords.filter(r => new Date(r.createdAt) >= today);
+    const weekBakiPayments = bakiPaymentRecords.filter(r => new Date(r.createdAt) >= thisWeekStart);
+    const monthBakiPayments = bakiPaymentRecords.filter(r => new Date(r.createdAt) >= thisMonthStart);
+
+    const totalBakiProfit = bakiPaymentRecords.reduce((sum, r) => sum + r.profitEarned, 0);
+    const todayBakiProfit = todayBakiPayments.reduce((sum, r) => sum + r.profitEarned, 0);
+    const weekBakiProfit = weekBakiPayments.reduce((sum, r) => sum + r.profitEarned, 0);
+    const monthBakiProfit = monthBakiPayments.reduce((sum, r) => sum + r.profitEarned, 0);
+
+    // Custom earnings
+    const totalCustomEarnings = customEarnings.reduce((sum, e) => sum + e.amount, 0);
+
+    // Total earnings = cash profit + baki profit + custom earnings
+    const totalEarnings = totalCashProfit + totalBakiProfit + totalCustomEarnings;
+
     const totalExpenses = expenses.reduce((sum, e) => sum + e.amount, 0);
 
     return {
       totalCashProfit,
+      totalBakiProfit,
+      totalCustomEarnings,
+      totalEarnings,
       totalExpenses,
-      netEarning: totalCashProfit - totalExpenses,
+      netEarning: totalEarnings - totalExpenses,
       todayCashProfit,
       weekCashProfit,
-      monthCashProfit
+      monthCashProfit,
+      todayBakiProfit,
+      weekBakiProfit,
+      monthBakiProfit
     };
   };
 
@@ -545,6 +612,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       expenses,
       preOrders,
       bulkSaleRecords,
+      bakiPaymentRecords,
+      customEarnings,
       isOnboarded,
       setStoreInfo,
       addProduct,
@@ -560,6 +629,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       getDashboardStats,
       getPersonalAccountStats,
       addExpense,
+      addCustomEarning,
       getProductSuggestions,
       generateCustomerDisplayName,
       getExistingCustomersByName,
