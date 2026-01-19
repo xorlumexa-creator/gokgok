@@ -17,12 +17,15 @@ import ShopAccounts from "./pages/ShopAccounts";
 import PersonalAccounts from "./pages/PersonalAccounts";
 import CreditBook from "./pages/CreditBook";
 import Notifications from "./pages/Notifications";
+import SellingHistory from "./pages/SellingHistory";
+import DailySale from "./pages/DailySale";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
 
-function AuthRequired({ children }: { children: React.ReactNode }) {
+function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
+  const { isOnboarded } = useStore();
   
   if (loading) {
     return (
@@ -35,12 +38,6 @@ function AuthRequired({ children }: { children: React.ReactNode }) {
   if (!user) {
     return <Navigate to="/auth" replace />;
   }
-  
-  return <>{children}</>;
-}
-
-function ProtectedRoute({ children }: { children: React.ReactNode }) {
-  const { isOnboarded } = useStore();
   
   if (!isOnboarded) {
     return <Navigate to="/" replace />;
@@ -68,6 +65,8 @@ function AppRoutes() {
         <Route path="/personal-accounts" element={<PersonalAccounts />} />
         <Route path="/credit-book" element={<CreditBook />} />
         <Route path="/notifications" element={<Notifications />} />
+        <Route path="/selling-history" element={<SellingHistory />} />
+        <Route path="/daily-sale" element={<DailySale />} />
         {/* Redirect old route */}
         <Route path="/accounts" element={<Navigate to="/shop-accounts" replace />} />
       </Route>

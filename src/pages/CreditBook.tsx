@@ -349,7 +349,7 @@ ${storeInfo?.name || 'আমাদের দোকানে'} এ আপনা�
         />
       </div>
 
-      {/* Add Customer Modal */}
+      {/* Add Customer Modal - Simplified: Only Name + WhatsApp Phone + Customize Baki */}
       {showAddForm && (
         <div className="fixed inset-0 bg-foreground/20 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="w-full max-w-md bg-card rounded-2xl shadow-soft border border-border p-6 animate-slide-up">
@@ -361,8 +361,9 @@ ${storeInfo?.name || 'আমাদের দোকানে'} এ আপনা�
             </div>
 
             <div className="space-y-4">
+              {/* Name Field */}
               <div>
-                <label className="block text-sm font-medium mb-2">গ্রাহকের নাম</label>
+                <label className="block text-sm font-medium mb-2">গ্রাহকের নাম *</label>
                 <input
                   type="text"
                   value={formData.name}
@@ -377,17 +378,8 @@ ${storeInfo?.name || 'আমাদের দোকানে'} এ আপনা�
                   <div className="mt-3 p-4 bg-amber-50 border border-amber-200 rounded-xl">
                     <p className="text-sm font-semibold text-amber-800 flex items-center gap-2">
                       <AlertTriangle className="w-4 h-4" />
-                      "{formData.name}" নামে {existingCustomersWithSameName.length}জন গ্রাহক আছে:
+                      "{formData.name}" নামে {existingCustomersWithSameName.length}জন গ্রাহক আছে
                     </p>
-                    <ul className="mt-2 space-y-1">
-                      {existingCustomersWithSameName.map((c, index) => (
-                        <li key={c.id} className="text-sm text-amber-700 flex items-center gap-2">
-                          <span className="font-medium">{index + 1}.</span>
-                          <span className="font-semibold">{c.displayName}</span>
-                          {c.phone && <span className="text-xs">({c.phone})</span>}
-                        </li>
-                      ))}
-                    </ul>
                     <div className="mt-3 p-2 bg-primary/10 rounded-lg">
                       <p className="text-sm text-primary font-medium">
                         ✓ নতুন গ্রাহক হবে: <strong>{generateCustomerDisplayName(formData.name)}</strong>
@@ -396,40 +388,52 @@ ${storeInfo?.name || 'আমাদের দোকানে'} এ আপনা�
                   </div>
                 )}
               </div>
+
+              {/* WhatsApp Phone Field */}
               <div>
-                <label className="block text-sm font-medium mb-2">মোবাইল নম্বর (ঐচ্ছিক)</label>
+                <label className="block text-sm font-medium mb-2">
+                  <MessageCircle className="w-4 h-4 inline mr-1" />
+                  WhatsApp নম্বর (অটো মেসেজের জন্য)
+                </label>
                 <input
                   type="tel"
                   value={formData.phone}
-                  onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                  onChange={(e) => setFormData({ ...formData, phone: e.target.value, whatsappNumber: e.target.value })}
                   placeholder="01XXXXXXXXX"
                   className="input-field"
                 />
               </div>
-              <div>
-                <label className="block text-sm font-medium mb-2">
-                  <MessageCircle className="w-4 h-4 inline mr-1" />
-                  WhatsApp নম্বর (ঐচ্ছিক)
-                </label>
-                <input
-                  type="tel"
-                  value={formData.whatsappNumber}
-                  onChange={(e) => setFormData({ ...formData, whatsappNumber: e.target.value })}
-                  placeholder="আলাদা হলে দিন, না হলে ফোন নম্বর ব্যবহার হবে"
-                  className="input-field"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-2">প্রাথমিক বাকি (৳) - ঐচ্ছিক</label>
-                <input
-                  type="number"
-                  value={initialDue}
-                  onChange={(e) => setInitialDue(e.target.value)}
-                  placeholder="0"
-                  min="0"
-                  className="input-field"
-                />
-                <p className="text-xs text-muted-foreground mt-1">গ্রাহকের আগে থেকে বাকি থাকলে এখানে দিন</p>
+
+              {/* Customize Baki Toggle */}
+              <div className="border-t border-border pt-4">
+                <button
+                  type="button"
+                  onClick={() => setInitialDue(initialDue ? '' : '0')}
+                  className="w-full flex items-center justify-between p-3 rounded-xl bg-muted/50 hover:bg-muted transition-colors"
+                >
+                  <span className="text-sm font-medium">আগে থেকে বাকি আছে?</span>
+                  <span className={`text-sm font-medium ${initialDue ? 'text-primary' : 'text-muted-foreground'}`}>
+                    {initialDue ? 'হ্যাঁ ✓' : 'কাস্টমাইজ করুন →'}
+                  </span>
+                </button>
+                
+                {/* Custom Baki Amount */}
+                {initialDue !== '' && (
+                  <div className="mt-3 animate-fade-in">
+                    <label className="block text-sm font-medium mb-2">বাকির পরিমাণ (৳)</label>
+                    <input
+                      type="number"
+                      value={initialDue}
+                      onChange={(e) => setInitialDue(e.target.value)}
+                      placeholder="0"
+                      min="0"
+                      className="input-field text-xl font-bold text-center"
+                    />
+                    <p className="text-xs text-muted-foreground mt-1 text-center">
+                      দোকানদার নিজে বাকির পরিমাণ সেট করতে পারবেন
+                    </p>
+                  </div>
+                )}
               </div>
 
               <div className="flex gap-3 pt-4">

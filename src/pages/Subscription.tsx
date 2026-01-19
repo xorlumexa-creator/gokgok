@@ -143,6 +143,7 @@ export default function Subscription() {
           <div className="w-16 h-16 bg-primary rounded-2xl flex items-center justify-center mx-auto mb-3 shadow-soft">
             <Store className="w-8 h-8 text-primary-foreground" />
           </div>
+          <p className="text-sm text-primary font-medium mb-2">ShopMate</p>
           <h1 className="text-2xl font-bold text-foreground">
             {isExpired ? 'ট্রায়াল শেষ হয়েছে' : 'সাবস্ক্রিপশন বেছে নিন'}
           </h1>
