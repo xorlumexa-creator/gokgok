@@ -197,7 +197,7 @@ export default function Auth() {
           <div className="w-20 h-20 bg-primary rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-soft">
             <Store className="w-10 h-10 text-primary-foreground" />
           </div>
-          <h1 className="text-3xl font-bold text-foreground">Dokan 360</h1>
+          <h1 className="text-3xl font-bold text-foreground">ShopMate</h1>
           <p className="text-muted-foreground mt-2">আপনার দোকানের হিসাব রাখুন সহজে</p>
         </div>
 
