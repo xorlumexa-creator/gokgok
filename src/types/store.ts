@@ -1,7 +1,16 @@
 // Unified unit type for all products
-export type UnitType = 'piece' | 'kg' | 'gram' | 'hali' | 'dozen' | 'box';
+export type UnitType = 'piece' | 'kg' | 'gram' | 'hali' | 'dozen' | 'box' | 'tray' | 'packet' | 'litre';
 
-// Product unit pricing - allows multiple units per product
+// Selling unit - defines how products can be sold in different quantities
+export interface SellingUnit {
+  id: string;
+  name: string; // e.g., "পিস", "ডজন", "৩০ পিস"
+  conversionToBase: number; // How many base units this represents
+  price: number; // Selling price for this unit
+  profit: number; // Profit for this unit (auto-calculated from base)
+}
+
+// Product unit pricing - allows multiple units per product (legacy support)
 export interface ProductUnit {
   id: string;
   name: string; // e.g., "১ পিস", "১ ডজন", "৩০ পিস"
@@ -13,23 +22,28 @@ export interface ProductUnit {
 export interface Product {
   id: string;
   name: string;
-  unitType: UnitType;
-  price: number; // Price per unit
-  profit: number; // Profit per unit
-  stock: number;
+  category?: string; // Product category
+  code?: string; // Product code (optional)
+  baseUnit: string; // Base unit name e.g., "পিস", "গ্রাম"
+  unitType: UnitType; // For backward compatibility
+  price: number; // Base unit price
+  profit: number; // Profit per base unit
+  stock: number; // Stock in base units
   createdAt: Date;
-  // For box type - contains how many pieces
+  // Multi-unit selling options
+  sellingUnits?: SellingUnit[];
+  // Legacy fields for backward compatibility
   unitsPerBox?: number;
-  // Multi-unit pricing
   units?: ProductUnit[];
 }
 
 export interface CartItem {
   product: Product;
-  quantity: number;
+  quantity: number; // Quantity in the selected unit
+  quantityInBaseUnit: number; // Converted quantity in base units
   totalPrice: number;
   totalProfit: number;
-  selectedUnit?: ProductUnit; // Which unit was used for sale
+  selectedUnit?: SellingUnit; // Which unit was used for sale
 }
 
 export interface Sale {
@@ -37,6 +51,7 @@ export interface Sale {
   productId: string;
   productName: string;
   quantity: number;
+  quantityInBaseUnit?: number; // Actual base units sold
   unitType: UnitType;
   unitName?: string; // Which unit was sold (e.g., "১ ডজন")
   totalPrice: number;
@@ -56,17 +71,21 @@ export interface PreOrderItem {
   unitType: UnitType;
   unitName?: string;
   quantity: number;
+  quantityInBaseUnit?: number;
   price: number;
+  profit?: number;
 }
 
 export interface PreOrder {
   id: string;
   customerName: string;
-  customerPhone?: string;
+  customerPhone?: string; // With country code
+  countryCode?: string;
   deliveryDate: Date;
   items: PreOrderItem[];
   status: PreOrderStatus;
   totalPrice: number;
+  totalProfit?: number;
   createdAt: Date;
   stockReserved: boolean; // Track if stock was deducted
 }
@@ -75,8 +94,9 @@ export interface Customer {
   id: string;
   name: string;
   displayName: string; // Unique display name (e.g., Rahim, Rahim1, Rahim2)
-  phone?: string;
-  whatsappNumber?: string; // Explicitly for WhatsApp
+  phone?: string; // With country code
+  countryCode?: string;
+  whatsappNumber?: string; // Explicitly for WhatsApp (with country code)
   totalDue: number;
   // Track profit pending from unpaid sales for proportional calculation
   pendingProfit: number;
@@ -85,6 +105,16 @@ export interface Customer {
   lastPaymentDate?: Date;
   // Track when first baki was created for 30-day reminder
   bakiCreatedAt?: Date;
+}
+
+// Supplier types
+export interface Supplier {
+  id: string;
+  name: string;
+  phone: string; // With country code (required)
+  countryCode: string;
+  productIds: string[]; // List of product IDs supplied by this supplier
+  createdAt: Date;
 }
 
 export interface Expense {
@@ -116,6 +146,9 @@ export interface BakiPaymentRecord {
 
 export interface StoreInfo {
   name: string;
+  location?: string;
+  phone?: string;
+  countryCode?: string;
   trialStartDate: Date;
   trialDaysLeft: number;
   isOnboarded: boolean;
@@ -159,6 +192,49 @@ export interface BulkSaleRecord {
   createdAt: Date;
 }
 
+// Product categories
+export const PRODUCT_CATEGORIES = [
+  { value: 'grocery', label: 'মুদি' },
+  { value: 'dairy', label: 'দুগ্ধ জাত' },
+  { value: 'meat', label: 'মাংস' },
+  { value: 'fish', label: 'মাছ' },
+  { value: 'vegetables', label: 'শাকসবজি' },
+  { value: 'fruits', label: 'ফল' },
+  { value: 'snacks', label: 'স্ন্যাকস' },
+  { value: 'beverages', label: 'পানীয়' },
+  { value: 'cosmetics', label: 'প্রসাধনী' },
+  { value: 'electronics', label: 'ইলেকট্রনিক্স' },
+  { value: 'clothing', label: 'পোশাক' },
+  { value: 'stationary', label: 'স্টেশনারি' },
+  { value: 'medicine', label: 'ওষুধ' },
+  { value: 'other', label: 'অন্যান্য' },
+];
+
+// Base units
+export const BASE_UNITS = [
+  { value: 'piece', label: 'পিস' },
+  { value: 'gram', label: 'গ্রাম' },
+  { value: 'kg', label: 'কেজি' },
+  { value: 'litre', label: 'লিটার' },
+  { value: 'dozen', label: 'ডজন' },
+  { value: 'box', label: 'বক্স' },
+  { value: 'packet', label: 'প্যাকেট' },
+];
+
+// Preset selling units with conversion factors
+export const PRESET_SELLING_UNITS = [
+  { name: 'পিস', conversionToBase: 1 },
+  { name: 'ডজন', conversionToBase: 12 },
+  { name: 'হালি', conversionToBase: 4 },
+  { name: '৩০ পিস', conversionToBase: 30 },
+  { name: 'বক্স', conversionToBase: 1 }, // User will set this
+  { name: 'ট্রে', conversionToBase: 30 },
+  { name: 'কেজি', conversionToBase: 1000 }, // 1000 grams
+  { name: '৫০০ গ্রাম', conversionToBase: 500 },
+  { name: '২৫০ গ্রাম', conversionToBase: 250 },
+  { name: 'লিটার', conversionToBase: 1000 }, // 1000 ml
+];
+
 // Helper to get unit label in Bengali
 export const getUnitLabel = (unitType: UnitType): string => {
   const labels: Record<UnitType, string> = {
@@ -167,7 +243,10 @@ export const getUnitLabel = (unitType: UnitType): string => {
     gram: 'গ্রাম',
     hali: 'হালি',
     dozen: 'ডজন',
-    box: 'বক্স'
+    box: 'বক্স',
+    tray: 'ট্রে',
+    packet: 'প্যাকেট',
+    litre: 'লিটার'
   };
   return labels[unitType];
 };
@@ -190,4 +269,23 @@ export const getPreOrderStatusColor = (status: PreOrderStatus): string => {
     cancelled: 'bg-red-100 text-red-700'
   };
   return colors[status];
+};
+
+// Validate phone number with country code
+export const validatePhoneWithCountryCode = (phone: string): { valid: boolean; message: string } => {
+  if (!phone) {
+    return { valid: false, message: 'ফোন নম্বর দিন' };
+  }
+  
+  // Check if starts with + and has at least 10 digits
+  if (!phone.startsWith('+')) {
+    return { valid: false, message: 'Country code দিয়ে শুরু করুন। যেমন: +8801XXXXXXXXX' };
+  }
+  
+  const digitsOnly = phone.replace(/\D/g, '');
+  if (digitsOnly.length < 10) {
+    return { valid: false, message: 'সঠিক ফোন নম্বর দিন' };
+  }
+  
+  return { valid: true, message: '' };
 };
