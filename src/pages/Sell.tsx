@@ -1,9 +1,9 @@
 import { useState, useMemo } from 'react';
-import { ShoppingCart, Search, Plus, Minus, CheckCircle, User, X, Calculator, Phone, BookOpen } from 'lucide-react';
+import { ShoppingCart, Search, Plus, Minus, CheckCircle, User, X, Calculator, Phone, BookOpen, HelpCircle, AlertTriangle } from 'lucide-react';
 import { useStore } from '@/context/StoreContext';
 import { Button } from '@/components/ui/button';
 import { toast } from '@/hooks/use-toast';
-import { CartItem, Product, getUnitLabel } from '@/types/store';
+import { CartItem, Product, SellingUnit, getUnitLabel } from '@/types/store';
 
 export default function Sell() {
   const { 
@@ -15,7 +15,6 @@ export default function Sell() {
     searchCustomersByName, 
     searchCustomersByPhone,
     getExistingCustomersByName,
-    generateCustomerDisplayName 
   } = useStore();
   
   const [searchTerm, setSearchTerm] = useState('');
@@ -27,6 +26,7 @@ export default function Sell() {
   const [showCustomerInput, setShowCustomerInput] = useState(false);
   const [showCalculator, setShowCalculator] = useState(false);
   const [customerPaid, setCustomerPaid] = useState('');
+  const [showHelp, setShowHelp] = useState(false);
   
   // Customer search state
   const [customerSearchType, setCustomerSearchType] = useState<'name' | 'phone'>('name');
@@ -44,6 +44,9 @@ export default function Sell() {
   const [bakiNewCustomerName, setBakiNewCustomerName] = useState('');
   const [bakiNewCustomerPhone, setBakiNewCustomerPhone] = useState('');
   const [showBakiNewCustomer, setShowBakiNewCustomer] = useState(false);
+
+  // Unit selection modal
+  const [selectingUnitFor, setSelectingUnitFor] = useState<Product | null>(null);
 
   const filteredProducts = products.filter(p => 
     p.name.toLowerCase().includes(searchTerm.toLowerCase()) && p.stock > 0
@@ -83,60 +86,118 @@ export default function Sell() {
   const change = parseFloat(customerPaid) - totalPrice;
   const bakiAmount = Math.abs(change);
 
-  const addToCart = (product: Product) => {
-    const existingItem = cart.find(item => item.product.id === product.id);
+  // Get available selling units for a product
+  const getSellingUnits = (product: Product): SellingUnit[] => {
+    if (product.sellingUnits && product.sellingUnits.length > 0) {
+      return product.sellingUnits;
+    }
+    // Default: single unit based on unitType
+    return [{
+      id: 'default',
+      name: product.baseUnit || getUnitLabel(product.unitType),
+      conversionToBase: 1,
+      price: product.price,
+      profit: product.profit
+    }];
+  };
+
+  const addToCart = (product: Product, selectedUnit?: SellingUnit) => {
+    const units = getSellingUnits(product);
+    
+    // If product has multiple units and no unit selected, show selection modal
+    if (units.length > 1 && !selectedUnit) {
+      setSelectingUnitFor(product);
+      return;
+    }
+
+    const unit = selectedUnit || units[0];
+    const quantityInBaseUnit = unit.conversionToBase;
+
+    // Check stock in base units
+    if (quantityInBaseUnit > product.stock) {
+      toast({ 
+        title: "⚠️ স্টকে পর্যাপ্ত পণ্য নেই",
+        description: `${product.name} এর স্টকে ${product.stock} ${product.baseUnit || getUnitLabel(product.unitType)} আছে`,
+        variant: "destructive" 
+      });
+      return;
+    }
+
+    const existingItem = cart.find(
+      item => item.product.id === product.id && item.selectedUnit?.id === unit.id
+    );
+    
     if (existingItem) {
-      updateCartQuantity(product.id, existingItem.quantity + 1);
+      updateCartQuantity(product.id, existingItem.quantity + 1, unit);
     } else {
       const newItem: CartItem = {
         product,
         quantity: 1,
-        totalPrice: product.price,
-        totalProfit: Math.max(0, product.profit)
+        quantityInBaseUnit,
+        totalPrice: unit.price,
+        totalProfit: unit.profit,
+        selectedUnit: unit
       };
       setCart([...cart, newItem]);
     }
-    toast({ title: `${product.name} যোগ হয়েছে 🛒` });
+    
+    setSelectingUnitFor(null);
+    toast({ title: `${product.name} (${unit.name}) যোগ হয়েছে 🛒` });
   };
 
-  const updateCartQuantity = (productId: string, newQuantity: number) => {
+  const updateCartQuantity = (productId: string, newQuantity: number, unit?: SellingUnit) => {
     const product = products.find(p => p.id === productId);
     if (!product) return;
 
     if (newQuantity <= 0) {
-      removeFromCart(productId);
+      removeFromCart(productId, unit?.id);
       return;
     }
 
-    if (newQuantity > product.stock) {
-      toast({ title: "স্টকে পর্যাপ্ত পণ্য নেই", variant: "destructive" });
-      return;
+    const selectedUnit = unit || cart.find(i => i.product.id === productId)?.selectedUnit;
+    const conversionToBase = selectedUnit?.conversionToBase || 1;
+    const newQuantityInBaseUnit = newQuantity * conversionToBase;
+
+    // Check stock warning (allow but warn)
+    if (newQuantityInBaseUnit > product.stock) {
+      toast({ 
+        title: "⚠️ স্টকে পর্যাপ্ত পণ্য নেই",
+        description: `স্টকে ${product.stock} ${product.baseUnit || getUnitLabel(product.unitType)} আছে, কিন্তু আপনি বিক্রি করতে পারবেন`,
+      });
     }
 
     setCart(cart.map(item => {
-      if (item.product.id === productId) {
+      if (item.product.id === productId && item.selectedUnit?.id === (unit?.id || item.selectedUnit?.id)) {
+        const unitPrice = item.selectedUnit?.price || product.price;
+        const unitProfit = item.selectedUnit?.profit || product.profit;
         return {
           ...item,
           quantity: newQuantity,
-          totalPrice: product.price * newQuantity,
-          totalProfit: Math.max(0, product.profit * newQuantity)
+          quantityInBaseUnit: newQuantityInBaseUnit,
+          totalPrice: unitPrice * newQuantity,
+          totalProfit: unitProfit * newQuantity
         };
       }
       return item;
     }));
   };
 
-  const handleQuantityInput = (productId: string) => {
+  const handleQuantityInput = (productId: string, unitId?: string) => {
     const qty = parseFloat(tempQuantity) || 0;
     if (qty > 0) {
-      updateCartQuantity(productId, qty);
+      const item = cart.find(i => i.product.id === productId && i.selectedUnit?.id === unitId);
+      if (item) {
+        updateCartQuantity(productId, qty, item.selectedUnit);
+      }
     }
     setEditingQuantity(null);
     setTempQuantity('');
   };
 
-  const removeFromCart = (productId: string) => {
-    setCart(cart.filter(item => item.product.id !== productId));
+  const removeFromCart = (productId: string, unitId?: string) => {
+    setCart(cart.filter(item => 
+      !(item.product.id === productId && item.selectedUnit?.id === unitId)
+    ));
   };
 
   const clearCart = () => {
@@ -224,12 +285,14 @@ export default function Sell() {
       }
     }
 
-    // Prepare sales data
+    // Prepare sales data with base unit quantities
     const salesData = cart.map(item => ({
       productId: item.product.id,
       productName: item.product.name,
-      quantity: item.quantity,
+      quantity: item.quantityInBaseUnit, // Store in base units
+      quantityInBaseUnit: item.quantityInBaseUnit,
       unitType: item.product.unitType,
+      unitName: item.selectedUnit?.name,
       totalPrice: item.totalPrice,
       profit: Math.max(0, item.totalProfit),
       isPaid: isPaid || partialPaid
@@ -239,7 +302,7 @@ export default function Sell() {
 
     toast({
       title: "বিক্রি সম্পন্ন! ✅",
-      description: `মোট: ৳${totalPrice} | লাভ: ৳${Math.max(0, totalProfit)}`,
+      description: `মোট: ৳${totalPrice} | লাভ: ৳${Math.max(0, totalProfit).toFixed(2)}`,
     });
 
     clearCart();
@@ -251,15 +314,36 @@ export default function Sell() {
 
   return (
     <div className="space-y-6 animate-fade-in">
-      <div className="flex items-center gap-3">
-        <div className="p-3 bg-primary/10 rounded-xl">
-          <ShoppingCart className="w-6 h-6 text-primary" />
+      {/* Header with Help */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className="p-3 bg-primary/10 rounded-xl">
+            <ShoppingCart className="w-6 h-6 text-primary" />
+          </div>
+          <div>
+            <h1 className="text-2xl font-bold text-foreground">বিক্রি করুন</h1>
+            <p className="text-muted-foreground">পণ্য নির্বাচন করে বিক্রি করুন</p>
+          </div>
         </div>
-        <div>
-          <h1 className="text-2xl font-bold text-foreground">বিক্রি করুন</h1>
-          <p className="text-muted-foreground">পণ্য নির্বাচন করে বিক্রি করুন</p>
-        </div>
+        <button
+          onClick={() => setShowHelp(!showHelp)}
+          className="p-2 text-muted-foreground hover:text-foreground hover:bg-muted rounded-xl"
+        >
+          <HelpCircle className="w-6 h-6" />
+        </button>
       </div>
+
+      {/* Help Note */}
+      {showHelp && (
+        <div className="p-4 bg-primary/10 rounded-xl text-sm animate-fade-in">
+          <p className="font-semibold mb-2">📌 ছোট নোট:</p>
+          <p className="text-muted-foreground">
+            এই অ্যাপে স্টক সবসময় ছোট ইউনিটে (base unit) রাখা হয়।
+            যেমন ডিমের ক্ষেত্রে base unit = পিস।
+            আপনি ডজন বা ৩০ পিস বিক্রি করলে অ্যাপ নিজেই পিসে রূপান্তর করে হিসাব করবে।
+          </p>
+        </div>
+      )}
 
       {/* Search */}
       <div className="relative">
@@ -276,28 +360,41 @@ export default function Sell() {
       {/* Product Grid */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
         {filteredProducts.map((p) => {
-          const inCart = cart.find(item => item.product.id === p.id);
+          const inCart = cart.filter(item => item.product.id === p.id);
+          const totalInCart = inCart.reduce((sum, item) => sum + item.quantity, 0);
+          const units = getSellingUnits(p);
+          
           return (
             <button
               key={p.id}
               onClick={() => addToCart(p)}
               className={`p-4 rounded-xl border-2 transition-all duration-200 text-left relative ${
-                inCart
+                totalInCart > 0
                   ? 'border-primary bg-primary/5'
                   : 'border-border hover:border-primary/50 bg-card'
               }`}
             >
-              {inCart && (
+              {totalInCart > 0 && (
                 <span className="absolute -top-2 -right-2 w-6 h-6 bg-primary text-primary-foreground rounded-full flex items-center justify-center text-sm font-bold">
-                  {inCart.quantity}
+                  {totalInCart}
                 </span>
               )}
               <p className="font-semibold text-foreground truncate">{p.name}</p>
-              <div className="flex items-center gap-1">
-                <p className="text-lg font-bold text-primary">৳{p.price}</p>
-                <span className="text-xs text-muted-foreground">/{getUnitLabel(p.unitType)}</span>
+              <div className="flex items-center gap-1 flex-wrap">
+                {units.length > 1 ? (
+                  <span className="text-xs text-muted-foreground">
+                    {units.length} ইউনিট
+                  </span>
+                ) : (
+                  <>
+                    <p className="text-lg font-bold text-primary">৳{units[0].price}</p>
+                    <span className="text-xs text-muted-foreground">/{units[0].name}</span>
+                  </>
+                )}
               </div>
-              <p className="text-xs text-muted-foreground">{p.stock} {getUnitLabel(p.unitType)} স্টকে</p>
+              <p className="text-xs text-muted-foreground">
+                {p.stock} {p.baseUnit || getUnitLabel(p.unitType)} স্টকে
+              </p>
             </button>
           );
         })}
@@ -310,13 +407,48 @@ export default function Sell() {
         </div>
       )}
 
+      {/* Unit Selection Modal */}
+      {selectingUnitFor && (
+        <div className="fixed inset-0 bg-foreground/20 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="w-full max-w-sm bg-card rounded-2xl shadow-soft border border-border p-6 animate-slide-up">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="font-bold text-foreground">{selectingUnitFor.name}</h3>
+              <button onClick={() => setSelectingUnitFor(null)} className="p-1 hover:bg-muted rounded-lg">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <p className="text-sm text-muted-foreground mb-4">কোন ইউনিটে বিক্রি করবেন?</p>
+            <div className="space-y-2">
+              {getSellingUnits(selectingUnitFor).map(unit => (
+                <button
+                  key={unit.id}
+                  onClick={() => addToCart(selectingUnitFor, unit)}
+                  className="w-full p-4 rounded-xl border-2 border-border hover:border-primary bg-muted/30 hover:bg-primary/5 transition-all flex items-center justify-between"
+                >
+                  <div>
+                    <p className="font-medium">{unit.name}</p>
+                    <p className="text-xs text-muted-foreground">
+                      = {unit.conversionToBase} {selectingUnitFor.baseUnit || getUnitLabel(selectingUnitFor.unitType)}
+                    </p>
+                  </div>
+                  <div className="text-right">
+                    <p className="font-bold text-primary">৳{unit.price}</p>
+                    <p className="text-xs text-profit">+৳{unit.profit.toFixed(2)}</p>
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Cart Section */}
       {cart.length > 0 && (
         <div className="card-elevated p-6 animate-slide-up">
           <div className="flex items-center justify-between mb-4">
             <h3 className="font-semibold text-foreground flex items-center gap-2">
               <ShoppingCart className="w-5 h-5" />
-              কার্ট ({cart.length}টি পণ্য)
+              কার্ট ({cart.length}টি আইটেম)
             </h3>
             <button onClick={clearCart} className="text-due hover:underline text-sm">
               সব মুছুন
@@ -325,65 +457,69 @@ export default function Sell() {
           
           {/* Cart Items */}
           <div className="space-y-3 mb-4 max-h-60 overflow-y-auto">
-            {cart.map((item) => (
-              <div key={item.product.id} className="flex items-center justify-between p-3 bg-muted/50 rounded-xl">
-                <div className="flex-1">
-                  <p className="font-medium text-foreground">{item.product.name}</p>
-                  <p className="text-sm text-muted-foreground">
-                    ৳{item.product.price}/{getUnitLabel(item.product.unitType)} × {item.quantity}
-                  </p>
-                </div>
-                <div className="flex items-center gap-3">
-                  <div className="flex items-center gap-1">
-                    <button
-                      onClick={() => updateCartQuantity(item.product.id, item.quantity - 1)}
-                      className="p-1.5 bg-background rounded-lg hover:bg-muted"
-                    >
-                      <Minus className="w-4 h-4" />
-                    </button>
-                    
-                    {/* Editable quantity */}
-                    {editingQuantity === item.product.id ? (
-                      <input
-                        type="number"
-                        value={tempQuantity}
-                        onChange={(e) => setTempQuantity(e.target.value)}
-                        onBlur={() => handleQuantityInput(item.product.id)}
-                        onKeyDown={(e) => e.key === 'Enter' && handleQuantityInput(item.product.id)}
-                        className="w-16 text-center font-bold bg-card rounded-lg border border-border p-1"
-                        autoFocus
-                        min="0"
-                        step={item.product.unitType === 'kg' || item.product.unitType === 'gram' ? '0.1' : '1'}
-                      />
-                    ) : (
+            {cart.map((item) => {
+              const itemKey = `${item.product.id}-${item.selectedUnit?.id}`;
+              return (
+                <div key={itemKey} className="flex items-center justify-between p-3 bg-muted/50 rounded-xl">
+                  <div className="flex-1">
+                    <p className="font-medium text-foreground">{item.product.name}</p>
+                    <p className="text-sm text-muted-foreground">
+                      ৳{item.selectedUnit?.price || item.product.price}/{item.selectedUnit?.name || getUnitLabel(item.product.unitType)} × {item.quantity}
+                    </p>
+                    <p className="text-xs text-profit">
+                      = {item.quantityInBaseUnit} {item.product.baseUnit || getUnitLabel(item.product.unitType)}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-1">
                       <button
-                        onClick={() => {
-                          setEditingQuantity(item.product.id);
-                          setTempQuantity(item.quantity.toString());
-                        }}
-                        className="w-12 text-center font-bold bg-card rounded-lg py-1 hover:bg-muted"
+                        onClick={() => updateCartQuantity(item.product.id, item.quantity - 1, item.selectedUnit)}
+                        className="p-1.5 bg-background rounded-lg hover:bg-muted"
                       >
-                        {item.quantity}
+                        <Minus className="w-4 h-4" />
                       </button>
-                    )}
-                    
+                      
+                      {editingQuantity === itemKey ? (
+                        <input
+                          type="number"
+                          value={tempQuantity}
+                          onChange={(e) => setTempQuantity(e.target.value)}
+                          onBlur={() => handleQuantityInput(item.product.id, item.selectedUnit?.id)}
+                          onKeyDown={(e) => e.key === 'Enter' && handleQuantityInput(item.product.id, item.selectedUnit?.id)}
+                          className="w-16 text-center font-bold bg-card rounded-lg border border-border p-1"
+                          autoFocus
+                          min="0"
+                        />
+                      ) : (
+                        <button
+                          onClick={() => {
+                            setEditingQuantity(itemKey);
+                            setTempQuantity(item.quantity.toString());
+                          }}
+                          className="w-12 text-center font-bold bg-card rounded-lg py-1 hover:bg-muted"
+                        >
+                          {item.quantity}
+                        </button>
+                      )}
+                      
+                      <button
+                        onClick={() => updateCartQuantity(item.product.id, item.quantity + 1, item.selectedUnit)}
+                        className="p-1.5 bg-background rounded-lg hover:bg-muted"
+                      >
+                        <Plus className="w-4 h-4" />
+                      </button>
+                    </div>
+                    <span className="font-bold text-foreground w-20 text-right">৳{item.totalPrice}</span>
                     <button
-                      onClick={() => updateCartQuantity(item.product.id, item.quantity + 1)}
-                      className="p-1.5 bg-background rounded-lg hover:bg-muted"
+                      onClick={() => removeFromCart(item.product.id, item.selectedUnit?.id)}
+                      className="p-1 text-due hover:bg-due/10 rounded-lg"
                     >
-                      <Plus className="w-4 h-4" />
+                      <X className="w-4 h-4" />
                     </button>
                   </div>
-                  <span className="font-bold text-foreground w-20 text-right">৳{item.totalPrice}</span>
-                  <button
-                    onClick={() => removeFromCart(item.product.id)}
-                    className="p-1 text-due hover:bg-due/10 rounded-lg"
-                  >
-                    <X className="w-4 h-4" />
-                  </button>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
 
           {/* Payment Type */}
@@ -445,80 +581,61 @@ export default function Sell() {
                 </button>
               </div>
 
-              {/* Customer Search */}
-              {!showCustomerInput && (
-                <>
-                  <div className="relative">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                    <input
-                      type={customerSearchType === 'phone' ? 'tel' : 'text'}
-                      value={customerSearchTerm}
-                      onChange={(e) => setCustomerSearchTerm(e.target.value)}
-                      placeholder={customerSearchType === 'phone' ? "ফোন নম্বর দিন..." : "নাম লিখুন..."}
-                      className="input-field pl-10"
-                    />
-                  </div>
-                  
-                  {filteredCustomers.length > 0 && (
-                    <div className="max-h-40 overflow-y-auto space-y-2">
-                      {filteredCustomers.map(c => (
-                        <button
-                          key={c.id}
-                          onClick={() => {
-                            setSelectedCustomer(c.id);
-                            setCustomerSearchTerm('');
-                          }}
-                          className={`w-full p-3 text-left rounded-lg border transition-all ${
-                            selectedCustomer === c.id 
-                              ? 'border-primary bg-primary/5' 
-                              : 'border-border hover:border-primary/50'
-                          }`}
-                        >
-                          <p className="font-medium">{c.displayName}</p>
-                          {c.phone && <p className="text-xs text-muted-foreground">{c.phone}</p>}
-                          <p className="text-xs text-due">বাকি: ৳{c.totalDue}</p>
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </>
-              )}
-
-              {!showCustomerInput && (
-                <button
-                  onClick={() => setShowCustomerInput(true)}
-                  className="text-sm text-primary hover:underline"
-                >
-                  + নতুন গ্রাহক যোগ করুন
-                </button>
-              )}
-
-              {showCustomerInput && (
-                <div className="space-y-3 p-4 bg-muted/50 rounded-xl">
-                  <div>
-                    <input
-                      type="text"
-                      value={newCustomerName}
-                      onChange={(e) => setNewCustomerName(e.target.value)}
-                      placeholder="গ্রাহকের নাম"
-                      className="input-field"
-                    />
-                    {existingCustomersWithSameName.length > 0 && (
-                      <div className="mt-2 p-3 bg-amber-50 border border-amber-200 rounded-lg">
-                        <p className="text-sm font-medium text-amber-800">
-                          ⚠️ "{newCustomerName}" নামে {existingCustomersWithSameName.length}জন গ্রাহক আছে:
-                        </p>
-                        <ul className="mt-1 text-xs text-amber-700">
-                          {existingCustomersWithSameName.map(c => (
-                            <li key={c.id}>• {c.displayName} {c.phone ? `(${c.phone})` : ''}</li>
-                          ))}
-                        </ul>
-                        <p className="mt-2 text-sm text-amber-800">
-                          নতুন গ্রাহক হবে: <strong>{generateCustomerDisplayName(newCustomerName)}</strong>
-                        </p>
+              {/* Search Input */}
+              <input
+                type={customerSearchType === 'phone' ? 'tel' : 'text'}
+                value={customerSearchTerm}
+                onChange={(e) => setCustomerSearchTerm(e.target.value)}
+                placeholder={customerSearchType === 'phone' ? "ফোন নম্বর দিন..." : "গ্রাহকের নাম লিখুন..."}
+                className="input-field"
+              />
+              
+              {/* Customer List */}
+              {filteredCustomers.length > 0 && (
+                <div className="max-h-40 overflow-y-auto border border-border rounded-xl bg-background">
+                  {filteredCustomers.map(c => (
+                    <button
+                      key={c.id}
+                      onClick={() => {
+                        setSelectedCustomer(c.id);
+                        setShowCustomerInput(false);
+                        setNewCustomerName('');
+                      }}
+                      className={`w-full text-left px-4 py-3 transition-colors flex items-center justify-between ${
+                        selectedCustomer === c.id ? 'bg-primary/10' : 'hover:bg-muted'
+                      }`}
+                    >
+                      <div>
+                        <span className="font-medium">{c.displayName}</span>
+                        {c.phone && <span className="text-xs text-muted-foreground ml-2">{c.phone}</span>}
                       </div>
-                    )}
-                  </div>
+                      {c.totalDue > 0 && (
+                        <span className="text-sm text-due">বাকি: ৳{c.totalDue}</span>
+                      )}
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              {/* New Customer Toggle */}
+              <button
+                onClick={() => setShowCustomerInput(!showCustomerInput)}
+                className="text-sm text-primary flex items-center gap-1"
+              >
+                <Plus className="w-4 h-4" />
+                নতুন গ্রাহক যোগ করুন
+              </button>
+
+              {/* New Customer Form */}
+              {showCustomerInput && (
+                <div className="space-y-3 p-4 bg-muted/30 rounded-xl animate-fade-in">
+                  <input
+                    type="text"
+                    value={newCustomerName}
+                    onChange={(e) => setNewCustomerName(e.target.value)}
+                    placeholder="গ্রাহকের নাম"
+                    className="input-field"
+                  />
                   <input
                     type="tel"
                     value={newCustomerPhone}
@@ -526,239 +643,178 @@ export default function Sell() {
                     placeholder="ফোন নম্বর (ঐচ্ছিক)"
                     className="input-field"
                   />
-                  <button
-                    onClick={() => {
-                      setShowCustomerInput(false);
-                      setSelectedCustomer(null);
-                    }}
-                    className="text-sm text-muted-foreground hover:underline"
-                  >
-                    ← বিদ্যমান গ্রাহক নির্বাচন করুন
-                  </button>
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Total */}
-          <div className="border-t border-border pt-4 mb-4">
-            <div className="flex justify-between items-center mb-2">
-              <span className="text-muted-foreground">মোট</span>
-              <span className="text-2xl font-bold text-foreground">৳{totalPrice}</span>
-            </div>
-            <div className="flex justify-between items-center">
-              <span className="text-muted-foreground">লাভ</span>
-              <span className="text-lg font-semibold text-profit">+৳{Math.max(0, totalProfit)}</span>
-            </div>
-          </div>
-
-          {/* Calculate Change Button */}
-          {isPaid && (
-            <button
-              onClick={() => setShowCalculator(!showCalculator)}
-              className="w-full mb-4 py-3 px-4 rounded-xl border-2 border-dashed border-primary/50 text-primary hover:bg-primary/5 transition-all flex items-center justify-center gap-2"
-            >
-              <Calculator className="w-5 h-5" />
-              ফেরত হিসাব করুন
-            </button>
-          )}
-
-          {/* Calculator Modal */}
-          {showCalculator && (
-            <div className="mb-4 p-4 bg-accent rounded-xl animate-fade-in">
-              <div className="flex justify-between items-center mb-3">
-                <span className="font-medium">মোট বিক্রি</span>
-                <input
-                  type="number"
-                  value={totalPrice}
-                  readOnly
-                  className="w-32 p-2 text-right font-bold bg-card rounded-lg border border-border"
-                />
-              </div>
-              <div className="flex justify-between items-center mb-3">
-                <span className="font-medium">গ্রাহক দিয়েছে</span>
-                <input
-                  type="number"
-                  value={customerPaid}
-                  onChange={(e) => {
-                    setCustomerPaid(e.target.value);
-                    setShowBakiOption(false);
-                    setBakiSelectedCustomer(null);
-                  }}
-                  placeholder="0"
-                  className="w-32 p-2 text-right font-bold bg-card rounded-lg border border-border"
-                  autoFocus
-                />
-              </div>
-              {customerPaid && parseFloat(customerPaid) >= totalPrice && (
-                <div className="flex justify-between items-center p-3 bg-profit/10 rounded-lg">
-                  <span className="font-bold text-profit">ফেরত দিন</span>
-                  <span className="text-2xl font-bold text-profit">৳{change.toFixed(0)}</span>
-                </div>
-              )}
-              {customerPaid && parseFloat(customerPaid) < totalPrice && (
-                <div className="space-y-3">
-                  <div className="flex justify-between items-center p-3 bg-due/10 rounded-lg">
-                    <span className="font-bold text-due">বাকি থাকবে</span>
-                    <span className="text-2xl font-bold text-due">৳{bakiAmount.toFixed(0)}</span>
-                  </div>
-
-                  {/* Optional: Save to Baki Khata */}
-                  {!showBakiOption ? (
-                    <button
-                      onClick={() => setShowBakiOption(true)}
-                      className="w-full py-3 px-4 rounded-xl border-2 border-dashed border-due/50 text-due hover:bg-due/5 transition-all flex items-center justify-center gap-2"
-                    >
-                      <BookOpen className="w-5 h-5" />
-                      বাকি খাতায় সংরক্ষণ করুন (ঐচ্ছিক)
-                    </button>
-                  ) : (
-                    <div className="p-4 bg-due/5 border border-due/20 rounded-xl space-y-3">
-                      <p className="font-medium text-foreground flex items-center gap-2">
-                        <BookOpen className="w-5 h-5 text-due" />
-                        বাকি খাতায় যোগ করুন
-                      </p>
-
-                      {/* Search Type Toggle */}
-                      <div className="flex gap-2">
-                        <button
-                          onClick={() => {
-                            setBakiCustomerSearchType('name');
-                            setBakiCustomerSearchTerm('');
-                          }}
-                          className={`flex-1 py-2 px-3 rounded-lg text-sm transition-all ${
-                            bakiCustomerSearchType === 'name' 
-                              ? 'bg-due text-white' 
-                              : 'bg-muted text-muted-foreground'
-                          }`}
-                        >
-                          <User className="w-4 h-4 inline mr-1" />
-                          নাম
-                        </button>
-                        <button
-                          onClick={() => {
-                            setBakiCustomerSearchType('phone');
-                            setBakiCustomerSearchTerm('');
-                          }}
-                          className={`flex-1 py-2 px-3 rounded-lg text-sm transition-all ${
-                            bakiCustomerSearchType === 'phone' 
-                              ? 'bg-due text-white' 
-                              : 'bg-muted text-muted-foreground'
-                          }`}
-                        >
-                          <Phone className="w-4 h-4 inline mr-1" />
-                          ফোন
-                        </button>
-                      </div>
-
-                      {/* Customer Search */}
-                      {!showBakiNewCustomer && (
-                        <>
-                          <div className="relative">
-                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                            <input
-                              type={bakiCustomerSearchType === 'phone' ? 'tel' : 'text'}
-                              value={bakiCustomerSearchTerm}
-                              onChange={(e) => setBakiCustomerSearchTerm(e.target.value)}
-                              placeholder={bakiCustomerSearchType === 'phone' ? "ফোন নম্বর দিন..." : "নাম লিখুন..."}
-                              className="input-field pl-10"
-                            />
-                          </div>
-                          
-                          {bakiFilteredCustomers.length > 0 && (
-                            <div className="max-h-32 overflow-y-auto space-y-2">
-                              {bakiFilteredCustomers.slice(0, 5).map(c => (
-                                <button
-                                  key={c.id}
-                                  onClick={() => {
-                                    setBakiSelectedCustomer(c.id);
-                                    setBakiCustomerSearchTerm('');
-                                  }}
-                                  className={`w-full p-2 text-left rounded-lg border text-sm transition-all ${
-                                    bakiSelectedCustomer === c.id 
-                                      ? 'border-due bg-due/10' 
-                                      : 'border-border hover:border-due/50'
-                                  }`}
-                                >
-                                  <p className="font-medium">{c.displayName}</p>
-                                  {c.phone && <p className="text-xs text-muted-foreground">{c.phone}</p>}
-                                </button>
-                              ))}
-                            </div>
-                          )}
-
-                          <button
-                            onClick={() => setShowBakiNewCustomer(true)}
-                            className="text-sm text-due hover:underline"
-                          >
-                            + নতুন গ্রাহক যোগ করুন
-                          </button>
-                        </>
-                      )}
-
-                      {showBakiNewCustomer && (
-                        <div className="space-y-2">
-                          <input
-                            type="text"
-                            value={bakiNewCustomerName}
-                            onChange={(e) => setBakiNewCustomerName(e.target.value)}
-                            placeholder="গ্রাহকের নাম"
-                            className="input-field"
-                          />
-                          {existingBakiCustomersWithSameName.length > 0 && (
-                            <p className="text-xs text-amber-600">
-                              ⚠️ এই নামে গ্রাহক আছে। নতুন নাম হবে: {generateCustomerDisplayName(bakiNewCustomerName)}
-                            </p>
-                          )}
-                          <input
-                            type="tel"
-                            value={bakiNewCustomerPhone}
-                            onChange={(e) => setBakiNewCustomerPhone(e.target.value)}
-                            placeholder="ফোন নম্বর (ঐচ্ছিক)"
-                            className="input-field"
-                          />
-                          <button
-                            onClick={() => setShowBakiNewCustomer(false)}
-                            className="text-sm text-muted-foreground hover:underline"
-                          >
-                            ← বিদ্যমান গ্রাহক নির্বাচন
-                          </button>
-                        </div>
-                      )}
-
-                      <div className="flex gap-2">
-                        <Button
-                          variant="outline"
-                          onClick={() => {
-                            setShowBakiOption(false);
-                            setBakiSelectedCustomer(null);
-                          }}
-                          className="flex-1"
-                        >
-                          বাতিল
-                        </Button>
-                        <Button
-                          onClick={handleSaveToBaki}
-                          disabled={!bakiSelectedCustomer && !bakiNewCustomerName.trim()}
-                          className="flex-1 bg-due hover:bg-due/90"
-                        >
-                          ৳{bakiAmount.toFixed(0)} বাকি রাখুন
-                        </Button>
-                      </div>
-                    </div>
+                  {existingCustomersWithSameName.length > 0 && (
+                    <p className="text-xs text-amber-600">
+                      ⚠️ এই নামে {existingCustomersWithSameName.length}জন গ্রাহক আছে
+                    </p>
                   )}
                 </div>
               )}
             </div>
           )}
 
-          <Button
-            onClick={handleSale}
-            className="w-full btn-primary py-6 text-lg rounded-xl"
-            disabled={!isPaid && !selectedCustomer && !newCustomerName.trim()}
-          >
-            বিক্রি সম্পন্ন করুন ✓
-          </Button>
+          {/* Total & Actions */}
+          <div className="border-t border-border pt-4">
+            <div className="flex justify-between items-center mb-2">
+              <span className="text-muted-foreground">মোট বিক্রয়:</span>
+              <span className="text-2xl font-bold text-foreground">৳{totalPrice.toLocaleString()}</span>
+            </div>
+            <div className="flex justify-between items-center mb-4">
+              <span className="text-muted-foreground">মোট লাভ:</span>
+              <span className="text-lg font-semibold text-profit">+৳{totalProfit.toFixed(2)}</span>
+            </div>
+
+            {/* Calculator for Cash Sales */}
+            {isPaid && (
+              <div className="mb-4">
+                <button
+                  onClick={() => setShowCalculator(!showCalculator)}
+                  className="flex items-center gap-2 text-sm text-primary"
+                >
+                  <Calculator className="w-4 h-4" />
+                  ক্যালকুলেটর {showCalculator ? 'বন্ধ করুন' : 'খুলুন'}
+                </button>
+
+                {showCalculator && (
+                  <div className="mt-3 p-4 bg-muted/50 rounded-xl space-y-3 animate-fade-in">
+                    <div>
+                      <label className="text-sm text-muted-foreground">গ্রাহক কত দিয়েছে?</label>
+                      <input
+                        type="number"
+                        value={customerPaid}
+                        onChange={(e) => setCustomerPaid(e.target.value)}
+                        placeholder="টাকার পরিমাণ"
+                        className="input-field mt-1"
+                        min="0"
+                      />
+                    </div>
+                    
+                    {customerPaid && parseFloat(customerPaid) > 0 && (
+                      <div className="space-y-2">
+                        {change >= 0 ? (
+                          <div className="p-3 bg-profit/10 rounded-lg">
+                            <p className="text-profit font-bold text-lg">
+                              ফেরত: ৳{change.toFixed(2)}
+                            </p>
+                          </div>
+                        ) : (
+                          <div className="p-3 bg-due/10 rounded-lg">
+                            <p className="text-due font-bold text-lg">
+                              বাকি: ৳{bakiAmount.toFixed(2)}
+                            </p>
+                            <button
+                              onClick={() => setShowBakiOption(!showBakiOption)}
+                              className="text-sm text-primary mt-2 flex items-center gap-1"
+                            >
+                              <BookOpen className="w-4 h-4" />
+                              বাকি সংরক্ষণ করুন
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Baki Customer Selection */}
+                    {showBakiOption && change < 0 && (
+                      <div className="border-t border-border pt-3 space-y-3 animate-fade-in">
+                        <p className="text-sm font-medium">কার নামে বাকি রাখবেন?</p>
+                        
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => setBakiCustomerSearchType('name')}
+                            className={`flex-1 py-2 px-3 rounded-lg text-sm ${
+                              bakiCustomerSearchType === 'name' ? 'bg-primary text-primary-foreground' : 'bg-muted'
+                            }`}
+                          >
+                            নাম দিয়ে
+                          </button>
+                          <button
+                            onClick={() => setBakiCustomerSearchType('phone')}
+                            className={`flex-1 py-2 px-3 rounded-lg text-sm ${
+                              bakiCustomerSearchType === 'phone' ? 'bg-primary text-primary-foreground' : 'bg-muted'
+                            }`}
+                          >
+                            ফোন দিয়ে
+                          </button>
+                        </div>
+
+                        <input
+                          type={bakiCustomerSearchType === 'phone' ? 'tel' : 'text'}
+                          value={bakiCustomerSearchTerm}
+                          onChange={(e) => setBakiCustomerSearchTerm(e.target.value)}
+                          placeholder={bakiCustomerSearchType === 'phone' ? "ফোন নম্বর..." : "গ্রাহকের নাম..."}
+                          className="input-field"
+                        />
+
+                        {bakiFilteredCustomers.length > 0 && (
+                          <div className="max-h-32 overflow-y-auto border border-border rounded-xl">
+                            {bakiFilteredCustomers.map(c => (
+                              <button
+                                key={c.id}
+                                onClick={() => {
+                                  setBakiSelectedCustomer(c.id);
+                                  setShowBakiNewCustomer(false);
+                                  setBakiNewCustomerName('');
+                                }}
+                                className={`w-full text-left px-4 py-2 text-sm ${
+                                  bakiSelectedCustomer === c.id ? 'bg-primary/10' : 'hover:bg-muted'
+                                }`}
+                              >
+                                {c.displayName}
+                              </button>
+                            ))}
+                          </div>
+                        )}
+
+                        <button
+                          onClick={() => setShowBakiNewCustomer(!showBakiNewCustomer)}
+                          className="text-sm text-primary"
+                        >
+                          + নতুন গ্রাহক
+                        </button>
+
+                        {showBakiNewCustomer && (
+                          <div className="space-y-2">
+                            <input
+                              type="text"
+                              value={bakiNewCustomerName}
+                              onChange={(e) => setBakiNewCustomerName(e.target.value)}
+                              placeholder="নাম"
+                              className="input-field"
+                            />
+                            <input
+                              type="tel"
+                              value={bakiNewCustomerPhone}
+                              onChange={(e) => setBakiNewCustomerPhone(e.target.value)}
+                              placeholder="ফোন"
+                              className="input-field"
+                            />
+                          </div>
+                        )}
+
+                        <Button
+                          onClick={handleSaveToBaki}
+                          className="w-full bg-due hover:bg-due/90 text-white"
+                          disabled={!bakiSelectedCustomer && !bakiNewCustomerName.trim()}
+                        >
+                          ৳{bakiAmount.toFixed(2)} বাকি সংরক্ষণ করুন
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+
+            <Button 
+              onClick={handleSale} 
+              className="w-full btn-primary py-6 text-lg rounded-xl"
+              disabled={cart.length === 0}
+            >
+              <CheckCircle className="w-5 h-5 mr-2" />
+              বিক্রি সম্পন্ন করুন
+            </Button>
+          </div>
         </div>
       )}
     </div>
