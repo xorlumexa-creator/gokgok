@@ -1,14 +1,15 @@
 import { useState, useMemo } from 'react';
-import { CalendarCheck, Plus, Search, User, Phone, X, Package, Trash2, CheckCircle, XCircle, Eye, Clock } from 'lucide-react';
+import { CalendarCheck, Plus, Search, User, Phone, X, Package, Trash2, CheckCircle, XCircle, Clock, MessageCircle, AlertTriangle, ShoppingBag } from 'lucide-react';
 import { useStore } from '@/context/StoreContext';
 import { Button } from '@/components/ui/button';
 import { toast } from '@/hooks/use-toast';
 import { PreOrder, PreOrderItem, PreOrderStatus, getUnitLabel, getPreOrderStatusLabel, getPreOrderStatusColor } from '@/types/store';
 import { format } from 'date-fns';
 import { bn } from 'date-fns/locale';
+import { PhoneInputWithCode } from '@/components/common/PhoneInputWithCode';
 
 export default function PreOrders() {
-  const { products, preOrders, addPreOrder, updatePreOrderStatus, updateProduct } = useStore();
+  const { products, preOrders, addPreOrder, updatePreOrderStatus, updateProduct, markPreOrderAsSold, storeInfo } = useStore();
   
   const [searchTerm, setSearchTerm] = useState('');
   const [showAddForm, setShowAddForm] = useState(false);
@@ -25,6 +26,24 @@ export default function PreOrders() {
   const [selectedProductId, setSelectedProductId] = useState('');
   const [itemQuantity, setItemQuantity] = useState('');
   const [productSearchTerm, setProductSearchTerm] = useState('');
+
+  // WhatsApp reminder message
+  const [reminderMessage, setReminderMessage] = useState(`Assalamualaikum,
+আপনার অর্ডার [ORDER_DATE] তারিখে [STORE_NAME]-এ রাখানো ছিল।
+অনুগ্রহ করে আপনার অর্ডারটি সংগ্রহ করুন।
+
+ধন্যবাদ।`);
+
+  // Get overdue orders
+  const overdueOrders = useMemo(() => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    return preOrders.filter(o => {
+      const deliveryDate = new Date(o.deliveryDate);
+      deliveryDate.setHours(0, 0, 0, 0);
+      return o.status === 'pending' && deliveryDate < today;
+    });
+  }, [preOrders]);
 
   const filteredPreOrders = useMemo(() => {
     let result = preOrders;
@@ -65,13 +84,13 @@ export default function PreOrders() {
       return;
     }
     
+    // Show warning if stock is low but still allow
     if (qty > product.stock) {
       toast({ 
-        title: "পর্যাপ্ত স্টক নেই", 
-        description: `${product.name} এর স্টকে ${product.stock} ${getUnitLabel(product.unitType)} আছে`,
-        variant: "destructive" 
+        title: "সতর্কতা: পর্যাপ্ত স্টক নেই", 
+        description: `${product.name} এর স্টকে ${product.stock} ${getUnitLabel(product.unitType)} আছে। তবুও অর্ডার করতে পারবেন।`,
+        variant: "default"
       });
-      return;
     }
     
     // Check if already added
@@ -80,12 +99,9 @@ export default function PreOrders() {
       // Update quantity
       const updated = [...orderItems];
       const newQty = updated[existingIndex].quantity + qty;
-      if (newQty > product.stock) {
-        toast({ title: "পর্যাপ্ত স্টক নেই", variant: "destructive" });
-        return;
-      }
       updated[existingIndex].quantity = newQty;
       updated[existingIndex].price = product.price * newQty;
+      updated[existingIndex].profit = product.profit * newQty;
       setOrderItems(updated);
     } else {
       setOrderItems([...orderItems, {
@@ -93,7 +109,9 @@ export default function PreOrders() {
         productName: product.name,
         unitType: product.unitType,
         quantity: qty,
-        price: product.price * qty
+        quantityInBaseUnit: qty,
+        price: product.price * qty,
+        profit: product.profit * qty
       }]);
     }
     
@@ -123,29 +141,40 @@ export default function PreOrders() {
       return;
     }
     
-    // Check stock again before saving
+    // Check stock and show warning if not enough (but allow saving)
+    let stockWarning = false;
     for (const item of orderItems) {
       const product = products.find(p => p.id === item.productId);
-      if (!product || item.quantity > product.stock) {
-        toast({ 
-          title: "পর্যাপ্ত স্টক নেই", 
-          description: `${item.productName} এর জন্য যথেষ্ট স্টক নেই`,
-          variant: "destructive" 
-        });
-        return;
+      if (product && item.quantity > product.stock) {
+        stockWarning = true;
       }
     }
     
+    if (stockWarning) {
+      toast({ 
+        title: "সতর্কতা", 
+        description: "কিছু পণ্যের স্টক কম আছে। অর্ডার সংরক্ষিত হবে।",
+      });
+    }
+    
     const totalPrice = orderItems.reduce((sum, item) => sum + item.price, 0);
+    const totalProfit = orderItems.reduce((sum, item) => sum + (item.profit || 0), 0);
+    
+    // Only reserve stock if available
+    const canReserveStock = orderItems.every(item => {
+      const product = products.find(p => p.id === item.productId);
+      return product && item.quantity <= product.stock;
+    });
     
     addPreOrder({
       customerName: customerName.trim(),
-      customerPhone: customerPhone.trim(),
+      customerPhone: customerPhone,
       deliveryDate: new Date(deliveryDate),
       items: orderItems,
       status: 'pending',
       totalPrice,
-      stockReserved: true
+      totalProfit,
+      stockReserved: canReserveStock
     });
     
     toast({ title: "আগাম অর্ডার সংরক্ষিত হয়েছে ✓" });
@@ -173,6 +202,30 @@ export default function PreOrders() {
              'স্ট্যাটাস আপডেট হয়েছে' 
     });
     setViewingOrder(null);
+  };
+
+  const handleMarkAsSold = (orderId: string) => {
+    markPreOrderAsSold(orderId);
+    toast({ 
+      title: "বিক্রি সম্পন্ন ✓",
+      description: "অর্ডারটি বিক্রি হিসেবে রেকর্ড হয়েছে এবং লাভ গণনা করা হয়েছে।"
+    });
+    setViewingOrder(null);
+  };
+
+  const handleSendWhatsAppReminder = (order: PreOrder) => {
+    if (!order.customerPhone) {
+      toast({ title: "ফোন নম্বর নেই", variant: "destructive" });
+      return;
+    }
+
+    const message = reminderMessage
+      .replace('[ORDER_DATE]', format(new Date(order.deliveryDate), 'dd MMMM yyyy', { locale: bn }))
+      .replace('[STORE_NAME]', storeInfo?.name || 'দোকান');
+
+    const phone = order.customerPhone.replace(/\+/g, '');
+    const url = `https://wa.me/${phone}?text=${encodeURIComponent(message)}`;
+    window.open(url, '_blank');
   };
 
   const resetForm = () => {
@@ -207,6 +260,69 @@ export default function PreOrders() {
           <Plus className="w-5 h-5 mr-2" />
           নতুন অর্ডার
         </Button>
+      </div>
+
+      {/* Overdue Orders Alert */}
+      {overdueOrders.length > 0 && (
+        <div className="p-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl">
+          <div className="flex items-center gap-2 mb-3">
+            <AlertTriangle className="w-5 h-5 text-amber-600" />
+            <h3 className="font-semibold text-amber-800 dark:text-amber-200">
+              {overdueOrders.length}টি অর্ডার সংগ্রহ হয়নি!
+            </h3>
+          </div>
+          <div className="space-y-2">
+            {overdueOrders.map(order => (
+              <div key={order.id} className="flex items-center justify-between p-2 bg-white dark:bg-background rounded-lg">
+                <div>
+                  <p className="font-medium">{order.customerName}</p>
+                  <p className="text-sm text-muted-foreground">
+                    {format(new Date(order.deliveryDate), 'dd MMM yyyy', { locale: bn })}
+                  </p>
+                </div>
+                <div className="flex gap-2">
+                  {order.customerPhone && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => handleSendWhatsAppReminder(order)}
+                      className="text-green-600 border-green-600"
+                    >
+                      <MessageCircle className="w-4 h-4 mr-1" />
+                      রিমাইন্ডার
+                    </Button>
+                  )}
+                  <Button
+                    size="sm"
+                    onClick={() => handleMarkAsSold(order.id)}
+                    className="bg-profit hover:bg-profit/90 text-white"
+                  >
+                    <ShoppingBag className="w-4 h-4 mr-1" />
+                    বিক্রি হয়েছে
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Default WhatsApp Message */}
+      <div className="card-elevated p-4">
+        <label className="block text-sm font-medium mb-2">
+          <MessageCircle className="w-4 h-4 inline mr-1" />
+          ডিফল্ট রিমাইন্ডার মেসেজ (সম্পাদনাযোগ্য)
+        </label>
+        <textarea
+          value={reminderMessage}
+          onChange={(e) => setReminderMessage(e.target.value)}
+          rows={4}
+          className="input-field text-sm"
+          placeholder="WhatsApp রিমাইন্ডার মেসেজ..."
+        />
+        <p className="text-xs text-muted-foreground mt-1">
+          [ORDER_DATE] = অর্ডার তারিখ, [STORE_NAME] = দোকানের নাম
+        </p>
       </div>
 
       {/* Status Filter */}
@@ -265,20 +381,12 @@ export default function PreOrders() {
                 />
               </div>
 
-              {/* Phone */}
-              <div>
-                <label className="block text-sm font-medium mb-2">
-                  <Phone className="w-4 h-4 inline mr-1" />
-                  ফোন / WhatsApp নম্বর
-                </label>
-                <input
-                  type="tel"
-                  value={customerPhone}
-                  onChange={(e) => setCustomerPhone(e.target.value)}
-                  placeholder="01XXXXXXXXX"
-                  className="input-field"
-                />
-              </div>
+              {/* Phone with Country Code */}
+              <PhoneInputWithCode
+                value={customerPhone}
+                onChange={(phone) => setCustomerPhone(phone)}
+                label="ফোন / WhatsApp নম্বর"
+              />
 
               {/* Delivery Date */}
               <div>
@@ -328,10 +436,10 @@ export default function PreOrders() {
                           <div>
                             <span className="font-medium">{p.name}</span>
                             <span className="text-xs text-muted-foreground ml-2">
-                              ({getUnitLabel(p.unitType)})
+                              ({p.baseUnit || getUnitLabel(p.unitType)})
                             </span>
                           </div>
-                          <span className="text-sm text-muted-foreground">
+                          <span className={`text-sm ${p.stock <= 5 ? 'text-due' : 'text-muted-foreground'}`}>
                             স্টক: {p.stock}
                           </span>
                         </button>
@@ -431,10 +539,16 @@ export default function PreOrders() {
                   <span className="font-bold text-lg">{viewingOrder.customerName}</span>
                 </div>
                 {viewingOrder.customerPhone && (
-                  <p className="text-muted-foreground flex items-center gap-2">
+                  <div className="flex items-center gap-2 text-muted-foreground">
                     <Phone className="w-4 h-4" />
-                    {viewingOrder.customerPhone}
-                  </p>
+                    <span>{viewingOrder.customerPhone}</span>
+                    <button
+                      onClick={() => handleSendWhatsAppReminder(viewingOrder)}
+                      className="ml-2 p-1 text-green-600 hover:bg-green-100 rounded"
+                    >
+                      <MessageCircle className="w-4 h-4" />
+                    </button>
+                  </div>
                 )}
               </div>
 
@@ -486,22 +600,34 @@ export default function PreOrders() {
 
               {/* Action Buttons */}
               {viewingOrder.status === 'pending' && (
-                <div className="flex gap-3 pt-4">
+                <div className="space-y-3 pt-4">
+                  {/* Sold Button - Primary Action */}
                   <Button
-                    variant="outline"
-                    onClick={() => handleStatusChange(viewingOrder.id, 'cancelled')}
-                    className="flex-1 py-5 rounded-xl border-due text-due hover:bg-due/10"
+                    onClick={() => handleMarkAsSold(viewingOrder.id)}
+                    className="w-full py-5 rounded-xl bg-profit hover:bg-profit/90 text-white"
                   >
-                    <XCircle className="w-5 h-5 mr-2" />
-                    বাতিল করুন
+                    <ShoppingBag className="w-5 h-5 mr-2" />
+                    বিক্রি হয়েছে (Sold)
                   </Button>
-                  <Button
-                    onClick={() => handleStatusChange(viewingOrder.id, 'delivered')}
-                    className="flex-1 py-5 rounded-xl bg-profit hover:bg-profit/90 text-white"
-                  >
-                    <CheckCircle className="w-5 h-5 mr-2" />
-                    সরবরাহ সম্পন্ন
-                  </Button>
+                  
+                  <div className="flex gap-3">
+                    <Button
+                      variant="outline"
+                      onClick={() => handleStatusChange(viewingOrder.id, 'cancelled')}
+                      className="flex-1 py-5 rounded-xl border-due text-due hover:bg-due/10"
+                    >
+                      <XCircle className="w-5 h-5 mr-2" />
+                      বাতিল করুন
+                    </Button>
+                    <Button
+                      variant="outline"
+                      onClick={() => handleStatusChange(viewingOrder.id, 'delivered')}
+                      className="flex-1 py-5 rounded-xl"
+                    >
+                      <CheckCircle className="w-5 h-5 mr-2" />
+                      সরবরাহ সম্পন্ন
+                    </Button>
+                  </div>
                 </div>
               )}
             </div>
@@ -511,43 +637,57 @@ export default function PreOrders() {
 
       {/* Order List */}
       <div className="space-y-3">
-        {filteredPreOrders.map((order) => (
-          <button
-            key={order.id}
-            onClick={() => setViewingOrder(order)}
-            className="w-full card-elevated p-4 text-left hover:shadow-md transition-shadow"
-          >
-            <div className="flex items-center justify-between mb-2">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-primary/10 rounded-full flex items-center justify-center">
-                  <User className="w-5 h-5 text-primary" />
+        {filteredPreOrders.map((order) => {
+          const isOverdue = new Date(order.deliveryDate) < new Date() && order.status === 'pending';
+          return (
+            <button
+              key={order.id}
+              onClick={() => setViewingOrder(order)}
+              className={`w-full card-elevated p-4 text-left hover:shadow-md transition-shadow ${
+                isOverdue ? 'border-amber-400 bg-amber-50/50 dark:bg-amber-900/10' : ''
+              }`}
+            >
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-3">
+                  <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
+                    isOverdue ? 'bg-amber-100' : 'bg-primary/10'
+                  }`}>
+                    {isOverdue ? (
+                      <AlertTriangle className="w-5 h-5 text-amber-600" />
+                    ) : (
+                      <User className="w-5 h-5 text-primary" />
+                    )}
+                  </div>
+                  <div>
+                    <p className="font-semibold text-foreground">{order.customerName}</p>
+                    {order.customerPhone && (
+                      <p className="text-sm text-muted-foreground">{order.customerPhone}</p>
+                    )}
+                  </div>
                 </div>
-                <div>
-                  <p className="font-semibold text-foreground">{order.customerName}</p>
-                  {order.customerPhone && (
-                    <p className="text-sm text-muted-foreground">{order.customerPhone}</p>
+                <span className={`px-3 py-1 rounded-full text-xs font-medium ${getPreOrderStatusColor(order.status)}`}>
+                  {getPreOrderStatusLabel(order.status)}
+                </span>
+              </div>
+              
+              <div className="flex items-center justify-between text-sm">
+                <div className="flex items-center gap-2 text-muted-foreground">
+                  <CalendarCheck className="w-4 h-4" />
+                  {format(new Date(order.deliveryDate), 'dd MMM yyyy', { locale: bn })}
+                  {isOverdue && (
+                    <span className="text-amber-600 text-xs">(মেয়াদ শেষ)</span>
                   )}
                 </div>
+                <div className="flex items-center gap-4">
+                  <span className="text-muted-foreground">
+                    {order.items.length}টি পণ্য
+                  </span>
+                  <span className="font-bold text-primary">৳{order.totalPrice}</span>
+                </div>
               </div>
-              <span className={`px-3 py-1 rounded-full text-xs font-medium ${getPreOrderStatusColor(order.status)}`}>
-                {getPreOrderStatusLabel(order.status)}
-              </span>
-            </div>
-            
-            <div className="flex items-center justify-between text-sm">
-              <div className="flex items-center gap-2 text-muted-foreground">
-                <CalendarCheck className="w-4 h-4" />
-                {format(new Date(order.deliveryDate), 'dd MMM yyyy', { locale: bn })}
-              </div>
-              <div className="flex items-center gap-4">
-                <span className="text-muted-foreground">
-                  {order.items.length}টি পণ্য
-                </span>
-                <span className="font-bold text-primary">৳{order.totalPrice}</span>
-              </div>
-            </div>
-          </button>
-        ))}
+            </button>
+          );
+        })}
       </div>
 
       {filteredPreOrders.length === 0 && (

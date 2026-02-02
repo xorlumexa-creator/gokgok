@@ -102,8 +102,9 @@ export function OnboardingModal() {
 
         return {
           name: p.name.trim(),
+          baseUnit: 'পিস',
           price: basePrice,
-          profit: 0, // Will be calculated per sale
+          profit: 0,
           stock: parseInt(p.stock) || 0,
           unitType: 'piece' as const,
           units: productUnits,

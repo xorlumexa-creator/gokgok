@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { Product, Sale, Customer, StoreInfo, DashboardStats, Expense, PersonalAccountStats, UnitType, PreOrder, PreOrderStatus, BulkSaleRecord, BakiPaymentRecord, CustomEarning } from '@/types/store';
+import { Product, Sale, Customer, StoreInfo, DashboardStats, Expense, PersonalAccountStats, UnitType, PreOrder, PreOrderStatus, BulkSaleRecord, BakiPaymentRecord, CustomEarning, Supplier } from '@/types/store';
 
 interface StoreContextType {
   storeInfo: StoreInfo | null;
@@ -11,6 +11,7 @@ interface StoreContextType {
   bulkSaleRecords: BulkSaleRecord[];
   bakiPaymentRecords: BakiPaymentRecord[];
   customEarnings: CustomEarning[];
+  suppliers: Supplier[];
   isOnboarded: boolean;
   setStoreInfo: (info: StoreInfo) => void;
   addProduct: (product: Omit<Product, 'id' | 'createdAt'>) => void;
@@ -21,7 +22,7 @@ interface StoreContextType {
   addCustomer: (customer: Omit<Customer, 'id' | 'createdAt' | 'displayName' | 'pendingProfit' | 'lastPaymentDate'>) => Customer;
   updateCustomer: (id: string, customer: Partial<Customer>) => void;
   updateCustomerDue: (id: string, amount: number, profitAmount?: number) => void;
-  payCustomerDue: (id: string, paymentAmount: number) => number; // Returns proportional profit
+  payCustomerDue: (id: string, paymentAmount: number) => number;
   completeOnboarding: (storeName: string, initialProducts: Omit<Product, 'id' | 'createdAt'>[]) => void;
   getDashboardStats: () => DashboardStats;
   getPersonalAccountStats: () => PersonalAccountStats;
@@ -32,12 +33,16 @@ interface StoreContextType {
   getExistingCustomersByName: (name: string) => Customer[];
   searchCustomersByPhone: (phone: string) => Customer[];
   searchCustomersByName: (name: string) => Customer[];
-  getUnpaidCustomers: () => Customer[]; // Customers with no payment in last month
-  getCustomersDueFor30Days: () => Customer[]; // Customers with baki > 30 days
+  getUnpaidCustomers: () => Customer[];
+  getCustomersDueFor30Days: () => Customer[];
   addPreOrder: (preOrder: Omit<PreOrder, 'id' | 'createdAt'>) => void;
   updatePreOrderStatus: (id: string, status: PreOrderStatus) => void;
+  markPreOrderAsSold: (id: string) => void;
   getWeeklyBulkSales: () => BulkSaleRecord[];
   getTodaysSalesSerial: () => number;
+  addSupplier: (supplier: Omit<Supplier, 'id' | 'createdAt'>) => void;
+  updateSupplier: (id: string, supplier: Partial<Supplier>) => void;
+  deleteSupplier: (id: string) => void;
 }
 
 const StoreContext = createContext<StoreContextType | undefined>(undefined);
@@ -115,6 +120,12 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     return saved ? JSON.parse(saved) : [];
   });
 
+  // Suppliers
+  const [suppliers, setSuppliers] = useState<Supplier[]>(() => {
+    const saved = localStorage.getItem('suppliers');
+    return saved ? JSON.parse(saved) : [];
+  });
+
   const isOnboarded = storeInfo?.isOnboarded ?? false;
 
   useEffect(() => {
@@ -156,6 +167,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     localStorage.setItem('customEarnings', JSON.stringify(customEarnings));
   }, [customEarnings]);
+
+  // Persist suppliers
+  useEffect(() => {
+    localStorage.setItem('suppliers', JSON.stringify(suppliers));
+  }, [suppliers]);
 
   // Generate unique display name for customers with same name
   const generateCustomerDisplayName = (name: string): string => {
@@ -492,6 +508,72 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     ));
   };
 
+  // Mark pre-order as sold and record sales
+  const markPreOrderAsSold = (id: string) => {
+    const order = preOrders.find(o => o.id === id);
+    if (!order || order.status !== 'pending') return;
+
+    // Calculate profits based on products
+    const salesList: Omit<Sale, 'id' | 'createdAt'>[] = order.items.map(item => {
+      const product = products.find(p => p.id === item.productId);
+      const quantityInBase = item.quantityInBaseUnit || item.quantity;
+      const profit = product ? product.profit * quantityInBase : (item.profit || 0);
+      
+      return {
+        productId: item.productId,
+        productName: item.productName,
+        quantity: item.quantity,
+        quantityInBaseUnit: quantityInBase,
+        unitType: item.unitType,
+        unitName: item.unitName,
+        totalPrice: item.price,
+        profit: profit,
+        customerId: undefined,
+        customerName: order.customerName,
+        isPaid: true
+      };
+    });
+
+    // Add sales (stock already deducted when pre-order was created)
+    salesList.forEach(sale => {
+      setSales(prev => [...prev, { ...sale, id: generateId(), createdAt: new Date() }]);
+    });
+
+    // Add bulk sale record
+    const totalProfit = salesList.reduce((sum, s) => sum + s.profit, 0);
+    const serialNumber = getTodaysSalesSerial();
+    setBulkSaleRecords(prev => [...prev, {
+      id: generateId(),
+      serialNumber,
+      productNames: salesList.map(s => s.productName),
+      totalPrice: order.totalPrice,
+      totalProfit,
+      createdAt: new Date()
+    }]);
+
+    // Update status to delivered
+    updatePreOrderStatus(id, 'delivered');
+  };
+
+  // Supplier functions
+  const addSupplier = (supplier: Omit<Supplier, 'id' | 'createdAt'>) => {
+    setSuppliers(prev => [...prev, { 
+      ...supplier, 
+      id: generateId(), 
+      createdAt: new Date() 
+    }]);
+  };
+
+  const updateSupplier = (id: string, supplierUpdate: Partial<Supplier>) => {
+    setSuppliers(prev => prev.map(s => 
+      s.id === id ? { ...s, ...supplierUpdate } : s
+    ));
+  };
+
+  const deleteSupplier = (id: string) => {
+    setSuppliers(prev => prev.filter(s => s.id !== id));
+  };
+
   const getProductSuggestions = (query: string): Product[] => {
     if (!query.trim()) return [];
     const lowerQuery = query.toLowerCase();
@@ -614,6 +696,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       bulkSaleRecords,
       bakiPaymentRecords,
       customEarnings,
+      suppliers,
       isOnboarded,
       setStoreInfo,
       addProduct,
@@ -639,8 +722,12 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       getCustomersDueFor30Days,
       addPreOrder,
       updatePreOrderStatus,
+      markPreOrderAsSold,
       getWeeklyBulkSales,
-      getTodaysSalesSerial
+      getTodaysSalesSerial,
+      addSupplier,
+      updateSupplier,
+      deleteSupplier
     }}>
       {children}
     </StoreContext.Provider>
