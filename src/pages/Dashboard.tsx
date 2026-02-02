@@ -13,7 +13,8 @@ import {
   AlertCircle,
   Banknote,
   CreditCard,
-  Coins
+  Coins,
+  Truck
 } from 'lucide-react';
 import { useStore } from '@/context/StoreContext';
 import { StatCard } from '@/components/dashboard/StatCard';
@@ -33,6 +34,7 @@ export default function Dashboard() {
     { path: '/shop-accounts', icon: Calculator, label: 'দোকানের হিসাব' },
     { path: '/selling-history', icon: History, label: 'বিক্রির ইতিহাস' },
     { path: '/pre-orders', icon: CalendarCheck, label: 'আগাম অর্ডার' },
+    { path: '/suppliers', icon: Truck, label: 'সাপ্লায়ার' },
     { path: '/notifications', icon: Bell, label: 'বিজ্ঞপ্তি' },
   ];
 

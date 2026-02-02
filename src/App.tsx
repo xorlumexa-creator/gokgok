@@ -19,6 +19,7 @@ import CreditBook from "./pages/CreditBook";
 import Notifications from "./pages/Notifications";
 import SellingHistory from "./pages/SellingHistory";
 import DailySale from "./pages/DailySale";
+import Suppliers from "./pages/Suppliers";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -67,6 +68,7 @@ function AppRoutes() {
         <Route path="/notifications" element={<Notifications />} />
         <Route path="/selling-history" element={<SellingHistory />} />
         <Route path="/daily-sale" element={<DailySale />} />
+        <Route path="/suppliers" element={<Suppliers />} />
         {/* Redirect old route */}
         <Route path="/accounts" element={<Navigate to="/shop-accounts" replace />} />
       </Route>
