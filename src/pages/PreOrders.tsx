@@ -640,15 +640,17 @@ export default function PreOrders() {
         {filteredPreOrders.map((order) => {
           const isOverdue = new Date(order.deliveryDate) < new Date() && order.status === 'pending';
           return (
-            <button
+            <div
               key={order.id}
-              onClick={() => setViewingOrder(order)}
-              className={`w-full card-elevated p-4 text-left hover:shadow-md transition-shadow ${
+              className={`card-elevated p-4 hover:shadow-md transition-shadow ${
                 isOverdue ? 'border-amber-400 bg-amber-50/50 dark:bg-amber-900/10' : ''
               }`}
             >
               <div className="flex items-center justify-between mb-2">
-                <div className="flex items-center gap-3">
+                <button
+                  onClick={() => setViewingOrder(order)}
+                  className="flex items-center gap-3 flex-1 text-left"
+                >
                   <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
                     isOverdue ? 'bg-amber-100' : 'bg-primary/10'
                   }`}>
@@ -664,13 +666,33 @@ export default function PreOrders() {
                       <p className="text-sm text-muted-foreground">{order.customerPhone}</p>
                     )}
                   </div>
+                </button>
+                <div className="flex items-center gap-1">
+                  {order.customerPhone && (
+                    <>
+                      <button
+                        onClick={() => window.location.href = `tel:${order.customerPhone}`}
+                        className="p-2 bg-primary/10 hover:bg-primary/20 rounded-xl text-primary transition-colors"
+                        title="কল করুন"
+                      >
+                        <Phone className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={() => handleSendWhatsAppReminder(order)}
+                        className="p-2 bg-green-100 hover:bg-green-200 rounded-xl text-green-600 transition-colors"
+                        title="WhatsApp বার্তা"
+                      >
+                        <MessageCircle className="w-4 h-4" />
+                      </button>
+                    </>
+                  )}
+                  <span className={`px-3 py-1 rounded-full text-xs font-medium ${getPreOrderStatusColor(order.status)}`}>
+                    {getPreOrderStatusLabel(order.status)}
+                  </span>
                 </div>
-                <span className={`px-3 py-1 rounded-full text-xs font-medium ${getPreOrderStatusColor(order.status)}`}>
-                  {getPreOrderStatusLabel(order.status)}
-                </span>
               </div>
               
-              <div className="flex items-center justify-between text-sm">
+              <div className="flex items-center justify-between text-sm ml-13">
                 <div className="flex items-center gap-2 text-muted-foreground">
                   <CalendarCheck className="w-4 h-4" />
                   {format(new Date(order.deliveryDate), 'dd MMM yyyy', { locale: bn })}
@@ -685,7 +707,7 @@ export default function PreOrders() {
                   <span className="font-bold text-primary">৳{order.totalPrice}</span>
                 </div>
               </div>
-            </button>
+            </div>
           );
         })}
       </div>
