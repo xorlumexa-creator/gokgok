@@ -22,17 +22,17 @@ export interface ProductUnit {
 export interface Product {
   id: string;
   name: string;
-  category?: string; // Product category
-  code?: string; // Product code (optional)
-  baseUnit: string; // Base unit name e.g., "পিস", "গ্রাম"
-  unitType: UnitType; // For backward compatibility
-  price: number; // Base unit price
-  profit: number; // Profit per base unit
-  stock: number; // Stock in base units
+  category?: string;
+  code?: string;
+  baseUnit: string;
+  unitType: UnitType;
+  price: number;
+  profit: number;
+  stock: number;
   createdAt: Date;
-  // Multi-unit selling options
   sellingUnits?: SellingUnit[];
-  // Legacy fields for backward compatibility
+  supplierPhone?: string;
+  supplierCountryCode?: string;
   unitsPerBox?: number;
   units?: ProductUnit[];
 }

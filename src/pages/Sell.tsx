@@ -1,5 +1,6 @@
 import { useState, useMemo } from 'react';
 import { ShoppingCart, Search, Plus, Minus, CheckCircle, User, X, Calculator, Phone, BookOpen, HelpCircle, AlertTriangle } from 'lucide-react';
+import { PhoneInputWithCode } from '@/components/common/PhoneInputWithCode';
 import { useStore } from '@/context/StoreContext';
 import { Button } from '@/components/ui/button';
 import { toast } from '@/hooks/use-toast';
@@ -636,12 +637,10 @@ export default function Sell() {
                     placeholder="গ্রাহকের নাম"
                     className="input-field"
                   />
-                  <input
-                    type="tel"
+                  <PhoneInputWithCode
                     value={newCustomerPhone}
-                    onChange={(e) => setNewCustomerPhone(e.target.value)}
-                    placeholder="ফোন নম্বর (ঐচ্ছিক)"
-                    className="input-field"
+                    onChange={(phone) => setNewCustomerPhone(phone)}
+                    label="WhatsApp নম্বর (ঐচ্ছিক)"
                   />
                   {existingCustomersWithSameName.length > 0 && (
                     <p className="text-xs text-amber-600">
@@ -782,12 +781,10 @@ export default function Sell() {
                               placeholder="নাম"
                               className="input-field"
                             />
-                            <input
-                              type="tel"
+                            <PhoneInputWithCode
                               value={bakiNewCustomerPhone}
-                              onChange={(e) => setBakiNewCustomerPhone(e.target.value)}
-                              placeholder="ফোন"
-                              className="input-field"
+                              onChange={(phone) => setBakiNewCustomerPhone(phone)}
+                              label="WhatsApp নম্বর"
                             />
                           </div>
                         )}

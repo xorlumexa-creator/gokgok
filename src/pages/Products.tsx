@@ -3,7 +3,8 @@ import { Package, Plus, Search, Edit2, Trash2, X, HelpCircle, ChevronDown, Chevr
 import { useStore } from '@/context/StoreContext';
 import { Button } from '@/components/ui/button';
 import { toast } from '@/hooks/use-toast';
-import { UnitType, SellingUnit, PRODUCT_CATEGORIES, BASE_UNITS, PRESET_SELLING_UNITS, getUnitLabel } from '@/types/store';
+import { UnitType, SellingUnit, BASE_UNITS, PRESET_SELLING_UNITS, getUnitLabel } from '@/types/store';
+import { PhoneInputWithCode } from '@/components/common/PhoneInputWithCode';
 
 const generateId = () => Math.random().toString(36).substr(2, 9);
 
@@ -17,12 +18,12 @@ export default function Products() {
   
   const [formData, setFormData] = useState({
     name: '',
-    category: '',
-    code: '',
     baseUnit: 'পিস',
     unitType: 'piece' as UnitType,
     stock: '',
-    baseProfitPerUnit: '', // Profit per base unit
+    baseProfitPerUnit: '',
+    supplierPhone: '',
+    supplierCountryCode: '+880',
   });
 
   // Multi-unit selling options
@@ -143,14 +144,14 @@ export default function Products() {
 
     const productData = {
       name: formData.name.trim(),
-      category: formData.category,
-      code: formData.code.trim(),
       baseUnit: formData.baseUnit,
       unitType: formData.unitType,
       price: basePrice,
       profit: baseProfit,
       stock,
       sellingUnits: unitsWithProfit,
+      supplierPhone: formData.supplierPhone.trim() || undefined,
+      supplierCountryCode: formData.supplierCountryCode,
     };
 
     if (editingId) {
@@ -168,12 +169,12 @@ export default function Products() {
     setEditingId(product.id);
     setFormData({
       name: product.name,
-      category: product.category || '',
-      code: product.code || '',
       baseUnit: product.baseUnit || getUnitLabel(product.unitType),
       unitType: product.unitType,
       stock: product.stock.toString(),
       baseProfitPerUnit: product.profit.toString(),
+      supplierPhone: (product as any).supplierPhone || '',
+      supplierCountryCode: (product as any).supplierCountryCode || '+880',
     });
     
     // Load existing selling units or create default
@@ -198,12 +199,12 @@ export default function Products() {
     setEditingId(null);
     setFormData({
       name: '',
-      category: '',
-      code: '',
       baseUnit: 'পিস',
       unitType: 'piece',
       stock: '',
       baseProfitPerUnit: '',
+      supplierPhone: '',
+      supplierCountryCode: '+880',
     });
     setSellingUnits([
       { id: generateId(), name: 'পিস', conversionToBase: 1, price: 0, profit: 0 }
@@ -319,33 +320,6 @@ export default function Products() {
                     ))}
                   </div>
                 )}
-              </div>
-
-              {/* Category & Code */}
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-sm font-medium mb-2">ক্যাটাগরি</label>
-                  <select
-                    value={formData.category}
-                    onChange={(e) => setFormData({ ...formData, category: e.target.value })}
-                    className="input-field"
-                  >
-                    <option value="">নির্বাচন করুন</option>
-                    {PRODUCT_CATEGORIES.map(cat => (
-                      <option key={cat.value} value={cat.value}>{cat.label}</option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium mb-2">প্রোডাক্ট কোড</label>
-                  <input
-                    type="text"
-                    value={formData.code}
-                    onChange={(e) => setFormData({ ...formData, code: e.target.value })}
-                    placeholder="ঐচ্ছিক"
-                    className="input-field"
-                  />
-                </div>
               </div>
 
               {/* Base Unit Selection */}
@@ -492,6 +466,13 @@ export default function Products() {
                   💡 উদাহরণ: ডিম - পিস = 1, ডজন = 12, ৩০ পিস = 30
                 </p>
               </div>
+
+              {/* Supplier WhatsApp (Optional) */}
+              <PhoneInputWithCode
+                value={formData.supplierPhone}
+                onChange={(phone, code) => setFormData({ ...formData, supplierPhone: phone, supplierCountryCode: code || '+880' })}
+                label="সরবরাহকারীর WhatsApp নম্বর (ঐচ্ছিক)"
+              />
 
               {/* Summary Preview */}
               <button
