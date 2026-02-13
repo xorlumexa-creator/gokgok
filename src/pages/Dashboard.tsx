@@ -9,14 +9,21 @@ import {
   TrendingUp,
   CalendarCheck,
   Bell,
-  Truck
+  Truck,
+  AlertTriangle
 } from 'lucide-react';
 import { useStore } from '@/context/StoreContext';
 import { LowStockAlert } from '@/components/dashboard/LowStockAlert';
+import { Button } from '@/components/ui/button';
 
 export default function Dashboard() {
-  const { storeInfo } = useStore();
+  const { storeInfo, getUnpaidCustomers } = useStore();
   const navigate = useNavigate();
+
+  const today = new Date();
+  const isFirstOfMonth = today.getDate() === 1;
+  const unpaidCustomers = getUnpaidCustomers();
+  const showBakiReminder = unpaidCustomers.length > 0;
 
   const quickNavItems = [
     { path: '/sell', icon: ShoppingCart, label: 'বিক্রি করুন', primary: true },
@@ -40,6 +47,29 @@ export default function Dashboard() {
         </h1>
         <p className="text-muted-foreground">আজকের ব্যবসার সারসংক্ষেপ দেখুন</p>
       </div>
+
+      {/* Monthly Baki Reminder */}
+      {showBakiReminder && (
+        <div className="p-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl">
+          <div className="flex items-center gap-2 mb-2">
+            <AlertTriangle className="w-5 h-5 text-amber-600" />
+            <h3 className="font-semibold text-amber-800 dark:text-amber-200">
+              {isFirstOfMonth ? '📅 মাসিক বাকি রিমাইন্ডার!' : '⚠️ বাকি বকেয়া আছে!'}
+            </h3>
+          </div>
+          <p className="text-sm text-amber-700 dark:text-amber-300 mb-3">
+            {unpaidCustomers.length}জন গ্রাহকের বাকি পরিশোধ হয়নি। মেসেজ পাঠান বা কল করুন।
+          </p>
+          <Button
+            onClick={() => navigate('/credit-book')}
+            size="sm"
+            className="bg-amber-600 hover:bg-amber-700 text-white"
+          >
+            <BookOpen className="w-4 h-4 mr-2" />
+            বাকির তালিকা দেখুন
+          </Button>
+        </div>
+      )}
 
       {/* Big Sell Button - Primary Action */}
       <button
