@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Outlet } from 'react-router-dom';
 import { Sidebar } from './Sidebar';
 import { Header } from './Header';
+import { SubscriptionLock } from './SubscriptionLock';
 
 interface MainLayoutProps {
   title?: string;
@@ -18,7 +19,9 @@ export function MainLayout({ title }: MainLayoutProps) {
         <Header onMenuClick={() => setSidebarOpen(true)} title={title} />
         
         <main className="flex-1 p-4 md:p-6 overflow-auto">
-          <Outlet />
+          <SubscriptionLock>
+            <Outlet />
+          </SubscriptionLock>
         </main>
       </div>
     </div>
