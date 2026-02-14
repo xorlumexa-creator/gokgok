@@ -10,14 +10,51 @@ const generateId = () => Math.random().toString(36).substr(2, 9);
 
 type StockType = 'weight' | 'number' | 'liquid';
 
-const STOCK_TYPE_CONFIG: Record<StockType, { label: string; icon: any; unit: string; unitType: UnitType; baseUnit: string; description: string; examples: string }> = {
-  weight: { label: 'ওজন', icon: Scale, unit: 'কেজি', unitType: 'kg', baseUnit: 'কেজি', description: 'স্টক কিলোগ্রামে রাখা হবে', examples: 'চাল, মশলা, সবজি' },
-  number: { label: 'সংখ্যা', icon: Hash, unit: 'পিস', unitType: 'piece', baseUnit: 'পিস', description: 'স্টক পিস বা বক্সে রাখা হবে', examples: 'ডিম, প্যাকেট, বোতল' },
-  liquid: { label: 'তরল', icon: Droplets, unit: 'লিটার', unitType: 'litre', baseUnit: 'লিটার', description: 'স্টক লিটারে রাখা হবে', examples: 'তেল, দুধ, পানীয়' },
+interface UnitOption {
+  name: string;
+  conversionToBase: number;
+  isCustom?: boolean;
+}
+
+const STOCK_TYPE_CONFIG: Record<StockType, { 
+  label: string; icon: any; unit: string; unitType: UnitType; baseUnit: string; 
+  description: string; examples: string; unitOptions: UnitOption[];
+}> = {
+  weight: { 
+    label: 'ওজন', icon: Scale, unit: 'কেজি', unitType: 'kg', baseUnit: 'কেজি', 
+    description: 'স্টক কিলোগ্রামে (kg) রাখা হবে', examples: 'চাল, মশলা, সবজি',
+    unitOptions: [
+      { name: '১ কেজি', conversionToBase: 1 },
+      { name: '৫০০ গ্রাম', conversionToBase: 0.5 },
+      { name: '২৫০ গ্রাম', conversionToBase: 0.25 },
+      { name: '১০০ গ্রাম', conversionToBase: 0.1 },
+      { name: '৫০ গ্রাম', conversionToBase: 0.05 },
+    ]
+  },
+  number: { 
+    label: 'সংখ্যা', icon: Hash, unit: 'পিস', unitType: 'piece', baseUnit: 'পিস', 
+    description: 'স্টক পিসে রাখা হবে', examples: 'ডিম, প্যাকেট, বোতল',
+    unitOptions: [
+      { name: '১ পিস', conversionToBase: 1 },
+      { name: '১ ডজন (12 পিস)', conversionToBase: 12 },
+      { name: '১ হালি (4 পিস)', conversionToBase: 4 },
+      { name: '১ বক্স', conversionToBase: 1, isCustom: true },
+    ]
+  },
+  liquid: { 
+    label: 'তরল', icon: Droplets, unit: 'লিটার', unitType: 'litre', baseUnit: 'লিটার', 
+    description: 'স্টক লিটারে রাখা হবে', examples: 'তেল, দুধ, পানীয়',
+    unitOptions: [
+      { name: '১ লিটার', conversionToBase: 1 },
+      { name: '৫০০ মিলি', conversionToBase: 0.5 },
+      { name: '২৫০ মিলি', conversionToBase: 0.25 },
+      { name: '১০০ মিলি', conversionToBase: 0.1 },
+    ]
+  },
 };
 
 export default function Products() {
-  const { products, suppliers, addProduct, updateProduct, deleteProduct, getProductSuggestions } = useStore();
+  const { products, addProduct, updateProduct, deleteProduct, getProductSuggestions } = useStore();
   const [searchTerm, setSearchTerm] = useState('');
   const [showAddForm, setShowAddForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -34,7 +71,7 @@ export default function Products() {
 
   // Multi-unit selling options with cost price
   const [sellingUnits, setSellingUnits] = useState<(SellingUnit & { costPrice: number })[]>([
-    { id: generateId(), name: 'পিস', conversionToBase: 1, price: 0, profit: 0, costPrice: 0 }
+    { id: generateId(), name: '১ পিস', conversionToBase: 1, price: 0, profit: 0, costPrice: 0 }
   ]);
 
   const [showSuggestions, setShowSuggestions] = useState(false);
@@ -51,17 +88,33 @@ export default function Products() {
   const config = STOCK_TYPE_CONFIG[stockType];
 
   const addSellingUnit = () => {
+    // Find first unused unit option
+    const usedNames = sellingUnits.map(u => u.name);
+    const available = config.unitOptions.find(o => !usedNames.includes(o.name));
+    const opt = available || config.unitOptions[0];
+    
     setSellingUnits([
       ...sellingUnits,
-      { id: generateId(), name: '', conversionToBase: 1, price: 0, profit: 0, costPrice: 0 }
+      { id: generateId(), name: opt.name, conversionToBase: opt.conversionToBase, price: 0, profit: 0, costPrice: 0 }
     ]);
+  };
+
+  const handleUnitSelect = (unitId: string, optionName: string) => {
+    const option = config.unitOptions.find(o => o.name === optionName);
+    if (option) {
+      setSellingUnits(sellingUnits.map(unit => {
+        if (unit.id === unitId) {
+          return { ...unit, name: option.name, conversionToBase: option.isCustom ? unit.conversionToBase : option.conversionToBase };
+        }
+        return unit;
+      }));
+    }
   };
 
   const updateSellingUnit = (id: string, field: string, value: string | number) => {
     setSellingUnits(sellingUnits.map(unit => {
       if (unit.id === id) {
         const updated = { ...unit, [field]: value };
-        // Auto-calculate profit = sell price - cost price
         if (field === 'price' || field === 'costPrice') {
           updated.profit = Math.max(0, (updated.price || 0) - (updated.costPrice || 0));
         }
@@ -95,14 +148,12 @@ export default function Products() {
       return;
     }
 
-    // Check for duplicate names
     const unitNames = validUnits.map(u => u.name.toLowerCase());
     if (new Set(unitNames).size !== unitNames.length) {
       toast({ title: "একই নামে দুইটি ইউনিট থাকতে পারে না", variant: "destructive" });
       return;
     }
 
-    // Base price and profit from first unit
     const basePrice = validUnits[0].price / validUnits[0].conversionToBase;
     const baseProfit = validUnits[0].profit / validUnits[0].conversionToBase;
 
@@ -138,7 +189,6 @@ export default function Products() {
   const handleEdit = (product: typeof products[0]) => {
     setEditingId(product.id);
     
-    // Determine stock type from unitType
     let type: StockType = 'number';
     if (product.unitType === 'kg' || product.unitType === 'gram') type = 'weight';
     else if (product.unitType === 'litre') type = 'liquid';
@@ -175,7 +225,7 @@ export default function Products() {
     setEditingId(null);
     setStockType('number');
     setFormData({ name: '', stock: '', supplierPhone: '', supplierCountryCode: '+880' });
-    setSellingUnits([{ id: generateId(), name: 'পিস', conversionToBase: 1, price: 0, profit: 0, costPrice: 0 }]);
+    setSellingUnits([{ id: generateId(), name: '১ পিস', conversionToBase: 1, price: 0, profit: 0, costPrice: 0 }]);
     setShowSuggestions(false);
     setShowSummary(false);
   };
@@ -186,6 +236,12 @@ export default function Products() {
       description: `"${product.name}" তালিকায় আছে। স্টক বাড়াতে এডিট করুন।`,
     });
     setShowSuggestions(false);
+  };
+
+  // Check if a unit option is "custom" (needs manual conversion input)
+  const isCustomUnit = (unitName: string) => {
+    const option = config.unitOptions.find(o => o.name === unitName);
+    return option?.isCustom ?? false;
   };
 
   return (
@@ -288,8 +344,8 @@ export default function Products() {
                         type="button"
                         onClick={() => {
                           setStockType(key);
-                          // Reset units to match new type
-                          setSellingUnits([{ id: generateId(), name: cfg.baseUnit, conversionToBase: 1, price: 0, profit: 0, costPrice: 0 }]);
+                          const firstOpt = cfg.unitOptions[0];
+                          setSellingUnits([{ id: generateId(), name: firstOpt.name, conversionToBase: firstOpt.conversionToBase, price: 0, profit: 0, costPrice: 0 }]);
                         }}
                         className={`p-3 rounded-xl border-2 text-center transition-all ${
                           stockType === key
@@ -321,7 +377,7 @@ export default function Products() {
                 />
               </div>
 
-              {/* 4. Multi-Unit Price Options */}
+              {/* 4. Multi-Unit Price Options with Dropdowns */}
               <div className="border-t border-border pt-4">
                 <div className="flex items-center justify-between mb-3">
                   <label className="text-sm font-medium">বিক্রয় মূল্য সেট করুন</label>
@@ -333,50 +389,53 @@ export default function Products() {
 
                 <div className="space-y-3">
                   {sellingUnits.map((unit) => (
-                    <div key={unit.id} className="p-3 bg-muted/50 rounded-xl space-y-2">
-                      <div className="grid grid-cols-12 gap-2 items-end">
-                        <div className="col-span-5">
-                          <label className="text-xs text-muted-foreground">ইউনিট নাম</label>
-                          <input
-                            type="text"
+                    <div key={unit.id} className="p-4 bg-muted/50 rounded-xl space-y-3 border border-border/50">
+                      {/* Unit dropdown + conversion */}
+                      <div className="flex items-end gap-2">
+                        <div className="flex-1">
+                          <label className="text-xs text-muted-foreground mb-1 block">ইউনিট নির্বাচন করুন</label>
+                          <select
                             value={unit.name}
-                            onChange={(e) => updateSellingUnit(unit.id, 'name', e.target.value)}
-                            placeholder="যেমন: ১০০ গ্রাম"
-                            className="input-field text-sm py-2"
-                          />
+                            onChange={(e) => handleUnitSelect(unit.id, e.target.value)}
+                            className="input-field text-sm py-2.5 bg-background appearance-none cursor-pointer"
+                          >
+                            {config.unitOptions.map(opt => (
+                              <option key={opt.name} value={opt.name}>{opt.name}</option>
+                            ))}
+                          </select>
                         </div>
-                        <div className="col-span-3">
-                          <label className="text-xs text-muted-foreground">= {config.unit}</label>
+                        <div className="w-24">
+                          <label className="text-xs text-muted-foreground mb-1 block">= {config.unit}</label>
                           <input
                             type="number"
                             value={unit.conversionToBase || ''}
                             onChange={(e) => updateSellingUnit(unit.id, 'conversionToBase', parseFloat(e.target.value) || 0)}
-                            placeholder="1"
-                            className="input-field text-sm py-2"
+                            className={`input-field text-sm py-2.5 text-center ${isCustomUnit(unit.name) ? 'bg-background' : 'bg-muted/80'}`}
+                            readOnly={!isCustomUnit(unit.name)}
                             min="0.001"
                             step="any"
                           />
                         </div>
-                        <div className="col-span-3">
-                          <label className="text-xs text-muted-foreground">বিক্রয়মূল্য</label>
+                        {sellingUnits.length > 1 && (
+                          <button type="button" onClick={() => removeSellingUnit(unit.id)} className="p-2 text-due hover:bg-due/10 rounded-lg mb-0.5">
+                            <X className="w-4 h-4" />
+                          </button>
+                        )}
+                      </div>
+
+                      {/* Prices row */}
+                      <div className="grid grid-cols-3 gap-2">
+                        <div>
+                          <label className="text-xs text-muted-foreground">বিক্রয়মূল্য (৳)</label>
                           <input
                             type="number"
                             value={unit.price || ''}
                             onChange={(e) => updateSellingUnit(unit.id, 'price', parseFloat(e.target.value) || 0)}
-                            placeholder="৳"
+                            placeholder="০"
                             className="input-field text-sm py-2"
                             min="0"
                           />
                         </div>
-                        <div className="col-span-1">
-                          {sellingUnits.length > 1 && (
-                            <button type="button" onClick={() => removeSellingUnit(unit.id)} className="p-2 text-due hover:bg-due/10 rounded-lg">
-                              <X className="w-4 h-4" />
-                            </button>
-                          )}
-                        </div>
-                      </div>
-                      <div className="grid grid-cols-2 gap-2">
                         <div>
                           <label className="text-xs text-muted-foreground">ক্রয়মূল্য (৳)</label>
                           <input
@@ -389,18 +448,34 @@ export default function Products() {
                           />
                         </div>
                         <div className="flex items-end">
-                          <p className={`text-sm font-medium py-2 ${unit.profit > 0 ? 'text-profit' : 'text-muted-foreground'}`}>
-                            লাভ: ৳{unit.profit.toFixed(2)}
-                          </p>
+                          <div className={`w-full text-center py-2 rounded-lg text-sm font-semibold ${unit.profit > 0 ? 'bg-profit/10 text-profit' : 'bg-muted text-muted-foreground'}`}>
+                            লাভ ৳{unit.profit.toFixed(0)}
+                          </div>
                         </div>
                       </div>
                     </div>
                   ))}
                 </div>
 
-                <p className="text-xs text-muted-foreground mt-2">
-                  💡 উদাহরণ: চাল — ১ কেজি = ৳৬০ (ক্রয় ৳৫০), ১০০ গ্রাম = 0.1 কেজি = ৳৭
-                </p>
+                {/* Examples */}
+                <div className="mt-3 p-3 bg-accent/50 rounded-xl text-xs text-muted-foreground space-y-1">
+                  <p className="font-medium text-accent-foreground">💡 উদাহরণ:</p>
+                  {stockType === 'weight' && (
+                    <>
+                      <p>চাল: ১ কেজি = ৳৮০ (ক্রয় ৳৭০), ৫০০ গ্রাম = ৳৪০ (ক্রয় ৳৩৫)</p>
+                    </>
+                  )}
+                  {stockType === 'number' && (
+                    <>
+                      <p>ডিম: ১ পিস = ৳১২ (ক্রয় ৳১০), ১ ডজন = ৳১৪০ (ক্রয় ৳১২০)</p>
+                    </>
+                  )}
+                  {stockType === 'liquid' && (
+                    <>
+                      <p>তেল: ১ লিটার = ৳১৮০ (ক্রয় ৳১৬০), ৫০০ মিলি = ৳৯৫ (ক্রয় ৳৮৫)</p>
+                    </>
+                  )}
+                </div>
               </div>
 
               {/* Summary Preview */}
@@ -418,7 +493,7 @@ export default function Products() {
                     <p className="font-medium mb-1">বিক্রয় মূল্য:</p>
                     {sellingUnits.filter(u => u.name).map(unit => (
                       <p key={unit.id} className="text-sm text-muted-foreground">
-                        • {unit.name} ({unit.conversionToBase} {config.unit}) = ৳{unit.price} | ক্রয়: ৳{unit.costPrice} | লাভ: ৳{unit.profit.toFixed(2)}
+                        • {unit.name} ({unit.conversionToBase} {config.unit}) = ৳{unit.price} | ক্রয়: ৳{unit.costPrice} | লাভ: ৳{unit.profit.toFixed(0)}
                       </p>
                     ))}
                   </div>
@@ -449,10 +524,11 @@ export default function Products() {
                 <div className="flex items-center gap-2 text-sm flex-wrap">
                   <span className="bg-muted px-2 py-0.5 rounded text-xs">{product.baseUnit || getUnitLabel(product.unitType)}</span>
                   {product.sellingUnits && product.sellingUnits.length > 1 && (
-                    <span className="text-xs text-muted-foreground">+{product.sellingUnits.length - 1} ইউনিট</span>
+                    <span className="text-xs text-muted-foreground">{product.sellingUnits.length} ইউনিট</span>
                   )}
-                  <span className="text-primary font-medium">৳{product.price.toFixed(2)}</span>
-                  <span className="text-profit">+৳{product.profit.toFixed(2)}</span>
+                  {product.sellingUnits && product.sellingUnits.length > 0 && (
+                    <span className="text-primary font-medium">৳{product.sellingUnits[0].price}</span>
+                  )}
                 </div>
               </div>
             </div>
