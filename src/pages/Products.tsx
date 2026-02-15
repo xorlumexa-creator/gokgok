@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { Package, Plus, Search, Edit2, Trash2, X, HelpCircle, ChevronDown, ChevronUp, Scale, Hash, Droplets } from 'lucide-react';
+import { Package, Plus, Search, Edit2, Trash2, X, HelpCircle, ChevronDown, ChevronUp, Scale, Hash, Droplets, Info } from 'lucide-react';
 import { useStore } from '@/context/StoreContext';
 import { Button } from '@/components/ui/button';
 import { toast } from '@/hooks/use-toast';
@@ -12,29 +12,49 @@ type StockType = 'weight' | 'number' | 'liquid';
 
 interface UnitOption {
   name: string;
-  conversionToBase: number;
+  conversionToBase: number; // How many base units (gram/piece/ml) this equals
+  isCustom?: boolean;
+}
+
+interface StockUnitOption {
+  name: string;
+  toBaseMultiplier: number; // Multiply stock input by this to get base units
   isCustom?: boolean;
 }
 
 const STOCK_TYPE_CONFIG: Record<StockType, { 
-  label: string; icon: any; unit: string; unitType: UnitType; baseUnit: string; 
-  description: string; examples: string; unitOptions: UnitOption[];
+  label: string; icon: any; baseUnitName: string; baseUnitType: UnitType;
+  description: string; examples: string;
+  stockUnits: StockUnitOption[];
+  sellingUnitOptions: UnitOption[];
 }> = {
   weight: { 
-    label: 'ওজন', icon: Scale, unit: 'কেজি', unitType: 'kg', baseUnit: 'কেজি', 
-    description: 'স্টক কিলোগ্রামে (kg) রাখা হবে', examples: 'চাল, মশলা, সবজি',
-    unitOptions: [
-      { name: '১ কেজি', conversionToBase: 1 },
-      { name: '৫০০ গ্রাম', conversionToBase: 0.5 },
-      { name: '২৫০ গ্রাম', conversionToBase: 0.25 },
-      { name: '১০০ গ্রাম', conversionToBase: 0.1 },
-      { name: '৫০ গ্রাম', conversionToBase: 0.05 },
+    label: 'ওজন', icon: Scale, baseUnitName: 'গ্রাম', baseUnitType: 'gram',
+    description: 'স্টক গ্রামে রাখা হবে (অভ্যন্তরীণভাবে)', 
+    examples: 'চাল, মশলা, সবজি',
+    stockUnits: [
+      { name: 'কেজি', toBaseMultiplier: 1000 },
+      { name: 'গ্রাম', toBaseMultiplier: 1 },
+    ],
+    sellingUnitOptions: [
+      { name: '১ কেজি', conversionToBase: 1000 },
+      { name: '৫০০ গ্রাম', conversionToBase: 500 },
+      { name: '২৫০ গ্রাম', conversionToBase: 250 },
+      { name: '১০০ গ্রাম', conversionToBase: 100 },
+      { name: '৫০ গ্রাম', conversionToBase: 50 },
     ]
   },
   number: { 
-    label: 'সংখ্যা', icon: Hash, unit: 'পিস', unitType: 'piece', baseUnit: 'পিস', 
-    description: 'স্টক পিসে রাখা হবে', examples: 'ডিম, প্যাকেট, বোতল',
-    unitOptions: [
+    label: 'সংখ্যা', icon: Hash, baseUnitName: 'পিস', baseUnitType: 'piece',
+    description: 'স্টক পিসে রাখা হবে (অভ্যন্তরীণভাবে)', 
+    examples: 'ডিম, প্যাকেট, বোতল',
+    stockUnits: [
+      { name: 'পিস', toBaseMultiplier: 1 },
+      { name: 'ডজন', toBaseMultiplier: 12 },
+      { name: 'হালি', toBaseMultiplier: 4 },
+      { name: 'বক্স', toBaseMultiplier: 1, isCustom: true },
+    ],
+    sellingUnitOptions: [
       { name: '১ পিস', conversionToBase: 1 },
       { name: '১ ডজন (12 পিস)', conversionToBase: 12 },
       { name: '১ হালি (4 পিস)', conversionToBase: 4 },
@@ -42,13 +62,18 @@ const STOCK_TYPE_CONFIG: Record<StockType, {
     ]
   },
   liquid: { 
-    label: 'তরল', icon: Droplets, unit: 'লিটার', unitType: 'litre', baseUnit: 'লিটার', 
-    description: 'স্টক লিটারে রাখা হবে', examples: 'তেল, দুধ, পানীয়',
-    unitOptions: [
-      { name: '১ লিটার', conversionToBase: 1 },
-      { name: '৫০০ মিলি', conversionToBase: 0.5 },
-      { name: '২৫০ মিলি', conversionToBase: 0.25 },
-      { name: '১০০ মিলি', conversionToBase: 0.1 },
+    label: 'তরল', icon: Droplets, baseUnitName: 'মিলি', baseUnitType: 'litre',
+    description: 'স্টক মিলিলিটারে (ml) রাখা হবে (অভ্যন্তরীণভাবে)', 
+    examples: 'তেল, দুধ, পানীয়',
+    stockUnits: [
+      { name: 'লিটার', toBaseMultiplier: 1000 },
+      { name: 'মিলি', toBaseMultiplier: 1 },
+    ],
+    sellingUnitOptions: [
+      { name: '১ লিটার', conversionToBase: 1000 },
+      { name: '৫০০ মিলি', conversionToBase: 500 },
+      { name: '২৫০ মিলি', conversionToBase: 250 },
+      { name: '১০০ মিলি', conversionToBase: 100 },
     ]
   },
 };
@@ -62,6 +87,8 @@ export default function Products() {
   const [showSummary, setShowSummary] = useState(false);
   
   const [stockType, setStockType] = useState<StockType>('number');
+  const [selectedStockUnit, setSelectedStockUnit] = useState('পিস');
+  const [customStockConversion, setCustomStockConversion] = useState('');
   const [formData, setFormData] = useState({
     name: '',
     stock: '',
@@ -87,11 +114,21 @@ export default function Products() {
 
   const config = STOCK_TYPE_CONFIG[stockType];
 
+  // Get the stock unit multiplier
+  const getStockMultiplier = (): number => {
+    const stockUnit = config.stockUnits.find(u => u.name === selectedStockUnit);
+    if (!stockUnit) return 1;
+    if (stockUnit.isCustom) return parseFloat(customStockConversion) || 1;
+    return stockUnit.toBaseMultiplier;
+  };
+
+  // Calculate stock in base units
+  const stockInBaseUnits = (parseFloat(formData.stock) || 0) * getStockMultiplier();
+
   const addSellingUnit = () => {
-    // Find first unused unit option
     const usedNames = sellingUnits.map(u => u.name);
-    const available = config.unitOptions.find(o => !usedNames.includes(o.name));
-    const opt = available || config.unitOptions[0];
+    const available = config.sellingUnitOptions.find(o => !usedNames.includes(o.name));
+    const opt = available || config.sellingUnitOptions[0];
     
     setSellingUnits([
       ...sellingUnits,
@@ -100,7 +137,7 @@ export default function Products() {
   };
 
   const handleUnitSelect = (unitId: string, optionName: string) => {
-    const option = config.unitOptions.find(o => o.name === optionName);
+    const option = config.sellingUnitOptions.find(o => o.name === optionName);
     if (option) {
       setSellingUnits(sellingUnits.map(unit => {
         if (unit.id === unitId) {
@@ -136,8 +173,7 @@ export default function Products() {
       return;
     }
 
-    const stock = parseFloat(formData.stock) || 0;
-    if (stock < 0) {
+    if (stockInBaseUnits < 0) {
       toast({ title: "স্টক নেগেটিভ হতে পারে না", variant: "destructive" });
       return;
     }
@@ -154,16 +190,17 @@ export default function Products() {
       return;
     }
 
+    // Price per base unit from first selling unit
     const basePrice = validUnits[0].price / validUnits[0].conversionToBase;
     const baseProfit = validUnits[0].profit / validUnits[0].conversionToBase;
 
     const productData = {
       name: formData.name.trim(),
-      baseUnit: config.baseUnit,
-      unitType: config.unitType,
+      baseUnit: config.baseUnitName,
+      unitType: config.baseUnitType,
       price: basePrice,
       profit: Math.max(0, baseProfit),
-      stock,
+      stock: stockInBaseUnits, // Always store in base units (gram/piece/ml)
       sellingUnits: validUnits.map(u => ({
         id: u.id,
         name: u.name,
@@ -194,9 +231,16 @@ export default function Products() {
     else if (product.unitType === 'litre') type = 'liquid';
     setStockType(type);
 
+    // Figure out best stock unit for display
+    const cfg = STOCK_TYPE_CONFIG[type];
+    // Default to the larger unit for display
+    const defaultStockUnit = cfg.stockUnits[0];
+    setSelectedStockUnit(defaultStockUnit.name);
+    const displayStock = product.stock / defaultStockUnit.toBaseMultiplier;
+
     setFormData({
       name: product.name,
-      stock: product.stock.toString(),
+      stock: displayStock.toString(),
       supplierPhone: (product as any).supplierPhone || '',
       supplierCountryCode: (product as any).supplierCountryCode || '+880',
     });
@@ -224,6 +268,8 @@ export default function Products() {
     setShowAddForm(false);
     setEditingId(null);
     setStockType('number');
+    setSelectedStockUnit('পিস');
+    setCustomStockConversion('');
     setFormData({ name: '', stock: '', supplierPhone: '', supplierCountryCode: '+880' });
     setSellingUnits([{ id: generateId(), name: '১ পিস', conversionToBase: 1, price: 0, profit: 0, costPrice: 0 }]);
     setShowSuggestions(false);
@@ -238,10 +284,22 @@ export default function Products() {
     setShowSuggestions(false);
   };
 
-  // Check if a unit option is "custom" (needs manual conversion input)
   const isCustomUnit = (unitName: string) => {
-    const option = config.unitOptions.find(o => o.name === unitName);
+    const option = config.sellingUnitOptions.find(o => o.name === unitName);
     return option?.isCustom ?? false;
+  };
+
+  // Format stock display for product list
+  const formatStock = (stock: number, unitType: UnitType) => {
+    if (unitType === 'gram' || unitType === 'kg') {
+      if (stock >= 1000) return `${(stock / 1000).toFixed(1)} কেজি`;
+      return `${stock} গ্রাম`;
+    }
+    if (unitType === 'litre') {
+      if (stock >= 1000) return `${(stock / 1000).toFixed(1)} লিটার`;
+      return `${stock} মিলি`;
+    }
+    return `${stock} পিস`;
   };
 
   return (
@@ -291,10 +349,10 @@ export default function Products() {
               <div className="mb-6 p-4 bg-primary/10 rounded-xl text-sm animate-fade-in">
                 <p className="font-semibold mb-2">📌 স্টক কিভাবে কাজ করে?</p>
                 <ul className="space-y-1 text-muted-foreground">
-                  <li>• <strong>ওজন</strong> = স্টক কেজিতে রাখা হয়</li>
-                  <li>• <strong>সংখ্যা</strong> = স্টক পিস হিসেবে রাখা হয়</li>
-                  <li>• <strong>তরল</strong> = স্টক লিটারে রাখা হয়</li>
-                  <li>• আপনি ছোট ইউনিটে (গ্রাম, মিলি) বিক্রি করলেও মূল স্টক থেকে অটোমেটিক কমবে</li>
+                  <li>• <strong>ওজন</strong> = স্টক গ্রামে সংরক্ষণ হয়</li>
+                  <li>• <strong>সংখ্যা</strong> = স্টক পিস হিসেবে সংরক্ষণ হয়</li>
+                  <li>• <strong>তরল</strong> = স্টক মিলিলিটারে সংরক্ষণ হয়</li>
+                  <li>• আপনি যে ইউনিটেই বিক্রি করুন, সিস্টেম অটোমেটিক গণনা করে মূল স্টক থেকে কমাবে</li>
                 </ul>
               </div>
             )}
@@ -344,7 +402,10 @@ export default function Products() {
                         type="button"
                         onClick={() => {
                           setStockType(key);
-                          const firstOpt = cfg.unitOptions[0];
+                          const defaultUnit = cfg.stockUnits[0];
+                          setSelectedStockUnit(defaultUnit.name);
+                          setCustomStockConversion('');
+                          const firstOpt = cfg.sellingUnitOptions[0];
                           setSellingUnits([{ id: generateId(), name: firstOpt.name, conversionToBase: firstOpt.conversionToBase, price: 0, profit: 0, costPrice: 0 }]);
                         }}
                         className={`p-3 rounded-xl border-2 text-center transition-all ${
@@ -360,24 +421,70 @@ export default function Products() {
                     );
                   })}
                 </div>
-                <p className="text-xs text-muted-foreground mt-2">{config.description}</p>
               </div>
 
-              {/* 3. Stock Quantity */}
-              <div>
-                <label className="block text-sm font-medium mb-2">মোট স্টক ({config.unit}) *</label>
-                <input
-                  type="number"
-                  value={formData.stock}
-                  onChange={(e) => setFormData({ ...formData, stock: e.target.value })}
-                  placeholder={`কত ${config.unit} আছে`}
-                  className="input-field text-lg"
-                  min="0"
-                  step="any"
-                />
+              {/* 3. Stock Unit + Quantity */}
+              <div className="p-4 bg-muted/30 rounded-xl space-y-3 border border-border/50">
+                <label className="block text-sm font-medium">মোট স্টক *</label>
+                
+                {/* Stock unit selector */}
+                <div className="flex gap-2">
+                  {config.stockUnits.map(su => (
+                    <button
+                      key={su.name}
+                      type="button"
+                      onClick={() => { setSelectedStockUnit(su.name); if (!su.isCustom) setCustomStockConversion(''); }}
+                      className={`flex-1 py-2 px-3 rounded-lg text-sm font-medium transition-all ${
+                        selectedStockUnit === su.name
+                          ? 'bg-primary text-primary-foreground'
+                          : 'bg-background border border-border text-muted-foreground hover:border-primary/50'
+                      }`}
+                    >
+                      {su.name}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Custom conversion for box etc */}
+                {config.stockUnits.find(u => u.name === selectedStockUnit)?.isCustom && (
+                  <div className="flex items-center gap-2 animate-fade-in">
+                    <span className="text-sm text-muted-foreground whitespace-nowrap">১ {selectedStockUnit} =</span>
+                    <input
+                      type="number"
+                      value={customStockConversion}
+                      onChange={(e) => setCustomStockConversion(e.target.value)}
+                      placeholder="কত পিস?"
+                      className="input-field flex-1"
+                      min="1"
+                    />
+                    <span className="text-sm text-muted-foreground">{config.baseUnitName}</span>
+                  </div>
+                )}
+
+                {/* Stock input */}
+                <div className="flex items-center gap-2">
+                  <input
+                    type="number"
+                    value={formData.stock}
+                    onChange={(e) => setFormData({ ...formData, stock: e.target.value })}
+                    placeholder={`কত ${selectedStockUnit} আছে`}
+                    className="input-field text-lg flex-1"
+                    min="0"
+                    step="any"
+                  />
+                  <span className="text-sm font-medium text-muted-foreground bg-muted px-3 py-2.5 rounded-lg">{selectedStockUnit}</span>
+                </div>
+
+                {/* Base unit display */}
+                {stockInBaseUnits > 0 && selectedStockUnit !== config.baseUnitName && (
+                  <div className="flex items-center gap-2 text-xs text-muted-foreground bg-accent/50 p-2 rounded-lg animate-fade-in">
+                    <Info className="w-3.5 h-3.5" />
+                    <span>সিস্টেমে সংরক্ষণ: <strong className="text-foreground">{stockInBaseUnits.toLocaleString()} {config.baseUnitName}</strong></span>
+                  </div>
+                )}
               </div>
 
-              {/* 4. Multi-Unit Price Options with Dropdowns */}
+              {/* 4. Multi-Unit Price Options */}
               <div className="border-t border-border pt-4">
                 <div className="flex items-center justify-between mb-3">
                   <label className="text-sm font-medium">বিক্রয় মূল্য সেট করুন</label>
@@ -399,13 +506,13 @@ export default function Products() {
                             onChange={(e) => handleUnitSelect(unit.id, e.target.value)}
                             className="input-field text-sm py-2.5 bg-background appearance-none cursor-pointer"
                           >
-                            {config.unitOptions.map(opt => (
+                            {config.sellingUnitOptions.map(opt => (
                               <option key={opt.name} value={opt.name}>{opt.name}</option>
                             ))}
                           </select>
                         </div>
-                        <div className="w-24">
-                          <label className="text-xs text-muted-foreground mb-1 block">= {config.unit}</label>
+                        <div className="w-28">
+                          <label className="text-xs text-muted-foreground mb-1 block">= {config.baseUnitName}</label>
                           <input
                             type="number"
                             value={unit.conversionToBase || ''}
@@ -461,19 +568,13 @@ export default function Products() {
                 <div className="mt-3 p-3 bg-accent/50 rounded-xl text-xs text-muted-foreground space-y-1">
                   <p className="font-medium text-accent-foreground">💡 উদাহরণ:</p>
                   {stockType === 'weight' && (
-                    <>
-                      <p>চাল: ১ কেজি = ৳৮০ (ক্রয় ৳৭০), ৫০০ গ্রাম = ৳৪০ (ক্রয় ৳৩৫)</p>
-                    </>
+                    <p>চাল: ১ কেজি (1000 গ্রাম) = ৳৮০, ৫০০ গ্রাম = ৳৪০</p>
                   )}
                   {stockType === 'number' && (
-                    <>
-                      <p>ডিম: ১ পিস = ৳১২ (ক্রয় ৳১০), ১ ডজন = ৳১৪০ (ক্রয় ৳১২০)</p>
-                    </>
+                    <p>ডিম: ১ পিস = ৳১২, ১ ডজন (12 পিস) = ৳১৪০, ১ বক্স = কাস্টম</p>
                   )}
                   {stockType === 'liquid' && (
-                    <>
-                      <p>তেল: ১ লিটার = ৳১৮০ (ক্রয় ৳১৬০), ৫০০ মিলি = ৳৯৫ (ক্রয় ৳৮৫)</p>
-                    </>
+                    <p>তেল: ১ লিটার (1000 মিলি) = ৳১৮০, ৫০০ মিলি = ৳৯৫</p>
                   )}
                 </div>
               </div>
@@ -488,12 +589,12 @@ export default function Products() {
                 <div className="p-4 bg-muted/50 rounded-xl space-y-2 animate-fade-in">
                   <p><strong>পণ্য:</strong> {formData.name || '—'}</p>
                   <p><strong>স্টক ধরন:</strong> {config.label}</p>
-                  <p><strong>স্টক:</strong> {formData.stock || 0} {config.unit}</p>
+                  <p><strong>স্টক:</strong> {formData.stock || 0} {selectedStockUnit} = <span className="text-primary font-semibold">{stockInBaseUnits.toLocaleString()} {config.baseUnitName}</span></p>
                   <div className="border-t border-border pt-2 mt-2">
                     <p className="font-medium mb-1">বিক্রয় মূল্য:</p>
                     {sellingUnits.filter(u => u.name).map(unit => (
                       <p key={unit.id} className="text-sm text-muted-foreground">
-                        • {unit.name} ({unit.conversionToBase} {config.unit}) = ৳{unit.price} | ক্রয়: ৳{unit.costPrice} | লাভ: ৳{unit.profit.toFixed(0)}
+                        • {unit.name} ({unit.conversionToBase} {config.baseUnitName}) = ৳{unit.price} | ক্রয়: ৳{unit.costPrice} | লাভ: ৳{unit.profit.toFixed(0)}
                       </p>
                     ))}
                   </div>
@@ -534,8 +635,9 @@ export default function Products() {
             </div>
             <div className="flex items-center gap-4">
               <div className="text-right">
-                <p className={`text-lg font-bold ${product.stock <= 5 ? 'text-warning' : 'text-foreground'}`}>{product.stock}</p>
-                <p className="text-xs text-muted-foreground">{product.baseUnit || getUnitLabel(product.unitType)}</p>
+                <p className={`text-lg font-bold ${product.stock <= 5 ? 'text-warning' : 'text-foreground'}`}>
+                  {formatStock(product.stock, product.unitType)}
+                </p>
               </div>
               <div className="flex gap-1">
                 <button onClick={() => handleEdit(product)} className="p-2 hover:bg-muted rounded-lg text-muted-foreground hover:text-foreground">
