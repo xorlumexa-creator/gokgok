@@ -1,10 +1,34 @@
 import { useState, useMemo } from 'react';
-import { ShoppingCart, Search, Plus, Minus, CheckCircle, User, X, Calculator, Phone, BookOpen, HelpCircle, AlertTriangle, Info } from 'lucide-react';
+import { ShoppingCart, Search, Plus, Minus, CheckCircle, User, X, Calculator, Phone, BookOpen, HelpCircle, AlertTriangle, Info, ChevronDown } from 'lucide-react';
 import { PhoneInputWithCode } from '@/components/common/PhoneInputWithCode';
 import { useStore } from '@/context/StoreContext';
 import { Button } from '@/components/ui/button';
 import { toast } from '@/hooks/use-toast';
 import { CartItem, Product, SellingUnit, getUnitLabel } from '@/types/store';
+
+// Selling unit options by stock type
+const SELL_UNIT_OPTIONS: Record<string, { label: string; toBase: number }[]> = {
+  weight: [
+    { label: 'গ্রাম', toBase: 1 },
+    { label: 'কেজি', toBase: 1000 },
+  ],
+  number: [
+    { label: 'পিস', toBase: 1 },
+    { label: 'ডজন', toBase: 12 },
+    { label: 'হালি', toBase: 4 },
+  ],
+  liquid: [
+    { label: 'মিলি', toBase: 1 },
+    { label: 'লিটার', toBase: 1000 },
+  ],
+};
+
+// Determine stock type from product unitType
+const getStockType = (unitType: string): string => {
+  if (['kg', 'gram'].includes(unitType)) return 'weight';
+  if (['litre'].includes(unitType)) return 'liquid';
+  return 'number';
+};
 
 // Format stock in human-readable form
 const formatStock = (stock: number, unitType: string, baseUnit?: string) => {
@@ -19,6 +43,18 @@ const formatStock = (stock: number, unitType: string, baseUnit?: string) => {
   return `${stock} ${baseUnit || 'পিস'}`;
 };
 
+// Extended cart item with flexible selling
+interface FlexCartItem {
+  product: Product;
+  basePrice: SellingUnit; // The chosen price tier
+  sellUnitLabel: string; // e.g. "গ্রাম", "কেজি"
+  sellUnitToBase: number; // conversion factor of the selling unit
+  sellAmount: number; // user-entered amount
+  quantityInBaseUnit: number; // sellAmount * sellUnitToBase
+  totalPrice: number;
+  totalProfit: number;
+}
+
 export default function Sell() {
   const { 
     products, 
@@ -32,7 +68,7 @@ export default function Sell() {
   } = useStore();
   
   const [searchTerm, setSearchTerm] = useState('');
-  const [cart, setCart] = useState<CartItem[]>([]);
+  const [cart, setCart] = useState<FlexCartItem[]>([]);
   const [isPaid, setIsPaid] = useState(true);
   const [selectedCustomer, setSelectedCustomer] = useState<string | null>(null);
   const [newCustomerName, setNewCustomerName] = useState('');
@@ -47,10 +83,6 @@ export default function Sell() {
   const [customerSearchType, setCustomerSearchType] = useState<'name' | 'phone'>('name');
   const [customerSearchTerm, setCustomerSearchTerm] = useState('');
 
-  // Quantity input for direct typing
-  const [editingQuantity, setEditingQuantity] = useState<string | null>(null);
-  const [tempQuantity, setTempQuantity] = useState('');
-
   // Optional baki when customer pays less
   const [showBakiOption, setShowBakiOption] = useState(false);
   const [bakiCustomerSearchType, setBakiCustomerSearchType] = useState<'name' | 'phone'>('name');
@@ -60,8 +92,8 @@ export default function Sell() {
   const [bakiNewCustomerPhone, setBakiNewCustomerPhone] = useState('');
   const [showBakiNewCustomer, setShowBakiNewCustomer] = useState(false);
 
-  // Unit selection modal
-  const [selectingUnitFor, setSelectingUnitFor] = useState<Product | null>(null);
+  // Unit/price selection modal
+  const [selectingFor, setSelectingFor] = useState<Product | null>(null);
 
   const filteredProducts = products.filter(p => 
     p.name.toLowerCase().includes(searchTerm.toLowerCase()) && p.stock > 0
@@ -76,7 +108,6 @@ export default function Sell() {
     return searchCustomersByName(customerSearchTerm);
   }, [customerSearchTerm, customerSearchType, customers, searchCustomersByName, searchCustomersByPhone]);
 
-  // Search for baki customers
   const bakiFilteredCustomers = useMemo(() => {
     if (!bakiCustomerSearchTerm.trim()) return customers;
     if (bakiCustomerSearchType === 'phone') {
@@ -85,12 +116,10 @@ export default function Sell() {
     return searchCustomersByName(bakiCustomerSearchTerm);
   }, [bakiCustomerSearchTerm, bakiCustomerSearchType, customers, searchCustomersByName, searchCustomersByPhone]);
 
-  // Check for existing customers with same name
   const existingCustomersWithSameName = useMemo(() => {
     return getExistingCustomersByName(newCustomerName);
   }, [newCustomerName, getExistingCustomersByName]);
 
-  // Check for existing baki customers with same name
   const existingBakiCustomersWithSameName = useMemo(() => {
     return getExistingCustomersByName(bakiNewCustomerName);
   }, [bakiNewCustomerName, getExistingCustomersByName]);
@@ -115,100 +144,94 @@ export default function Sell() {
     }];
   };
 
-  const addToCart = (product: Product, selectedUnit?: SellingUnit) => {
-    const units = getSellingUnits(product);
+  // Get sell unit options for a product
+  const getSellUnitOptions = (product: Product) => {
+    const stockType = getStockType(product.unitType);
+    const options = SELL_UNIT_OPTIONS[stockType] || SELL_UNIT_OPTIONS.number;
     
-    if (units.length > 1 && !selectedUnit) {
-      setSelectingUnitFor(product);
-      return;
+    // Also include any custom units from sellingUnits that aren't in the default list
+    const customUnits: { label: string; toBase: number }[] = [];
+    if (product.sellingUnits) {
+      for (const su of product.sellingUnits) {
+        const exists = options.some(o => o.toBase === su.conversionToBase);
+        if (!exists && su.conversionToBase > 0) {
+          customUnits.push({ label: su.name, toBase: su.conversionToBase });
+        }
+      }
     }
-
-    const unit = selectedUnit || units[0];
-    const quantityInBaseUnit = unit.conversionToBase;
-
-    if (quantityInBaseUnit > product.stock) {
-      toast({ 
-        title: "⚠️ স্টকে পর্যাপ্ত পণ্য নেই",
-        description: `${product.name} এর স্টকে ${formatStock(product.stock, product.unitType, product.baseUnit)} আছে`,
-        variant: "destructive" 
-      });
-      return;
-    }
-
-    const existingItem = cart.find(
-      item => item.product.id === product.id && item.selectedUnit?.id === unit.id
-    );
-    
-    if (existingItem) {
-      updateCartQuantity(product.id, existingItem.quantity + 1, unit);
-    } else {
-      const newItem: CartItem = {
-        product,
-        quantity: 1,
-        quantityInBaseUnit,
-        totalPrice: unit.price,
-        totalProfit: unit.profit,
-        selectedUnit: unit
-      };
-      setCart([...cart, newItem]);
-    }
-    
-    setSelectingUnitFor(null);
-    toast({ title: `${product.name} (${unit.name}) যোগ হয়েছে 🛒` });
+    return [...options, ...customUnits];
   };
 
-  const updateCartQuantity = (productId: string, newQuantity: number, unit?: SellingUnit) => {
-    const product = products.find(p => p.id === productId);
-    if (!product) return;
+  // Calculate price based on base price tier and selling quantity
+  const calcPrice = (basePrice: SellingUnit, sellAmount: number, sellUnitToBase: number) => {
+    const baseUnitsNeeded = sellAmount * sellUnitToBase;
+    const pricePerBase = basePrice.price / basePrice.conversionToBase;
+    const costPerBase = (basePrice.price - basePrice.profit) / basePrice.conversionToBase;
+    const total = pricePerBase * baseUnitsNeeded;
+    const totalCost = costPerBase * baseUnitsNeeded;
+    return {
+      totalPrice: Math.round(total * 100) / 100,
+      totalProfit: Math.round((total - totalCost) * 100) / 100,
+      quantityInBaseUnit: baseUnitsNeeded,
+    };
+  };
 
-    if (newQuantity <= 0) {
-      removeFromCart(productId, unit?.id);
+  const addToCart = (product: Product, basePrice?: SellingUnit) => {
+    const units = getSellingUnits(product);
+    
+    if (units.length > 1 && !basePrice) {
+      setSelectingFor(product);
       return;
     }
 
-    const selectedUnit = unit || cart.find(i => i.product.id === productId)?.selectedUnit;
-    const conversionToBase = selectedUnit?.conversionToBase || 1;
-    const newQuantityInBaseUnit = newQuantity * conversionToBase;
+    const selectedBase = basePrice || units[0];
+    const stockType = getStockType(product.unitType);
+    const defaultSellUnit = SELL_UNIT_OPTIONS[stockType]?.[0] || { label: 'পিস', toBase: 1 };
+    
+    // Default: sell 1 of the base price unit
+    const defaultAmount = selectedBase.conversionToBase / (defaultSellUnit.toBase || 1);
+    const { totalPrice: tp, totalProfit: tpr, quantityInBaseUnit } = calcPrice(selectedBase, defaultAmount, defaultSellUnit.toBase);
 
-    if (newQuantityInBaseUnit > product.stock) {
-      toast({ 
-        title: "⚠️ স্টকের চেয়ে বেশি",
-        description: `স্টকে ${formatStock(product.stock, product.unitType, product.baseUnit)} আছে, তবে বিক্রি করতে পারবেন`,
-      });
-    }
+    const newItem: FlexCartItem = {
+      product,
+      basePrice: selectedBase,
+      sellUnitLabel: defaultSellUnit.label,
+      sellUnitToBase: defaultSellUnit.toBase,
+      sellAmount: defaultAmount,
+      quantityInBaseUnit,
+      totalPrice: tp,
+      totalProfit: tpr,
+    };
+    setCart([...cart, newItem]);
+    setSelectingFor(null);
+    toast({ title: `${product.name} যোগ হয়েছে 🛒` });
+  };
 
-    setCart(cart.map(item => {
-      if (item.product.id === productId && item.selectedUnit?.id === (unit?.id || item.selectedUnit?.id)) {
-        const unitPrice = item.selectedUnit?.price || product.price;
-        const unitProfit = item.selectedUnit?.profit || product.profit;
-        return {
-          ...item,
-          quantity: newQuantity,
-          quantityInBaseUnit: newQuantityInBaseUnit,
-          totalPrice: unitPrice * newQuantity,
-          totalProfit: unitProfit * newQuantity
-        };
-      }
-      return item;
+  const updateCartItem = (index: number, sellAmount: number, sellUnitLabel?: string, sellUnitToBase?: number) => {
+    setCart(prev => prev.map((item, i) => {
+      if (i !== index) return item;
+      const newUnitToBase = sellUnitToBase ?? item.sellUnitToBase;
+      const newLabel = sellUnitLabel ?? item.sellUnitLabel;
+      const newAmount = sellAmount;
+      
+      if (newAmount <= 0) return item;
+      
+      const { totalPrice: tp, totalProfit: tpr, quantityInBaseUnit } = calcPrice(item.basePrice, newAmount, newUnitToBase);
+      
+      return {
+        ...item,
+        sellUnitLabel: newLabel,
+        sellUnitToBase: newUnitToBase,
+        sellAmount: newAmount,
+        quantityInBaseUnit,
+        totalPrice: tp,
+        totalProfit: tpr,
+      };
     }));
   };
 
-  const handleQuantityInput = (productId: string, unitId?: string) => {
-    const qty = parseFloat(tempQuantity) || 0;
-    if (qty > 0) {
-      const item = cart.find(i => i.product.id === productId && i.selectedUnit?.id === unitId);
-      if (item) {
-        updateCartQuantity(productId, qty, item.selectedUnit);
-      }
-    }
-    setEditingQuantity(null);
-    setTempQuantity('');
-  };
-
-  const removeFromCart = (productId: string, unitId?: string) => {
-    setCart(cart.filter(item => 
-      !(item.product.id === productId && item.selectedUnit?.id === unitId)
-    ));
+  const removeFromCart = (index: number) => {
+    setCart(prev => prev.filter((_, i) => i !== index));
   };
 
   const clearCart = () => {
@@ -297,7 +320,7 @@ export default function Sell() {
       quantity: item.quantityInBaseUnit,
       quantityInBaseUnit: item.quantityInBaseUnit,
       unitType: item.product.unitType,
-      unitName: item.selectedUnit?.name,
+      unitName: `${item.sellAmount} ${item.sellUnitLabel}`,
       totalPrice: item.totalPrice,
       profit: Math.max(0, item.totalProfit),
       isPaid: isPaid || partialPaid
@@ -314,7 +337,6 @@ export default function Sell() {
   };
 
   const handleSale = () => {
-    // Show confirmation modal
     setShowConfirmation(true);
   };
 
@@ -349,10 +371,10 @@ export default function Sell() {
         <div className="p-4 bg-primary/10 rounded-xl text-sm animate-fade-in">
           <p className="font-semibold mb-2">📌 কিভাবে কাজ করে:</p>
           <ul className="space-y-1 text-muted-foreground">
-            <li>• পণ্য ট্যাপ করুন → ইউনিট নির্বাচন করুন</li>
-            <li>• পরিমাণ বাড়ান/কমান বা সরাসরি লিখুন</li>
-            <li>• সিস্টেম অটোমেটিক দাম, লাভ ও স্টক হিসাব করবে</li>
-            <li>• বিক্রির আগে সারাংশ দেখানো হবে</li>
+            <li>• পণ্য ট্যাপ করুন → বেজ প্রাইস নির্বাচন করুন</li>
+            <li>• ইউনিট বাছাই করুন (গ্রাম/কেজি/পিস/ডজন ইত্যাদি)</li>
+            <li>• পরিমাণ লিখুন (যেকোনো সংখ্যা: 150, 2.5 ইত্যাদি)</li>
+            <li>• সিস্টেম বেজ প্রাইস অনুযায়ী অটো হিসাব করবে</li>
           </ul>
         </div>
       )}
@@ -373,7 +395,6 @@ export default function Sell() {
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
         {filteredProducts.map((p) => {
           const inCart = cart.filter(item => item.product.id === p.id);
-          const totalInCart = inCart.reduce((sum, item) => sum + item.quantity, 0);
           const units = getSellingUnits(p);
           
           return (
@@ -381,21 +402,21 @@ export default function Sell() {
               key={p.id}
               onClick={() => addToCart(p)}
               className={`p-4 rounded-xl border-2 transition-all duration-200 text-left relative ${
-                totalInCart > 0
+                inCart.length > 0
                   ? 'border-primary bg-primary/5'
                   : 'border-border hover:border-primary/50 bg-card'
               }`}
             >
-              {totalInCart > 0 && (
+              {inCart.length > 0 && (
                 <span className="absolute -top-2 -right-2 w-6 h-6 bg-primary text-primary-foreground rounded-full flex items-center justify-center text-sm font-bold">
-                  {totalInCart}
+                  {inCart.length}
                 </span>
               )}
               <p className="font-semibold text-foreground truncate">{p.name}</p>
               <div className="flex items-center gap-1 flex-wrap">
                 {units.length > 1 ? (
                   <span className="text-xs text-muted-foreground">
-                    {units.length} ইউনিট
+                    {units.length} দাম সেট
                   </span>
                 ) : (
                   <>
@@ -419,36 +440,39 @@ export default function Sell() {
         </div>
       )}
 
-      {/* Unit Selection Modal */}
-      {selectingUnitFor && (
+      {/* Base Price Selection Modal */}
+      {selectingFor && (
         <div className="fixed inset-0 bg-foreground/20 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="w-full max-w-sm bg-card rounded-2xl shadow-soft border border-border p-6 animate-slide-up">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="font-bold text-foreground">{selectingUnitFor.name}</h3>
-              <button onClick={() => setSelectingUnitFor(null)} className="p-1 hover:bg-muted rounded-lg">
+              <h3 className="font-bold text-foreground">{selectingFor.name}</h3>
+              <button onClick={() => setSelectingFor(null)} className="p-1 hover:bg-muted rounded-lg">
                 <X className="w-5 h-5" />
               </button>
             </div>
             <p className="text-sm text-muted-foreground mb-2">
-              স্টকে: {formatStock(selectingUnitFor.stock, selectingUnitFor.unitType, selectingUnitFor.baseUnit)}
+              স্টকে: {formatStock(selectingFor.stock, selectingFor.unitType, selectingFor.baseUnit)}
             </p>
-            <p className="text-sm text-muted-foreground mb-4">কোন ইউনিটে বিক্রি করবেন?</p>
+            <p className="text-sm font-medium text-foreground mb-3">কোন দাম দিয়ে বিক্রি করবেন?</p>
+            <p className="text-xs text-muted-foreground mb-4">
+              💡 বেজ প্রাইস বাছাই করুন, তারপর যেকোনো পরিমাণে বিক্রি করতে পারবেন
+            </p>
             <div className="space-y-2">
-              {getSellingUnits(selectingUnitFor).map(unit => (
+              {getSellingUnits(selectingFor).map(unit => (
                 <button
                   key={unit.id}
-                  onClick={() => addToCart(selectingUnitFor, unit)}
+                  onClick={() => addToCart(selectingFor, unit)}
                   className="w-full p-4 rounded-xl border-2 border-border hover:border-primary bg-muted/30 hover:bg-primary/5 transition-all flex items-center justify-between"
                 >
                   <div>
                     <p className="font-medium">{unit.name}</p>
                     <p className="text-xs text-muted-foreground">
-                      = {unit.conversionToBase} {selectingUnitFor.baseUnit || getUnitLabel(selectingUnitFor.unitType)}
+                      = {unit.conversionToBase} {selectingFor.baseUnit || getUnitLabel(selectingFor.unitType)}
                     </p>
                   </div>
                   <div className="text-right">
                     <p className="font-bold text-primary">৳{unit.price}</p>
-                    <p className="text-xs text-profit">+৳{unit.profit.toFixed(2)}</p>
+                    <p className="text-xs text-profit">লাভ: ৳{unit.profit.toFixed(2)}</p>
                   </div>
                 </button>
               ))}
@@ -469,19 +493,22 @@ export default function Sell() {
             </div>
 
             <div className="space-y-3 mb-4">
-              {cart.map(item => {
+              {cart.map((item, idx) => {
                 const product = products.find(p => p.id === item.product.id);
                 const remainingStock = product ? product.stock - item.quantityInBaseUnit : 0;
                 return (
-                  <div key={`${item.product.id}-${item.selectedUnit?.id}`} className="p-3 bg-muted/50 rounded-xl">
+                  <div key={idx} className="p-3 bg-muted/50 rounded-xl">
                     <div className="flex justify-between items-start">
                       <div>
                         <p className="font-semibold text-foreground">{item.product.name}</p>
                         <p className="text-sm text-muted-foreground">
-                          {item.quantity} × {item.selectedUnit?.name} = {item.quantityInBaseUnit} {item.product.baseUnit || getUnitLabel(item.product.unitType)}
+                          {item.sellAmount} {item.sellUnitLabel} (বেজ: {item.basePrice.name})
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          = {item.quantityInBaseUnit.toFixed(1)} {item.product.baseUnit || getUnitLabel(item.product.unitType)} কমবে
                         </p>
                       </div>
-                      <p className="font-bold text-foreground">৳{item.totalPrice}</p>
+                      <p className="font-bold text-foreground">৳{item.totalPrice.toFixed(2)}</p>
                     </div>
                     <div className="flex justify-between mt-2 text-xs">
                       <span className="text-profit">লাভ: ৳{item.totalProfit.toFixed(2)}</span>
@@ -536,68 +563,82 @@ export default function Sell() {
           </div>
           
           {/* Cart Items */}
-          <div className="space-y-3 mb-4 max-h-60 overflow-y-auto">
-            {cart.map((item) => {
-              const itemKey = `${item.product.id}-${item.selectedUnit?.id}`;
+          <div className="space-y-4 mb-4 max-h-[400px] overflow-y-auto">
+            {cart.map((item, idx) => {
+              const unitOptions = getSellUnitOptions(item.product);
               return (
-                <div key={itemKey} className="flex items-center justify-between p-3 bg-muted/50 rounded-xl">
-                  <div className="flex-1">
-                    <p className="font-medium text-foreground">{item.product.name}</p>
-                    <p className="text-sm text-muted-foreground">
-                      ৳{item.selectedUnit?.price || item.product.price}/{item.selectedUnit?.name || getUnitLabel(item.product.unitType)} × {item.quantity}
-                    </p>
-                    <p className="text-xs text-muted-foreground flex items-center gap-1">
-                      <Info className="w-3 h-3" />
-                      {item.quantityInBaseUnit} {item.product.baseUnit || getUnitLabel(item.product.unitType)} কমবে
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <div className="flex items-center gap-1">
-                      <button
-                        onClick={() => updateCartQuantity(item.product.id, item.quantity - 1, item.selectedUnit)}
-                        className="p-1.5 bg-background rounded-lg hover:bg-muted"
-                      >
-                        <Minus className="w-4 h-4" />
-                      </button>
-                      
-                      {editingQuantity === itemKey ? (
-                        <input
-                          type="number"
-                          value={tempQuantity}
-                          onChange={(e) => setTempQuantity(e.target.value)}
-                          onBlur={() => handleQuantityInput(item.product.id, item.selectedUnit?.id)}
-                          onKeyDown={(e) => e.key === 'Enter' && handleQuantityInput(item.product.id, item.selectedUnit?.id)}
-                          className="w-16 text-center font-bold bg-card rounded-lg border border-border p-1"
-                          autoFocus
-                          min="0"
-                        />
-                      ) : (
-                        <button
-                          onClick={() => {
-                            setEditingQuantity(itemKey);
-                            setTempQuantity(item.quantity.toString());
-                          }}
-                          className="w-12 text-center font-bold bg-card rounded-lg py-1 hover:bg-muted"
-                        >
-                          {item.quantity}
-                        </button>
-                      )}
-                      
-                      <button
-                        onClick={() => updateCartQuantity(item.product.id, item.quantity + 1, item.selectedUnit)}
-                        className="p-1.5 bg-background rounded-lg hover:bg-muted"
-                      >
-                        <Plus className="w-4 h-4" />
-                      </button>
+                <div key={idx} className="p-4 bg-muted/50 rounded-xl space-y-3">
+                  {/* Product name and base price info */}
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <p className="font-semibold text-foreground">{item.product.name}</p>
+                      <p className="text-xs text-muted-foreground">
+                        বেজ: ৳{item.basePrice.price}/{item.basePrice.name}
+                      </p>
                     </div>
-                    <span className="font-bold text-foreground w-20 text-right">৳{item.totalPrice}</span>
                     <button
-                      onClick={() => removeFromCart(item.product.id, item.selectedUnit?.id)}
-                      className="p-1 text-due hover:bg-due/10 rounded-lg"
+                      onClick={() => removeFromCart(idx)}
+                      className="p-1.5 text-due hover:bg-due/10 rounded-lg"
                     >
                       <X className="w-4 h-4" />
                     </button>
                   </div>
+
+                  {/* Unit + Amount row */}
+                  <div className="flex gap-2 items-end">
+                    {/* Unit selector */}
+                    <div className="flex-1">
+                      <label className="text-xs text-muted-foreground mb-1 block">ইউনিট</label>
+                      <div className="relative">
+                        <select
+                          value={`${item.sellUnitLabel}|${item.sellUnitToBase}`}
+                          onChange={(e) => {
+                            const [label, toBase] = e.target.value.split('|');
+                            updateCartItem(idx, item.sellAmount, label, parseFloat(toBase));
+                          }}
+                          className="w-full h-10 rounded-xl border border-border bg-background px-3 pr-8 text-sm appearance-none focus:outline-none focus:ring-2 focus:ring-ring"
+                        >
+                          {unitOptions.map((opt) => (
+                            <option key={`${opt.label}-${opt.toBase}`} value={`${opt.label}|${opt.toBase}`}>
+                              {opt.label}
+                            </option>
+                          ))}
+                        </select>
+                        <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
+                      </div>
+                    </div>
+
+                    {/* Amount input */}
+                    <div className="flex-1">
+                      <label className="text-xs text-muted-foreground mb-1 block">পরিমাণ</label>
+                      <input
+                        type="number"
+                        value={item.sellAmount || ''}
+                        onChange={(e) => {
+                          const val = parseFloat(e.target.value) || 0;
+                          updateCartItem(idx, val);
+                        }}
+                        placeholder="পরিমাণ"
+                        className="w-full h-10 rounded-xl border border-border bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                        min="0"
+                        step="any"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Auto-calculated summary */}
+                  {item.sellAmount > 0 && (
+                    <div className="flex items-center justify-between text-sm pt-1 border-t border-border/50">
+                      <div className="space-y-0.5">
+                        <p className="text-muted-foreground flex items-center gap-1">
+                          <Info className="w-3 h-3" />
+                          {item.quantityInBaseUnit.toFixed(1)} {item.product.baseUnit || getUnitLabel(item.product.unitType)} কমবে
+                        </p>
+                        <p className="text-xs text-profit">লাভ: ৳{item.totalProfit.toFixed(2)}</p>
+                      </div>
+                      <p className="text-lg font-bold text-foreground">৳{item.totalPrice.toFixed(2)}</p>
+                    </div>
+                  )}
                 </div>
               );
             })}
@@ -780,7 +821,7 @@ export default function Sell() {
             <Button 
               onClick={handleSale} 
               className="w-full btn-primary py-6 text-lg rounded-xl"
-              disabled={cart.length === 0}
+              disabled={cart.length === 0 || cart.some(item => item.sellAmount <= 0)}
             >
               <CheckCircle className="w-5 h-5 mr-2" />
               বিক্রি সম্পন্ন করুন
