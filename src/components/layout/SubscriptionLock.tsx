@@ -11,7 +11,7 @@ export function SubscriptionLock({ children }: { children: React.ReactNode }) {
   const trialStart = new Date(storeInfo.trialStartDate);
   const now = new Date();
   const daysSinceTrial = Math.floor((now.getTime() - trialStart.getTime()) / (1000 * 60 * 60 * 24));
-  const isLocked = daysSinceTrial > 7;
+  const isLocked = daysSinceTrial > 14;
 
   if (!isLocked) return <>{children}</>;
 
@@ -24,7 +24,7 @@ export function SubscriptionLock({ children }: { children: React.ReactNode }) {
           </div>
           <h2 className="text-xl font-bold text-foreground mb-2">ট্রায়াল শেষ হয়ে গেছে</h2>
           <p className="text-muted-foreground mb-4">
-            ৭ দিনের ফ্রি ট্রায়াল শেষ। সাবস্ক্রিপশন নিন।
+            ১৪ দিনের ফ্রি ট্রায়াল শেষ। সাবস্ক্রিপশন নিন।
           </p>
           <button
             onClick={() => navigate('/subscription')}

@@ -1,157 +1,115 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Store, Check, Crown, Sparkles, Loader2, CreditCard, Smartphone } from 'lucide-react';
+import { Check, Crown, Sparkles, Loader2, CreditCard, Smartphone, Lock, MessageCircle, PhoneCall } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from '@/hooks/use-toast';
 import { countries, Country, getCountryByCode, defaultCountry } from '@/data/countries';
 import type { User } from '@supabase/supabase-js';
+import logoImg from '@/assets/logo.png';
 
 export default function Subscription() {
   const navigate = useNavigate();
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(false);
-  const [selectedPlan, setSelectedPlan] = useState<'trial' | 'monthly'>('trial');
+  const [selectedPlan, setSelectedPlan] = useState<'trial' | 'basic' | 'premium'>('trial');
   const [userCountry, setUserCountry] = useState<Country>(defaultCountry);
   const [trialDaysLeft, setTrialDaysLeft] = useState<number | null>(null);
   const [isExpired, setIsExpired] = useState(false);
 
   useEffect(() => {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (event, session) => {
-        setUser(session?.user ?? null);
-        if (!session?.user) {
-          navigate('/auth');
-        }
-      }
-    );
-
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      setUser(session?.user ?? null);
+      if (!session?.user) navigate('/auth');
+    });
     supabase.auth.getSession().then(({ data: { session } }) => {
       setUser(session?.user ?? null);
-      if (!session?.user) {
-        navigate('/auth');
-      } else {
-        // Get user's country from metadata
+      if (!session?.user) { navigate('/auth'); }
+      else {
         const country = session.user.user_metadata?.country;
-        if (country) {
-          const foundCountry = getCountryByCode(country);
-          if (foundCountry) {
-            setUserCountry(foundCountry);
-          }
-        }
-        // Check trial status
+        if (country) { const f = getCountryByCode(country); if (f) setUserCountry(f); }
         checkTrialStatus(session.user.id);
       }
     });
-
     return () => subscription.unsubscribe();
   }, [navigate]);
 
   const checkTrialStatus = async (userId: string) => {
     try {
-      const { data: profile, error } = await supabase
-        .from('profiles')
-        .select('subscription_status, trial_start_date')
-        .eq('user_id', userId)
-        .single();
-
+      const { data: profile } = await supabase.from('profiles').select('subscription_status, trial_start_date').eq('user_id', userId).single();
       if (profile?.trial_start_date) {
         const trialStart = new Date(profile.trial_start_date);
         const now = new Date();
         const daysPassed = Math.floor((now.getTime() - trialStart.getTime()) / (1000 * 60 * 60 * 24));
-        const daysLeft = Math.max(0, 7 - daysPassed);
-        
+        const daysLeft = Math.max(0, 14 - daysPassed);
         setTrialDaysLeft(daysLeft);
         setIsExpired(daysLeft === 0 && profile.subscription_status !== 'active');
+        if (isExpired) setSelectedPlan('basic');
       }
-    } catch (error) {
-      console.error('Error checking trial:', error);
-    }
+    } catch (error) { console.error('Error checking trial:', error); }
   };
 
   const handleStartPlan = async () => {
-    if (!user) {
-      navigate('/auth');
-      return;
-    }
-
+    if (!user) { navigate('/auth'); return; }
     setLoading(true);
     try {
-      if (selectedPlan === 'monthly') {
-        // For now, just show payment info
+      if (selectedPlan === 'basic' || selectedPlan === 'premium') {
+        const price = selectedPlan === 'basic' ? userCountry.monthlyPrice : userCountry.premiumPrice;
         if (userCountry.code === 'BD') {
-          toast({
-            title: "বিকাশ পেমেন্ট",
-            description: `${userCountry.currencySymbol}${userCountry.monthlyPrice} বিকাশ করুন: 01XXXXXXXXX (পেমেন্ট সিস্টেম শীঘ্রই আসছে)`,
-          });
+          toast({ title: "বিকাশ পেমেন্ট", description: `৳${price} বিকাশ করুন: 01XXXXXXXXX (পেমেন্ট সিস্টেম শীঘ্রই আসছে)` });
         } else {
-          toast({
-            title: "পেমেন্ট সিস্টেম শীঘ্রই আসছে",
-            description: `${userCountry.currencySymbol}${userCountry.monthlyPrice}/মাস`,
-          });
+          toast({ title: "পেমেন্ট সিস্টেম শীঘ্রই আসছে", description: `${userCountry.currencySymbol}${price}/মাস` });
         }
         setLoading(false);
         return;
       }
 
-      const { error } = await supabase
-        .from('profiles')
-        .update({
-          subscription_status: 'trial',
-          trial_start_date: new Date().toISOString(),
-        })
-        .eq('user_id', user.id);
-
+      const { error } = await supabase.from('profiles').update({
+        subscription_status: 'trial',
+        trial_start_date: new Date().toISOString(),
+      }).eq('user_id', user.id);
       if (error) throw error;
-
-      toast({
-        title: "৭ দিনের ফ্রি ট্রায়াল শুরু হয়েছে! 🎉"
-      });
-      
+      toast({ title: "১৪ দিনের ফ্রি ট্রায়াল শুরু হয়েছে! 🎉" });
       navigate('/');
-    } catch (error: any) {
-      toast({ title: error.message || "সমস্যা হয়েছে", variant: "destructive" });
-    } finally {
-      setLoading(false);
-    }
+    } catch (error: any) { toast({ title: error.message || "সমস্যা হয়েছে", variant: "destructive" }); }
+    finally { setLoading(false); }
   };
 
-  const features = [
+  const basicFeatures = [
     "সীমাহীন পণ্য যোগ করুন",
     "বাকির হিসাব রাখুন",
     "বাকির লাভ ট্র্যাকিং",
     "দৈনিক/সাপ্তাহিক/মাসিক রিপোর্ট",
-    "একাধিক ইউনিটে বিক্রি (কেজি/পিস/হালি/ডজন)",
+    "একাধিক ইউনিটে বিক্রি",
     "ব্যক্তিগত ও দোকানের হিসাব আলাদা",
-    "WhatsApp রিমাইন্ডার",
     "আগাম অর্ডার ব্যবস্থাপনা"
   ];
 
-  const getPriceDisplay = () => {
-    const { currencySymbol, monthlyPrice, currency } = userCountry;
-    if (currency === 'BDT') return `৳${monthlyPrice}`;
-    if (currency === 'INR') return `₹${monthlyPrice}`;
-    if (currency === 'PKR') return `₨${monthlyPrice}`;
-    return `$${monthlyPrice}`;
+  const premiumExtras = [
+    "WhatsApp রিমাইন্ডার",
+    "সরাসরি কল বাটন",
+  ];
+
+  const getPrice = (plan: 'basic' | 'premium') => {
+    const price = plan === 'basic' ? userCountry.monthlyPrice : userCountry.premiumPrice;
+    const { currencySymbol, currency } = userCountry;
+    if (currency === 'BDT') return `৳${price}`;
+    if (currency === 'INR') return `₹${price}`;
+    if (currency === 'PKR') return `₨${price}`;
+    return `$${price}`;
   };
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-accent via-background to-background flex flex-col items-center justify-center p-6">
       <div className="w-full max-w-lg">
-        {/* Logo */}
         <div className="text-center mb-8">
-          <div className="w-16 h-16 bg-primary rounded-2xl flex items-center justify-center mx-auto mb-3 shadow-soft">
-            <Store className="w-8 h-8 text-primary-foreground" />
-          </div>
+          <img src={logoImg} alt="ShopMate" className="w-16 h-16 rounded-2xl mx-auto mb-3 shadow-soft object-cover" />
           <p className="text-sm text-primary font-medium mb-2">ShopMate</p>
           <h1 className="text-2xl font-bold text-foreground">
             {isExpired ? 'ট্রায়াল শেষ হয়েছে' : 'সাবস্ক্রিপশন বেছে নিন'}
           </h1>
           <p className="text-muted-foreground mt-1">
-            {isExpired 
-              ? 'চালিয়ে যেতে সাবস্ক্রাইব করুন'
-              : 'আপনার দোকান পরিচালনা করুন স্মার্টভাবে'
-            }
+            {isExpired ? 'চালিয়ে যেতে সাবস্ক্রাইব করুন' : 'আপনার দোকান পরিচালনা করুন স্মার্টভাবে'}
           </p>
           {trialDaysLeft !== null && trialDaysLeft > 0 && (
             <div className="mt-3 inline-block px-4 py-2 bg-primary/10 rounded-full">
@@ -160,77 +118,91 @@ export default function Subscription() {
           )}
         </div>
 
-        {/* Plan Cards */}
         <div className="space-y-4 mb-6">
-          {/* Free Trial - Hide if expired */}
+          {/* Free Trial */}
           {!isExpired && (
             <button
               onClick={() => setSelectedPlan('trial')}
               className={`w-full p-6 rounded-2xl border-2 transition-all text-left relative overflow-hidden ${
-                selectedPlan === 'trial'
-                  ? 'border-primary bg-primary/5'
-                  : 'border-border bg-card hover:border-primary/50'
+                selectedPlan === 'trial' ? 'border-primary bg-primary/5' : 'border-border bg-card hover:border-primary/50'
               }`}
             >
-              <div className="absolute top-0 right-0 bg-profit text-white px-3 py-1 rounded-bl-xl text-xs font-medium">
-                প্রস্তাবিত
-              </div>
+              <div className="absolute top-0 right-0 bg-profit text-white px-3 py-1 rounded-bl-xl text-xs font-medium">প্রস্তাবিত</div>
               <div className="flex items-start gap-4">
-                <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${
-                  selectedPlan === 'trial' ? 'bg-primary/10' : 'bg-muted'
-                }`}>
+                <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${selectedPlan === 'trial' ? 'bg-primary/10' : 'bg-muted'}`}>
                   <Sparkles className={`w-6 h-6 ${selectedPlan === 'trial' ? 'text-primary' : 'text-muted-foreground'}`} />
                 </div>
                 <div className="flex-1">
                   <h3 className="text-lg font-bold text-foreground">ফ্রি ট্রায়াল</h3>
-                  <p className="text-muted-foreground text-sm">৭ দিনের জন্য সব ফিচার ফ্রি</p>
+                  <p className="text-muted-foreground text-sm">১৪ দিনের জন্য সব ফিচার ফ্রি</p>
                   <p className="text-3xl font-bold text-primary mt-2">{userCountry.currencySymbol}০</p>
-                  <p className="text-xs text-muted-foreground">৭ দিনের জন্য</p>
+                  <p className="text-xs text-muted-foreground">১৪ দিনের জন্য</p>
                 </div>
-                <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center ${
-                  selectedPlan === 'trial'
-                    ? 'border-primary bg-primary'
-                    : 'border-muted-foreground'
-                }`}>
+                <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center ${selectedPlan === 'trial' ? 'border-primary bg-primary' : 'border-muted-foreground'}`}>
                   {selectedPlan === 'trial' && <Check className="w-4 h-4 text-primary-foreground" />}
                 </div>
               </div>
             </button>
           )}
 
-          {/* Monthly Plan */}
+          {/* Basic Plan - 60tk */}
           <button
-            onClick={() => setSelectedPlan('monthly')}
+            onClick={() => setSelectedPlan('basic')}
             className={`w-full p-6 rounded-2xl border-2 transition-all text-left ${
-              selectedPlan === 'monthly' || isExpired
-                ? 'border-primary bg-primary/5'
-                : 'border-border bg-card hover:border-primary/50'
+              selectedPlan === 'basic' ? 'border-primary bg-primary/5' : 'border-border bg-card hover:border-primary/50'
             }`}
           >
             <div className="flex items-start gap-4">
-              <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${
-                selectedPlan === 'monthly' || isExpired ? 'bg-primary/10' : 'bg-muted'
-              }`}>
-                <Crown className={`w-6 h-6 ${selectedPlan === 'monthly' || isExpired ? 'text-primary' : 'text-muted-foreground'}`} />
+              <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${selectedPlan === 'basic' ? 'bg-primary/10' : 'bg-muted'}`}>
+                <Crown className={`w-6 h-6 ${selectedPlan === 'basic' ? 'text-primary' : 'text-muted-foreground'}`} />
               </div>
               <div className="flex-1">
-                <h3 className="text-lg font-bold text-foreground">মাসিক প্ল্যান</h3>
-                <p className="text-muted-foreground text-sm">সব ফিচার সীমাহীন ব্যবহার করুন</p>
+                <h3 className="text-lg font-bold text-foreground">বেসিক প্ল্যান</h3>
+                <p className="text-muted-foreground text-sm">সব ফিচার (WhatsApp ও কল ছাড়া)</p>
                 <p className="text-3xl font-bold text-primary mt-2">
-                  {getPriceDisplay()}
-                  <span className="text-sm font-normal text-muted-foreground">/মাস</span>
+                  {getPrice('basic')}<span className="text-sm font-normal text-muted-foreground">/মাস</span>
                 </p>
+                <div className="mt-2 flex items-center gap-2 text-xs text-muted-foreground">
+                  <Lock className="w-3 h-3" />
+                  <span>WhatsApp ও কল বাটন লক থাকবে</span>
+                </div>
               </div>
-              <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center ${
-                selectedPlan === 'monthly' || isExpired
-                  ? 'border-primary bg-primary'
-                  : 'border-muted-foreground'
-              }`}>
-                {(selectedPlan === 'monthly' || isExpired) && <Check className="w-4 h-4 text-primary-foreground" />}
+              <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center ${selectedPlan === 'basic' ? 'border-primary bg-primary' : 'border-muted-foreground'}`}>
+                {selectedPlan === 'basic' && <Check className="w-4 h-4 text-primary-foreground" />}
+              </div>
+            </div>
+          </button>
+
+          {/* Premium Plan - 150tk */}
+          <button
+            onClick={() => setSelectedPlan('premium')}
+            className={`w-full p-6 rounded-2xl border-2 transition-all text-left relative overflow-hidden ${
+              selectedPlan === 'premium' ? 'border-primary bg-primary/5' : 'border-border bg-card hover:border-primary/50'
+            }`}
+          >
+            {isExpired && (
+              <div className="absolute top-0 right-0 bg-profit text-white px-3 py-1 rounded-bl-xl text-xs font-medium">সম্পূর্ণ</div>
+            )}
+            <div className="flex items-start gap-4">
+              <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${selectedPlan === 'premium' ? 'bg-primary/10' : 'bg-muted'}`}>
+                <Crown className={`w-6 h-6 ${selectedPlan === 'premium' ? 'text-primary' : 'text-muted-foreground'}`} />
+              </div>
+              <div className="flex-1">
+                <h3 className="text-lg font-bold text-foreground">প্রিমিয়াম প্ল্যান</h3>
+                <p className="text-muted-foreground text-sm">সব ফিচার + WhatsApp + কল</p>
+                <p className="text-3xl font-bold text-primary mt-2">
+                  {getPrice('premium')}<span className="text-sm font-normal text-muted-foreground">/মাস</span>
+                </p>
+                <div className="mt-2 flex items-center gap-2 text-xs text-profit">
+                  <MessageCircle className="w-3 h-3" />
+                  <span>WhatsApp রিমাইন্ডার + সরাসরি কল</span>
+                </div>
+              </div>
+              <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center ${selectedPlan === 'premium' ? 'border-primary bg-primary' : 'border-muted-foreground'}`}>
+                {selectedPlan === 'premium' && <Check className="w-4 h-4 text-primary-foreground" />}
               </div>
             </div>
 
-            {/* Payment Methods */}
             <div className="mt-4 pt-4 border-t border-border">
               <p className="text-xs text-muted-foreground mb-2">পেমেন্ট মাধ্যম:</p>
               <div className="flex gap-2">
@@ -242,47 +214,49 @@ export default function Subscription() {
                 )}
                 <div className="flex items-center gap-2 px-3 py-2 bg-muted rounded-lg">
                   <CreditCard className="w-4 h-4 text-muted-foreground" />
-                  <span className="text-sm text-muted-foreground">
-                    {userCountry.code === 'BD' ? 'শীঘ্রই আসছে' : 'কার্ড (শীঘ্রই)'}
-                  </span>
+                  <span className="text-sm text-muted-foreground">{userCountry.code === 'BD' ? 'শীঘ্রই আসছে' : 'কার্ড (শীঘ্রই)'}</span>
                 </div>
               </div>
             </div>
           </button>
         </div>
 
-        {/* Features List */}
+        {/* Features */}
         <div className="card-elevated p-6 mb-6">
-          <h4 className="font-semibold text-foreground mb-4">সব ফিচার পাবেন:</h4>
-          <ul className="space-y-3">
-            {features.map((feature, index) => (
-              <li key={index} className="flex items-center gap-3 text-sm">
+          <h4 className="font-semibold text-foreground mb-4">বেসিক ফিচার:</h4>
+          <ul className="space-y-3 mb-4">
+            {basicFeatures.map((f, i) => (
+              <li key={i} className="flex items-center gap-3 text-sm">
                 <div className="w-5 h-5 rounded-full bg-profit/10 flex items-center justify-center flex-shrink-0">
                   <Check className="w-3 h-3 text-profit" />
                 </div>
-                <span className="text-foreground">{feature}</span>
+                <span className="text-foreground">{f}</span>
+              </li>
+            ))}
+          </ul>
+          <h4 className="font-semibold text-foreground mb-3 flex items-center gap-2">
+            <Crown className="w-4 h-4 text-primary" />
+            প্রিমিয়াম এক্সট্রা:
+          </h4>
+          <ul className="space-y-3">
+            {premiumExtras.map((f, i) => (
+              <li key={i} className="flex items-center gap-3 text-sm">
+                <div className="w-5 h-5 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
+                  {i === 0 ? <MessageCircle className="w-3 h-3 text-primary" /> : <PhoneCall className="w-3 h-3 text-primary" />}
+                </div>
+                <span className="text-foreground">{f}</span>
               </li>
             ))}
           </ul>
         </div>
 
-        {/* CTA Button */}
-        <Button
-          onClick={handleStartPlan}
-          disabled={loading}
-          className="w-full btn-primary py-6 text-lg rounded-xl"
-        >
-          {loading ? (
-            <Loader2 className="w-5 h-5 animate-spin mr-2" />
-          ) : null}
+        <Button onClick={handleStartPlan} disabled={loading} className="w-full btn-primary py-6 text-lg rounded-xl">
+          {loading && <Loader2 className="w-5 h-5 animate-spin mr-2" />}
           {selectedPlan === 'trial' && !isExpired ? 'ফ্রি ট্রায়াল শুরু করুন' : 'সাবস্ক্রাইব করুন'}
         </Button>
 
         <p className="text-center text-xs text-muted-foreground mt-4">
-          {selectedPlan === 'trial' && !isExpired
-            ? "কোন কার্ড লাগবে না • যেকোনো সময় বাতিল করুন"
-            : "নিরাপদ পেমেন্ট • যেকোনো সময় বাতিল করুন"
-          }
+          {selectedPlan === 'trial' && !isExpired ? "কোন কার্ড লাগবে না • যেকোনো সময় বাতিল করুন" : "নিরাপদ পেমেন্ট • যেকোনো সময় বাতিল করুন"}
         </p>
       </div>
     </div>

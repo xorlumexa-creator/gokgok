@@ -530,32 +530,49 @@ export default function Products() {
                         )}
                       </div>
 
-                      {/* Prices row */}
-                      <div className="grid grid-cols-3 gap-2">
-                        <div>
-                          <label className="text-xs text-muted-foreground">বিক্রয়মূল্য (৳)</label>
-                          <input
-                            type="number"
-                            value={unit.price || ''}
-                            onChange={(e) => updateSellingUnit(unit.id, 'price', parseFloat(e.target.value) || 0)}
-                            placeholder="০"
-                            className="input-field text-sm py-2"
-                            min="0"
-                          />
+                      {/* Prices row - user can type profit OR cost+selling */}
+                      <div className="space-y-2">
+                        <div className="grid grid-cols-2 gap-2">
+                          <div>
+                            <label className="text-xs text-muted-foreground">বিক্রয়মূল্য (৳)</label>
+                            <input
+                              type="number"
+                              value={unit.price || ''}
+                              onChange={(e) => updateSellingUnit(unit.id, 'price', parseFloat(e.target.value) || 0)}
+                              placeholder="০"
+                              className="input-field text-sm py-2"
+                              min="0"
+                            />
+                          </div>
+                          <div>
+                            <label className="text-xs text-muted-foreground">ক্রয়মূল্য (৳)</label>
+                            <input
+                              type="number"
+                              value={unit.costPrice || ''}
+                              onChange={(e) => updateSellingUnit(unit.id, 'costPrice', parseFloat(e.target.value) || 0)}
+                              placeholder="০"
+                              className="input-field text-sm py-2"
+                              min="0"
+                            />
+                          </div>
                         </div>
-                        <div>
-                          <label className="text-xs text-muted-foreground">ক্রয়মূল্য (৳)</label>
-                          <input
-                            type="number"
-                            value={unit.costPrice || ''}
-                            onChange={(e) => updateSellingUnit(unit.id, 'costPrice', parseFloat(e.target.value) || 0)}
-                            placeholder="০"
-                            className="input-field text-sm py-2"
-                            min="0"
-                          />
-                        </div>
-                        <div className="flex items-end">
-                          <div className={`w-full text-center py-2 rounded-lg text-sm font-semibold ${unit.profit > 0 ? 'bg-profit/10 text-profit' : 'bg-muted text-muted-foreground'}`}>
+                        <div className="flex items-center gap-2">
+                          <div className="flex-1">
+                            <label className="text-xs text-muted-foreground">অথবা সরাসরি লাভ লিখুন (৳)</label>
+                            <input
+                              type="number"
+                              value={unit.profit || ''}
+                              onChange={(e) => {
+                                const profit = parseFloat(e.target.value) || 0;
+                                const newCost = Math.max(0, (unit.price || 0) - profit);
+                                setSellingUnits(sellingUnits.map(u => u.id === unit.id ? { ...u, profit, costPrice: newCost } : u));
+                              }}
+                              placeholder="লাভ"
+                              className="input-field text-sm py-2"
+                              min="0"
+                            />
+                          </div>
+                          <div className={`px-3 py-2 rounded-lg text-sm font-semibold whitespace-nowrap ${unit.profit > 0 ? 'bg-profit/10 text-profit' : 'bg-muted text-muted-foreground'}`}>
                             লাভ ৳{unit.profit.toFixed(0)}
                           </div>
                         </div>

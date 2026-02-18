@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { StoreProvider, useStore } from "@/context/StoreContext";
 import { MainLayout } from "@/components/layout/MainLayout";
+import { OfflineIndicator } from "@/components/OfflineIndicator";
 import { useAuth } from "@/hooks/useAuth";
 import Index from "./pages/Index";
 import Auth from "./pages/Auth";
@@ -69,7 +70,6 @@ function AppRoutes() {
         <Route path="/selling-history" element={<SellingHistory />} />
         <Route path="/daily-sale" element={<DailySale />} />
         <Route path="/suppliers" element={<Suppliers />} />
-        {/* Redirect old route */}
         <Route path="/accounts" element={<Navigate to="/shop-accounts" replace />} />
       </Route>
       <Route path="*" element={<NotFound />} />
@@ -81,6 +81,7 @@ const App = () => (
   <QueryClientProvider client={queryClient}>
     <StoreProvider>
       <TooltipProvider>
+        <OfflineIndicator />
         <Toaster />
         <Sonner />
         <BrowserRouter>
