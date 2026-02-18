@@ -7,7 +7,6 @@ import {
   Calculator, 
   BookOpen, 
   Bell,
-  Store,
   X,
   User,
   CalendarCheck,
@@ -20,6 +19,7 @@ import {
 import { useStore } from '@/context/StoreContext';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
+import logoImg from '@/assets/logo.png';
 
 interface SidebarProps {
   isOpen: boolean;
@@ -71,7 +71,7 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
           const trialStart = new Date(profile.trial_start_date);
           const now = new Date();
           const daysPassed = Math.floor((now.getTime() - trialStart.getTime()) / (1000 * 60 * 60 * 24));
-          setTrialDaysLeft(Math.max(0, 7 - daysPassed));
+          setTrialDaysLeft(Math.max(0, 14 - daysPassed));
         }
       }
     } catch (error) {
@@ -86,7 +86,6 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
 
   return (
     <>
-      {/* Mobile overlay */}
       {isOpen && (
         <div 
           className="fixed inset-0 bg-foreground/20 backdrop-blur-sm z-40 lg:hidden"
@@ -94,7 +93,6 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
         />
       )}
 
-      {/* Sidebar */}
       <aside className={`
         fixed top-0 left-0 h-full w-72 bg-sidebar border-r border-sidebar-border z-50
         transform transition-transform duration-300 ease-in-out
@@ -102,17 +100,12 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
         ${isOpen ? 'translate-x-0' : '-translate-x-full'}
       `}>
         <div className="flex flex-col h-full">
-          {/* Header */}
           <div className="p-6 border-b border-sidebar-border">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-primary rounded-lg flex items-center justify-center">
-                  <Store className="w-5 h-5 text-primary-foreground" />
-                </div>
+                <img src={logoImg} alt="ShopMate" className="w-10 h-10 rounded-lg object-cover" />
                 <div>
-                  <h1 className="font-bold text-foreground text-lg">
-                    ShopMate
-                  </h1>
+                  <h1 className="font-bold text-foreground text-lg">ShopMate</h1>
                   <p className="text-xs text-muted-foreground">{storeInfo?.name || 'আমার দোকান'}</p>
                 </div>
               </div>
@@ -125,12 +118,11 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
             </div>
           </div>
 
-          {/* Trial/Subscription Banner */}
           {subscriptionStatus === 'trial' && trialDaysLeft !== null && (
             <button
               onClick={() => navigate('/subscription')}
               className={`mx-4 mt-4 p-3 rounded-xl transition-all ${
-                trialDaysLeft <= 2 
+                trialDaysLeft <= 3 
                   ? 'bg-due/10 border border-due text-due' 
                   : 'bg-primary/10 border border-primary/30 text-primary'
               }`}
@@ -159,7 +151,6 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
             </div>
           )}
 
-          {/* Navigation */}
           <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
             {navItems.map((item) => {
               const isActive = location.pathname === item.path;
@@ -177,7 +168,6 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
             })}
           </nav>
 
-          {/* Footer */}
           <div className="p-4 border-t border-sidebar-border space-y-2">
             <button
               onClick={handleLogout}
