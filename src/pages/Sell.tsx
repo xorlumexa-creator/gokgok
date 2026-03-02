@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { ShoppingCart, Search, Plus, Minus, CheckCircle, User, X, Calculator, Phone, BookOpen, HelpCircle, AlertTriangle, Info, ChevronDown } from 'lucide-react';
+import { ShoppingCart, Search, Plus, Minus, CheckCircle, User, X, Calculator, Phone, BookOpen, HelpCircle, AlertTriangle, Info, ChevronDown, Tag, Percent } from 'lucide-react';
 import { PhoneInputWithCode } from '@/components/common/PhoneInputWithCode';
 import { useStore } from '@/context/StoreContext';
 import { Button } from '@/components/ui/button';
@@ -23,14 +23,12 @@ const SELL_UNIT_OPTIONS: Record<string, { label: string; toBase: number }[]> = {
   ],
 };
 
-// Determine stock type from product unitType
 const getStockType = (unitType: string): string => {
   if (['kg', 'gram'].includes(unitType)) return 'weight';
   if (['litre'].includes(unitType)) return 'liquid';
   return 'number';
 };
 
-// Format stock in human-readable form
 const formatStock = (stock: number, unitType: string, baseUnit?: string) => {
   if (unitType === 'gram' || unitType === 'kg') {
     if (stock >= 1000) return `${(stock / 1000).toFixed(1)} কেজি`;
@@ -43,16 +41,17 @@ const formatStock = (stock: number, unitType: string, baseUnit?: string) => {
   return `${stock} ${baseUnit || 'পিস'}`;
 };
 
-// Extended cart item with flexible selling
 interface FlexCartItem {
   product: Product;
-  basePrice: SellingUnit; // The chosen price tier
-  sellUnitLabel: string; // e.g. "গ্রাম", "কেজি"
-  sellUnitToBase: number; // conversion factor of the selling unit
-  sellAmount: number; // user-entered amount
-  quantityInBaseUnit: number; // sellAmount * sellUnitToBase
+  basePrice: SellingUnit;
+  sellUnitLabel: string;
+  sellUnitToBase: number;
+  sellAmount: number;
+  quantityInBaseUnit: number;
   totalPrice: number;
   totalProfit: number;
+  customPrice: string; // Custom price override (empty = use calculated)
+  discount: string; // Discount amount (empty = no discount)
 }
 
 export default function Sell() {
@@ -79,11 +78,9 @@ export default function Sell() {
   const [showHelp, setShowHelp] = useState(false);
   const [showConfirmation, setShowConfirmation] = useState(false);
   
-  // Customer search state
   const [customerSearchType, setCustomerSearchType] = useState<'name' | 'phone'>('name');
   const [customerSearchTerm, setCustomerSearchTerm] = useState('');
 
-  // Optional baki when customer pays less
   const [showBakiOption, setShowBakiOption] = useState(false);
   const [bakiCustomerSearchType, setBakiCustomerSearchType] = useState<'name' | 'phone'>('name');
   const [bakiCustomerSearchTerm, setBakiCustomerSearchTerm] = useState('');
@@ -92,14 +89,12 @@ export default function Sell() {
   const [bakiNewCustomerPhone, setBakiNewCustomerPhone] = useState('');
   const [showBakiNewCustomer, setShowBakiNewCustomer] = useState(false);
 
-  // Unit/price selection modal
   const [selectingFor, setSelectingFor] = useState<Product | null>(null);
 
   const filteredProducts = products.filter(p => 
     p.name.toLowerCase().includes(searchTerm.toLowerCase()) && p.stock > 0
   );
 
-  // Search customers based on selected type
   const filteredCustomers = useMemo(() => {
     if (!customerSearchTerm.trim()) return customers;
     if (customerSearchType === 'phone') {
@@ -124,13 +119,30 @@ export default function Sell() {
     return getExistingCustomersByName(bakiNewCustomerName);
   }, [bakiNewCustomerName, getExistingCustomersByName]);
 
-  // Cart calculations
-  const totalPrice = cart.reduce((sum, item) => sum + item.totalPrice, 0);
-  const totalProfit = cart.reduce((sum, item) => sum + item.totalProfit, 0);
+  // Get final price for a cart item (considering custom price and discount)
+  const getFinalPrice = (item: FlexCartItem) => {
+    const baseTotal = item.totalPrice;
+    const customP = parseFloat(item.customPrice);
+    const discountAmt = parseFloat(item.discount) || 0;
+    
+    if (!isNaN(customP) && customP > 0) {
+      return Math.max(0, customP - discountAmt);
+    }
+    return Math.max(0, baseTotal - discountAmt);
+  };
+
+  // Get final profit for a cart item
+  const getFinalProfit = (item: FlexCartItem) => {
+    const finalPrice = getFinalPrice(item);
+    const costPrice = item.totalPrice - item.totalProfit; // original cost
+    return finalPrice - costPrice;
+  };
+
+  const totalPrice = cart.reduce((sum, item) => sum + getFinalPrice(item), 0);
+  const totalProfit = cart.reduce((sum, item) => sum + getFinalProfit(item), 0);
   const change = parseFloat(customerPaid) - totalPrice;
   const bakiAmount = Math.abs(change);
 
-  // Get available selling units for a product
   const getSellingUnits = (product: Product): SellingUnit[] => {
     if (product.sellingUnits && product.sellingUnits.length > 0) {
       return product.sellingUnits;
@@ -144,12 +156,10 @@ export default function Sell() {
     }];
   };
 
-  // Get sell unit options for a product
   const getSellUnitOptions = (product: Product) => {
     const stockType = getStockType(product.unitType);
     const options = SELL_UNIT_OPTIONS[stockType] || SELL_UNIT_OPTIONS.number;
     
-    // Also include any custom units from sellingUnits that aren't in the default list
     const customUnits: { label: string; toBase: number }[] = [];
     if (product.sellingUnits) {
       for (const su of product.sellingUnits) {
@@ -162,7 +172,6 @@ export default function Sell() {
     return [...options, ...customUnits];
   };
 
-  // Calculate price based on base price tier and selling quantity
   const calcPrice = (basePrice: SellingUnit, sellAmount: number, sellUnitToBase: number) => {
     const baseUnitsNeeded = sellAmount * sellUnitToBase;
     const pricePerBase = basePrice.price / basePrice.conversionToBase;
@@ -188,7 +197,6 @@ export default function Sell() {
     const stockType = getStockType(product.unitType);
     const defaultSellUnit = SELL_UNIT_OPTIONS[stockType]?.[0] || { label: 'পিস', toBase: 1 };
     
-    // Default: sell 1 of the base price unit
     const defaultAmount = selectedBase.conversionToBase / (defaultSellUnit.toBase || 1);
     const { totalPrice: tp, totalProfit: tpr, quantityInBaseUnit } = calcPrice(selectedBase, defaultAmount, defaultSellUnit.toBase);
 
@@ -201,6 +209,8 @@ export default function Sell() {
       quantityInBaseUnit,
       totalPrice: tp,
       totalProfit: tpr,
+      customPrice: '',
+      discount: '',
     };
     setCart([...cart, newItem]);
     setSelectingFor(null);
@@ -228,6 +238,10 @@ export default function Sell() {
         totalProfit: tpr,
       };
     }));
+  };
+
+  const updateCartItemField = (index: number, field: 'customPrice' | 'discount', value: string) => {
+    setCart(prev => prev.map((item, i) => i === index ? { ...item, [field]: value } : item));
   };
 
   const removeFromCart = (index: number) => {
@@ -321,8 +335,8 @@ export default function Sell() {
       quantityInBaseUnit: item.quantityInBaseUnit,
       unitType: item.product.unitType,
       unitName: `${item.sellAmount} ${item.sellUnitLabel}`,
-      totalPrice: item.totalPrice,
-      profit: Math.max(0, item.totalProfit),
+      totalPrice: getFinalPrice(item),
+      profit: Math.max(0, getFinalProfit(item)),
       isPaid: isPaid || partialPaid
     }));
 
@@ -337,6 +351,11 @@ export default function Sell() {
   };
 
   const handleSale = () => {
+    const hasZero = cart.some(item => !item.sellAmount || item.sellAmount <= 0);
+    if (hasZero) {
+      toast({ title: "⚠️ পরিমাণ দিন", description: "প্রতিটি পণ্যের পরিমাণ অবশ্যই দিতে হবে।", variant: "destructive" });
+      return;
+    }
     setShowConfirmation(true);
   };
 
@@ -366,15 +385,14 @@ export default function Sell() {
         </button>
       </div>
 
-      {/* Help Note */}
       {showHelp && (
         <div className="p-4 bg-primary/10 rounded-xl text-sm animate-fade-in">
           <p className="font-semibold mb-2">📌 কিভাবে কাজ করে:</p>
           <ul className="space-y-1 text-muted-foreground">
             <li>• পণ্য ট্যাপ করুন → বেজ প্রাইস নির্বাচন করুন</li>
-            <li>• ইউনিট বাছাই করুন (গ্রাম/কেজি/পিস/ডজন ইত্যাদি)</li>
-            <li>• পরিমাণ লিখুন (যেকোনো সংখ্যা: 150, 2.5 ইত্যাদি)</li>
-            <li>• সিস্টেম বেজ প্রাইস অনুযায়ী অটো হিসাব করবে</li>
+            <li>• ইউনিট ও পরিমাণ দিন → অটো হিসাব হবে</li>
+            <li>• কাস্টম দাম দিতে চাইলে "কাস্টম দাম" ফিল্ডে লিখুন</li>
+            <li>• ডিসকাউন্ট দিতে চাইলে "ছাড়" ফিল্ডে টাকা লিখুন</li>
           </ul>
         </div>
       )}
@@ -496,6 +514,10 @@ export default function Sell() {
               {cart.map((item, idx) => {
                 const product = products.find(p => p.id === item.product.id);
                 const remainingStock = product ? product.stock - item.quantityInBaseUnit : 0;
+                const finalP = getFinalPrice(item);
+                const finalPr = getFinalProfit(item);
+                const hasCustom = item.customPrice && parseFloat(item.customPrice) > 0;
+                const hasDiscount = item.discount && parseFloat(item.discount) > 0;
                 return (
                   <div key={idx} className="p-3 bg-muted/50 rounded-xl">
                     <div className="flex justify-between items-start">
@@ -507,11 +529,17 @@ export default function Sell() {
                         <p className="text-xs text-muted-foreground">
                           = {item.quantityInBaseUnit.toFixed(1)} {item.product.baseUnit || getUnitLabel(item.product.unitType)} কমবে
                         </p>
+                        {hasCustom && (
+                          <p className="text-xs text-primary">কাস্টম দাম: ৳{item.customPrice}</p>
+                        )}
+                        {hasDiscount && (
+                          <p className="text-xs text-amber-600">ছাড়: ৳{item.discount}</p>
+                        )}
                       </div>
-                      <p className="font-bold text-foreground">৳{item.totalPrice.toFixed(2)}</p>
+                      <p className="font-bold text-foreground">৳{finalP.toFixed(2)}</p>
                     </div>
                     <div className="flex justify-between mt-2 text-xs">
-                      <span className="text-profit">লাভ: ৳{item.totalProfit.toFixed(2)}</span>
+                      <span className="text-profit">লাভ: ৳{finalPr.toFixed(2)}</span>
                       <span className={`${remainingStock < 0 ? 'text-due' : 'text-muted-foreground'}`}>
                         অবশিষ্ট: {formatStock(Math.max(0, remainingStock), item.product.unitType, item.product.baseUnit)}
                       </span>
@@ -566,6 +594,8 @@ export default function Sell() {
           <div className="space-y-4 mb-4 max-h-[400px] overflow-y-auto">
             {cart.map((item, idx) => {
               const unitOptions = getSellUnitOptions(item.product);
+              const finalP = getFinalPrice(item);
+              const finalPr = getFinalProfit(item);
               return (
                 <div key={idx} className="p-4 bg-muted/50 rounded-xl space-y-3">
                   {/* Product name and base price info */}
@@ -584,9 +614,24 @@ export default function Sell() {
                     </button>
                   </div>
 
-                  {/* Unit + Amount row */}
+                  {/* Amount + Unit row (পরিমাণ বামে, ইউনিট ডানে) */}
                   <div className="flex gap-2 items-end">
-                    {/* Unit selector */}
+                    <div className="flex-1">
+                      <label className="text-xs text-muted-foreground mb-1 block">পরিমাণ</label>
+                      <input
+                        type="number"
+                        value={item.sellAmount || ''}
+                        onChange={(e) => {
+                          const val = parseFloat(e.target.value) || 0;
+                          updateCartItem(idx, val);
+                        }}
+                        placeholder="পরিমাণ"
+                        className="w-full h-10 rounded-xl border border-border bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                        min="0"
+                        step="any"
+                      />
+                    </div>
+
                     <div className="flex-1">
                       <label className="text-xs text-muted-foreground mb-1 block">ইউনিট</label>
                       <div className="relative">
@@ -607,18 +652,33 @@ export default function Sell() {
                         <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
                       </div>
                     </div>
+                  </div>
 
-                    {/* Amount input */}
+                  {/* Custom Price + Discount row (compact) */}
+                  <div className="flex gap-2 items-end">
                     <div className="flex-1">
-                      <label className="text-xs text-muted-foreground mb-1 block">পরিমাণ</label>
+                      <label className="text-xs text-muted-foreground mb-1 flex items-center gap-1">
+                        <Tag className="w-3 h-3" /> কাস্টম দাম
+                      </label>
                       <input
                         type="number"
-                        value={item.sellAmount || ''}
-                        onChange={(e) => {
-                          const val = parseFloat(e.target.value) || 0;
-                          updateCartItem(idx, val);
-                        }}
-                        placeholder="পরিমাণ"
+                        value={item.customPrice}
+                        onChange={(e) => updateCartItemField(idx, 'customPrice', e.target.value)}
+                        placeholder={`৳${item.totalPrice.toFixed(0)}`}
+                        className="w-full h-10 rounded-xl border border-border bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                        min="0"
+                        step="any"
+                      />
+                    </div>
+                    <div className="flex-1">
+                      <label className="text-xs text-muted-foreground mb-1 flex items-center gap-1">
+                        <Percent className="w-3 h-3" /> ছাড় (৳)
+                      </label>
+                      <input
+                        type="number"
+                        value={item.discount}
+                        onChange={(e) => updateCartItemField(idx, 'discount', e.target.value)}
+                        placeholder="০"
                         className="w-full h-10 rounded-xl border border-border bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
                         min="0"
                         step="any"
@@ -634,9 +694,9 @@ export default function Sell() {
                           <Info className="w-3 h-3" />
                           {item.quantityInBaseUnit.toFixed(1)} {item.product.baseUnit || getUnitLabel(item.product.unitType)} কমবে
                         </p>
-                        <p className="text-xs text-profit">লাভ: ৳{item.totalProfit.toFixed(2)}</p>
+                        <p className="text-xs text-profit">লাভ: ৳{finalPr.toFixed(2)}</p>
                       </div>
-                      <p className="text-lg font-bold text-foreground">৳{item.totalPrice.toFixed(2)}</p>
+                      <p className="text-lg font-bold text-foreground">৳{finalP.toFixed(2)}</p>
                     </div>
                   )}
                 </div>
