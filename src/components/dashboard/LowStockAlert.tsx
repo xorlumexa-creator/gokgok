@@ -6,7 +6,10 @@ export function LowStockAlert() {
   const { products, suppliers, storeInfo } = useStore();
   const navigate = useNavigate();
   
-  const lowStockProducts = products.filter(p => p.stock <= 5);
+  const lowStockProducts = products.filter(p => {
+    const threshold = p.restockThreshold ?? 5;
+    return p.stock <= threshold;
+  });
 
   if (lowStockProducts.length === 0) {
     return null;
@@ -62,7 +65,12 @@ ${storeInfo?.name || 'আমাদের দোকান'} থেকে অন�
                 <div>
                   <span className="text-foreground">{product.name}</span>
                   <span className="text-sm font-semibold text-warning ml-2">
-                    {product.stock}টি বাকি
+                    {product.unitType === 'gram' || product.unitType === 'kg'
+                      ? product.stock >= 1000 ? `${(product.stock / 1000).toFixed(1)} কেজি` : `${product.stock} গ্রাম`
+                      : product.unitType === 'litre'
+                        ? product.stock >= 1000 ? `${(product.stock / 1000).toFixed(1)} লিটার` : `${product.stock} মিলি`
+                        : `${product.stock}টি`
+                    } বাকি
                   </span>
                 </div>
               </div>

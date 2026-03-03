@@ -29,6 +29,7 @@ export interface Product {
   price: number;
   profit: number;
   stock: number;
+  restockThreshold?: number; // পুনরায় মজুদ সীমা - in base units
   createdAt: Date;
   sellingUnits?: SellingUnit[];
   supplierPhone?: string;
