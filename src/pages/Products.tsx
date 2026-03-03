@@ -94,6 +94,8 @@ export default function Products() {
     stock: '',
     supplierPhone: '',
     supplierCountryCode: '+880',
+    restockThreshold: '',
+    restockThresholdUnit: 'base', // 'base' unit or selected stock unit
   });
 
   // Multi-unit selling options with cost price
@@ -200,7 +202,8 @@ export default function Products() {
       unitType: config.baseUnitType,
       price: basePrice,
       profit: Math.max(0, baseProfit),
-      stock: stockInBaseUnits, // Always store in base units (gram/piece/ml)
+      stock: stockInBaseUnits,
+      restockThreshold: (parseFloat(formData.restockThreshold) || 0) * getStockMultiplier(),
       sellingUnits: validUnits.map(u => ({
         id: u.id,
         name: u.name,
@@ -243,6 +246,8 @@ export default function Products() {
       stock: displayStock.toString(),
       supplierPhone: (product as any).supplierPhone || '',
       supplierCountryCode: (product as any).supplierCountryCode || '+880',
+      restockThreshold: product.restockThreshold ? (product.restockThreshold / defaultStockUnit.toBaseMultiplier).toString() : '',
+      restockThresholdUnit: 'base',
     });
     
     if (product.sellingUnits && product.sellingUnits.length > 0) {
@@ -270,7 +275,7 @@ export default function Products() {
     setStockType('number');
     setSelectedStockUnit('পিস');
     setCustomStockConversion('');
-    setFormData({ name: '', stock: '', supplierPhone: '', supplierCountryCode: '+880' });
+    setFormData({ name: '', stock: '', supplierPhone: '', supplierCountryCode: '+880', restockThreshold: '', restockThresholdUnit: 'base' });
     setSellingUnits([{ id: generateId(), name: '১ পিস', conversionToBase: 1, price: 0, profit: 0, costPrice: 0 }]);
     setShowSuggestions(false);
     setShowSummary(false);
@@ -481,6 +486,27 @@ export default function Products() {
                     <Info className="w-3.5 h-3.5" />
                     <span>সিস্টেমে সংরক্ষণ: <strong className="text-foreground">{stockInBaseUnits.toLocaleString()} {config.baseUnitName}</strong></span>
                   </div>
+                )}
+              </div>
+
+              {/* Restock Threshold */}
+              <div className="p-4 bg-amber-50 dark:bg-amber-900/10 rounded-xl space-y-2 border border-amber-200 dark:border-amber-800/30">
+                <label className="block text-sm font-medium">পুনরায় মজুদ সীমা (ঐচ্ছিক)</label>
+                <p className="text-xs text-muted-foreground">যখন স্টক এই পরিমাণে পৌঁছাবে, তখন নতুন করে মজুদ করতে হবে বলে জানানো হবে।</p>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="number"
+                    value={formData.restockThreshold}
+                    onChange={(e) => setFormData({ ...formData, restockThreshold: e.target.value })}
+                    placeholder="যেমন: ৫"
+                    className="input-field flex-1"
+                    min="0"
+                    step="any"
+                  />
+                  <span className="text-sm font-medium text-muted-foreground bg-muted px-3 py-2.5 rounded-lg">{selectedStockUnit}</span>
+                </div>
+                {parseFloat(formData.restockThreshold) > 0 && selectedStockUnit !== config.baseUnitName && (
+                  <p className="text-xs text-muted-foreground">= {((parseFloat(formData.restockThreshold) || 0) * getStockMultiplier()).toLocaleString()} {config.baseUnitName}</p>
                 )}
               </div>
 

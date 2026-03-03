@@ -6,6 +6,7 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { StoreProvider, useStore } from "@/context/StoreContext";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { OfflineIndicator } from "@/components/OfflineIndicator";
+import { InstallPrompt } from "@/components/InstallPrompt";
 import { useAuth } from "@/hooks/useAuth";
 import Index from "./pages/Index";
 import Auth from "./pages/Auth";
@@ -82,6 +83,7 @@ const App = () => (
     <StoreProvider>
       <TooltipProvider>
         <OfflineIndicator />
+        <InstallPrompt />
         <Toaster />
         <Sonner />
         <BrowserRouter>
