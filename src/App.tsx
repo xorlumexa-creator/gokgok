@@ -22,6 +22,7 @@ import Notifications from "./pages/Notifications";
 import SellingHistory from "./pages/SellingHistory";
 import DailySale from "./pages/DailySale";
 import Suppliers from "./pages/Suppliers";
+import ResetPassword from "./pages/ResetPassword";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -53,6 +54,7 @@ function AppRoutes() {
   return (
     <Routes>
       <Route path="/auth" element={<Auth />} />
+      <Route path="/reset-password" element={<ResetPassword />} />
       <Route path="/subscription" element={<Subscription />} />
       <Route path="/" element={<Index />} />
       <Route element={
