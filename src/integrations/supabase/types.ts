@@ -76,8 +76,10 @@ export type Database = {
       }
       profiles: {
         Row: {
+          address: string | null
           created_at: string
           email: string | null
+          full_name: string | null
           id: string
           phone: string | null
           shop_name: string | null
@@ -86,10 +88,13 @@ export type Database = {
           trial_start_date: string
           updated_at: string
           user_id: string
+          whatsapp_number: string | null
         }
         Insert: {
+          address?: string | null
           created_at?: string
           email?: string | null
+          full_name?: string | null
           id?: string
           phone?: string | null
           shop_name?: string | null
@@ -98,10 +103,13 @@ export type Database = {
           trial_start_date?: string
           updated_at?: string
           user_id: string
+          whatsapp_number?: string | null
         }
         Update: {
+          address?: string | null
           created_at?: string
           email?: string | null
+          full_name?: string | null
           id?: string
           phone?: string | null
           shop_name?: string | null
@@ -110,6 +118,7 @@ export type Database = {
           trial_start_date?: string
           updated_at?: string
           user_id?: string
+          whatsapp_number?: string | null
         }
         Relationships: []
       }
