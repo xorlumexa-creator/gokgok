@@ -1,4 +1,5 @@
 import { Menu, Bell, User } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { useStore } from '@/context/StoreContext';
 import logoImg from '@/assets/logo.png';
 
@@ -9,6 +10,7 @@ interface HeaderProps {
 
 export function Header({ onMenuClick, title }: HeaderProps) {
   const { storeInfo } = useStore();
+  const navigate = useNavigate();
 
   return (
     <header className="sticky top-0 z-30 bg-background/95 backdrop-blur border-b border-border">
@@ -31,7 +33,7 @@ export function Header({ onMenuClick, title }: HeaderProps) {
             <Bell className="w-5 h-5" />
             <span className="absolute top-1 right-1 w-2 h-2 bg-destructive rounded-full" />
           </button>
-          <button className="p-2 text-muted-foreground hover:text-foreground hover:bg-muted rounded-lg transition-colors">
+          <button onClick={() => navigate('/profile')} className="p-2 text-muted-foreground hover:text-foreground hover:bg-muted rounded-lg transition-colors">
             <User className="w-5 h-5" />
           </button>
         </div>

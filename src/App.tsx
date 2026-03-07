@@ -23,6 +23,7 @@ import SellingHistory from "./pages/SellingHistory";
 import DailySale from "./pages/DailySale";
 import Suppliers from "./pages/Suppliers";
 import ResetPassword from "./pages/ResetPassword";
+import Profile from "./pages/Profile";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -73,6 +74,7 @@ function AppRoutes() {
         <Route path="/selling-history" element={<SellingHistory />} />
         <Route path="/daily-sale" element={<DailySale />} />
         <Route path="/suppliers" element={<Suppliers />} />
+        <Route path="/profile" element={<Profile />} />
         <Route path="/accounts" element={<Navigate to="/shop-accounts" replace />} />
       </Route>
       <Route path="*" element={<NotFound />} />
