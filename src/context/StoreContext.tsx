@@ -611,7 +611,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     return products.filter(p => p.name.toLowerCase().includes(lowerQuery));
   };
 
-  const completeOnboarding = (storeName: string, initialProducts: Omit<Product, 'id' | 'createdAt'>[]) => {
+  const completeOnboarding = async (storeName: string, initialProducts: Omit<Product, 'id' | 'createdAt'>[]) => {
     const trialStart = new Date();
     setStoreInfo({
       name: storeName,
@@ -619,6 +619,16 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       trialDaysLeft: 15,
       isOnboarded: true
     });
+
+    // Save shop_name to Supabase profile
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        await supabase.from('profiles').update({ shop_name: storeName }).eq('user_id', user.id);
+      }
+    } catch (e) {
+      console.error('Failed to save shop name to profile:', e);
+    }
 
     initialProducts.forEach(product => {
       if (product.name.trim()) {
