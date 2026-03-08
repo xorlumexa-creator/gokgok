@@ -184,7 +184,13 @@ export default function Auth() {
         return;
       }
       if (data.user) {
-        await supabase.from('profiles').update({ phone: fullPhone, email: email }).eq('user_id', data.user.id);
+        await supabase.from('profiles').update({ 
+          phone: fullPhone, 
+          email: email.trim(),  // Store the REAL user email, not the fake auth email
+          full_name: name.trim(),
+          address: address.trim() || null,
+          whatsapp_number: fullPhone
+        }).eq('user_id', data.user.id);
       }
       toast({ title: "অ্যাকাউন্ট তৈরি হয়েছে! ✓", description: "১৪ দিনের ফ্রি ট্রায়াল শুরু হয়েছে" });
     } catch (error: any) { toast({ title: error.message || "অ্যাকাউন্ট তৈরি করতে সমস্যা হয়েছে", variant: "destructive" }); }
