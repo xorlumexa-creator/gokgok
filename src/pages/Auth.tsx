@@ -152,8 +152,8 @@ export default function Auth() {
     if (!validateInputs()) return;
     setLoading(true);
     try {
-      const email = `${getFullPhoneNumber().replace(/\+/g, '')}@dokan360.app`;
-      const { error } = await supabase.auth.signInWithPassword({ email, password });
+      const authEmail = `${getFullPhoneNumber().replace(/\+/g, '')}@dokan360.app`;
+      const { error } = await supabase.auth.signInWithPassword({ email: authEmail, password });
       if (error) {
         if (error.message.includes('Invalid login credentials')) { toast({ title: "ভুল ফোন নম্বর বা পাসওয়ার্ড", variant: "destructive" }); }
         else { toast({ title: error.message, variant: "destructive" }); }
@@ -169,10 +169,10 @@ export default function Auth() {
     setLoading(true);
     try {
       const fullPhone = getFullPhoneNumber();
-      const email = `${fullPhone.replace(/\+/g, '')}@dokan360.app`;
+      const authEmail = `${fullPhone.replace(/\+/g, '')}@dokan360.app`;
       const redirectUrl = `${window.location.origin}/`;
       const { data, error } = await supabase.auth.signUp({
-        email, password,
+        email: authEmail, password,
         options: {
           emailRedirectTo: redirectUrl,
           data: { full_name: name, phone: fullPhone, country: selectedCountry.code, address }
@@ -184,7 +184,13 @@ export default function Auth() {
         return;
       }
       if (data.user) {
-        await supabase.from('profiles').update({ phone: fullPhone, email: email }).eq('user_id', data.user.id);
+        await supabase.from('profiles').update({ 
+          phone: fullPhone, 
+          email: email.trim(),  // Store the REAL user email
+          full_name: name.trim(),
+          address: address.trim() || null,
+          whatsapp_number: fullPhone
+        }).eq('user_id', data.user.id);
       }
       toast({ title: "অ্যাকাউন্ট তৈরি হয়েছে! ✓", description: "১৪ দিনের ফ্রি ট্রায়াল শুরু হয়েছে" });
     } catch (error: any) { toast({ title: error.message || "অ্যাকাউন্ট তৈরি করতে সমস্যা হয়েছে", variant: "destructive" }); }
