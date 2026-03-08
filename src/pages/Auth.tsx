@@ -25,8 +25,9 @@ export default function Auth() {
   const [email, setEmail] = useState('');
   // Password recovery states
   const [recoveryStep, setRecoveryStep] = useState<'none' | 'warning' | 'email' | 'reset'>('none');
-  const [recoveryEmail, setRecoveryEmail] = useState('');
+  const [recoveryInput, setRecoveryInput] = useState('');
   const [recoveryLoading, setRecoveryLoading] = useState(false);
+  const [maskedEmail, setMaskedEmail] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
 
@@ -77,33 +78,69 @@ export default function Auth() {
     return true;
   };
 
-  // Password recovery handlers
+  const maskEmail = (email: string) => {
+    const [local, domain] = email.split('@');
+    if (!local || !domain) return email;
+    const visibleStart = local.slice(0, 2);
+    const visibleEnd = local.slice(-2);
+    return `${visibleStart}${'*'.repeat(Math.max(local.length - 4, 3))}${visibleEnd}@${domain}`;
+  };
+
+  // Password recovery handler
   const handleRecoveryRequest = async () => {
-    if (!recoveryEmail.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(recoveryEmail)) {
-      toast({ title: "সঠিক ইমেইল দিন", variant: "destructive" });
+    const input = recoveryInput.trim();
+    if (!input) {
+      toast({ title: "ইমেইল বা ফোন নম্বর দিন", variant: "destructive" });
       return;
     }
     setRecoveryLoading(true);
     try {
-      // Check if email exists in profiles
-      const { data: profile } = await supabase.from('profiles').select('user_id').eq('email', recoveryEmail).maybeSingle();
-      if (!profile) {
-        toast({ title: "এই ইমেইল দিয়ে কোন অ্যাকাউন্ট পাওয়া যায়নি", variant: "destructive" });
+      let foundEmail: string | null = null;
+      const isEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(input);
+
+      if (isEmail) {
+        // Search by email
+        const { data: profile } = await supabase.from('profiles').select('user_id, email').eq('email', input).maybeSingle();
+        if (!profile) {
+          toast({ title: "এই ইমেইল দিয়ে কোন অ্যাকাউন্ট পাওয়া যায়নি", variant: "destructive" });
+          setRecoveryLoading(false);
+          return;
+        }
+        foundEmail = profile.email;
+      } else {
+        // Treat as phone number - clean and search
+        let phoneSearch = input.replace(/[^0-9+]/g, '');
+        // Try matching with different formats
+        const { data: profile } = await supabase.from('profiles').select('user_id, email, phone').or(`phone.ilike.%${phoneSearch},phone.ilike.%${phoneSearch.replace(/^0/, '')}`).maybeSingle();
+        if (!profile || !profile.email) {
+          toast({ title: "এই ফোন নম্বর দিয়ে কোন অ্যাকাউন্ট পাওয়া যায়নি", variant: "destructive" });
+          setRecoveryLoading(false);
+          return;
+        }
+        foundEmail = profile.email;
+      }
+
+      if (!foundEmail) {
+        toast({ title: "অ্যাকাউন্টে কোন ইমেইল সংযুক্ত নেই", variant: "destructive" });
         setRecoveryLoading(false);
         return;
       }
-      
+
       // Record fine
-      await supabase.from('fines').insert({ user_id: profile.user_id, amount: 10, reason: 'পাসওয়ার্ড ভুলে OTP অনুরোধ' });
-      
-      // Send password reset email via Supabase Auth
-      const { error } = await supabase.auth.resetPasswordForEmail(recoveryEmail, {
-        redirectTo: `${window.location.origin}/auth?recovery=true`,
+      const { data: profileForFine } = await supabase.from('profiles').select('user_id').eq('email', foundEmail).maybeSingle();
+      if (profileForFine) {
+        await supabase.from('fines').insert({ user_id: profileForFine.user_id, amount: 10, reason: 'পাসওয়ার্ড ভুলে রিসেট অনুরোধ' });
+      }
+
+      // Send password reset email
+      const { error } = await supabase.auth.resetPasswordForEmail(foundEmail, {
+        redirectTo: `${window.location.origin}/reset-password`,
       });
       if (error) throw error;
-      
-      toast({ title: "রিসেট লিংক পাঠানো হয়েছে ✓", description: "আপনার ইমেইল চেক করুন। ১০ টাকা ফি যোগ হয়েছে 😅" });
+
+      setMaskedEmail(maskEmail(foundEmail));
       setRecoveryStep('reset');
+      toast({ title: "রিসেট লিংক পাঠানো হয়েছে ✓", description: "১০ টাকা ফি যোগ হয়েছে" });
     } catch (error: any) {
       toast({ title: error.message || "সমস্যা হয়েছে", variant: "destructive" });
     } finally {
@@ -180,7 +217,7 @@ export default function Auth() {
     );
   }
 
-  // Recovery email input
+  // Recovery input (email or phone)
   if (recoveryStep === 'email') {
     return (
       <div className="min-h-screen bg-gradient-to-b from-accent via-background to-background flex flex-col items-center justify-center p-6">
@@ -188,13 +225,13 @@ export default function Auth() {
           <div className="card-elevated p-6 animate-fade-in">
             <div className="text-center mb-6">
               <Mail className="w-12 h-12 text-primary mx-auto mb-3" />
-              <h2 className="text-xl font-bold text-foreground">ইমেইল দিন</h2>
-              <p className="text-muted-foreground text-sm mt-1">আপনার রেজিস্ট্রেশনের সময় দেওয়া ইমেইল দিন</p>
+              <h2 className="text-xl font-bold text-foreground">ইমেইল বা ফোন নম্বর দিন</h2>
+              <p className="text-muted-foreground text-sm mt-1">আপনার রেজিস্ট্রেশনের সময় দেওয়া ইমেইল অথবা ফোন নম্বর দিন</p>
             </div>
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium mb-2"><Mail className="w-4 h-4 inline mr-1" />ইমেইল</label>
-                <input type="email" value={recoveryEmail} onChange={(e) => setRecoveryEmail(e.target.value)} placeholder="your@email.com" className="input-field" autoFocus />
+                <label className="block text-sm font-medium mb-2"><Mail className="w-4 h-4 inline mr-1" />ইমেইল বা ফোন নম্বর</label>
+                <input type="text" value={recoveryInput} onChange={(e) => setRecoveryInput(e.target.value)} placeholder="your@email.com অথবা 01XXXXXXXXX" className="input-field" autoFocus />
               </div>
               <Button onClick={handleRecoveryRequest} disabled={recoveryLoading} className="w-full py-5 rounded-xl">
                 {recoveryLoading ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : null}
@@ -218,11 +255,12 @@ export default function Auth() {
           <div className="card-elevated p-6 animate-fade-in text-center">
             <Mail className="w-16 h-16 text-profit mx-auto mb-4" />
             <h2 className="text-xl font-bold text-foreground mb-3">📧 রিসেট লিংক পাঠানো হয়েছে</h2>
-            <p className="text-muted-foreground mb-4">আপনার ইমেইলে একটি পাসওয়ার্ড রিসেট লিংক পাঠানো হয়েছে। ইমেইল চেক করুন এবং লিংকে ক্লিক করুন।</p>
-            <div className="bg-yellow-500/10 border border-yellow-500/20 rounded-xl p-4 mb-4">
-              <p className="text-sm text-yellow-700 dark:text-yellow-400">⚠️ মনে রাখবেন: পাসওয়ার্ড নিরাপদ জায়গায় লিখে রাখুন। ভুলে গেলে আবার ১০ টাকা ফি দিতে হবে! 😄</p>
+            <p className="text-muted-foreground mb-2">আপনার ইমেইলে একটি পাসওয়ার্ড রিসেট লিংক পাঠানো হয়েছে।</p>
+            <p className="text-primary font-semibold text-lg mb-4">{maskedEmail}</p>
+            <div className="bg-accent border border-border rounded-xl p-4 mb-4">
+              <p className="text-sm text-muted-foreground">⚠️ মনে রাখবেন: পাসওয়ার্ড নিরাপদ জায়গায় লিখে রাখুন। ভুলে গেলে আবার ১০ টাকা ফি দিতে হবে! 😄</p>
             </div>
-            <Button onClick={() => { setRecoveryStep('none'); setRecoveryEmail(''); }} className="w-full py-5 rounded-xl">
+            <Button onClick={() => { setRecoveryStep('none'); setRecoveryInput(''); setMaskedEmail(''); }} className="w-full py-5 rounded-xl">
               লগইন পেইজে ফিরে যান
             </Button>
           </div>
