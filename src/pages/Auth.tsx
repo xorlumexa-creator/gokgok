@@ -25,8 +25,9 @@ export default function Auth() {
   const [email, setEmail] = useState('');
   // Password recovery states
   const [recoveryStep, setRecoveryStep] = useState<'none' | 'warning' | 'email' | 'reset'>('none');
-  const [recoveryEmail, setRecoveryEmail] = useState('');
+  const [recoveryInput, setRecoveryInput] = useState('');
   const [recoveryLoading, setRecoveryLoading] = useState(false);
+  const [maskedEmail, setMaskedEmail] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
 
