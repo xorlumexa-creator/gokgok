@@ -107,7 +107,7 @@ export default function Auth() {
         return;
       }
 
-      // Record fine
+      // Record fine - use edge case: we know email exists, find user_id
       const { data: profileForFine } = await supabase.from('profiles').select('user_id').eq('email', foundEmail).maybeSingle();
       if (profileForFine) {
         await supabase.from('fines').insert({ user_id: profileForFine.user_id, amount: 10, reason: 'পাসওয়ার্ড ভুলে রিসেট অনুরোধ' });
