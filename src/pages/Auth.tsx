@@ -169,10 +169,10 @@ export default function Auth() {
     setLoading(true);
     try {
       const fullPhone = getFullPhoneNumber();
-      const email = `${fullPhone.replace(/\+/g, '')}@dokan360.app`;
+      const authEmail = `${fullPhone.replace(/\+/g, '')}@dokan360.app`;
       const redirectUrl = `${window.location.origin}/`;
       const { data, error } = await supabase.auth.signUp({
-        email, password,
+        email: authEmail, password,
         options: {
           emailRedirectTo: redirectUrl,
           data: { full_name: name, phone: fullPhone, country: selectedCountry.code, address }
@@ -186,7 +186,7 @@ export default function Auth() {
       if (data.user) {
         await supabase.from('profiles').update({ 
           phone: fullPhone, 
-          email: email.trim(),  // Store the REAL user email, not the fake auth email
+          email: email.trim(),  // Store the REAL user email
           full_name: name.trim(),
           address: address.trim() || null,
           whatsapp_number: fullPhone
