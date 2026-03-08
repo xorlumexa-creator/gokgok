@@ -152,8 +152,8 @@ export default function Auth() {
     if (!validateInputs()) return;
     setLoading(true);
     try {
-      const email = `${getFullPhoneNumber().replace(/\+/g, '')}@dokan360.app`;
-      const { error } = await supabase.auth.signInWithPassword({ email, password });
+      const authEmail = `${getFullPhoneNumber().replace(/\+/g, '')}@dokan360.app`;
+      const { error } = await supabase.auth.signInWithPassword({ email: authEmail, password });
       if (error) {
         if (error.message.includes('Invalid login credentials')) { toast({ title: "ভুল ফোন নম্বর বা পাসওয়ার্ড", variant: "destructive" }); }
         else { toast({ title: error.message, variant: "destructive" }); }
