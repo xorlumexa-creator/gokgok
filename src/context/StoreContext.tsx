@@ -129,6 +129,36 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   const isOnboarded = storeInfo?.isOnboarded ?? false;
 
+  // Load profile from Supabase on auth state change
+  useEffect(() => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      async (event, session) => {
+        if (session?.user && (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'INITIAL_SESSION')) {
+          try {
+            const { data: profile } = await supabase
+              .from('profiles')
+              .select('shop_name, full_name, phone, address, email, whatsapp_number')
+              .eq('user_id', session.user.id)
+              .single();
+            
+            if (profile?.shop_name) {
+              // User already has a shop - mark as onboarded
+              setStoreInfo(prev => ({
+                name: profile.shop_name!,
+                trialStartDate: prev?.trialStartDate || new Date(),
+                trialDaysLeft: prev?.trialDaysLeft || 14,
+                isOnboarded: true
+              }));
+            }
+          } catch (e) {
+            // Profile not found, user needs onboarding
+          }
+        }
+      }
+    );
+    return () => subscription.unsubscribe();
+  }, []);
+
   useEffect(() => {
     if (storeInfo) {
       localStorage.setItem('storeInfo', JSON.stringify(storeInfo));
