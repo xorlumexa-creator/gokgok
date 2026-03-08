@@ -1,3 +1,4 @@
+import { lazy, Suspense } from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -8,36 +9,51 @@ import { MainLayout } from "@/components/layout/MainLayout";
 import { OfflineIndicator } from "@/components/OfflineIndicator";
 import { InstallPrompt } from "@/components/InstallPrompt";
 import { useAuth } from "@/hooks/useAuth";
-import Index from "./pages/Index";
-import Auth from "./pages/Auth";
-import Subscription from "./pages/Subscription";
-import Dashboard from "./pages/Dashboard";
-import Sell from "./pages/Sell";
-import Products from "./pages/Products";
-import PreOrders from "./pages/PreOrders";
-import ShopAccounts from "./pages/ShopAccounts";
-import PersonalAccounts from "./pages/PersonalAccounts";
-import CreditBook from "./pages/CreditBook";
-import Notifications from "./pages/Notifications";
-import SellingHistory from "./pages/SellingHistory";
-import DailySale from "./pages/DailySale";
-import Suppliers from "./pages/Suppliers";
-import ResetPassword from "./pages/ResetPassword";
-import Profile from "./pages/Profile";
-import NotFound from "./pages/NotFound";
 
-const queryClient = new QueryClient();
+// Lazy load all pages
+const Index = lazy(() => import("./pages/Index"));
+const Auth = lazy(() => import("./pages/Auth"));
+const Subscription = lazy(() => import("./pages/Subscription"));
+const Dashboard = lazy(() => import("./pages/Dashboard"));
+const Sell = lazy(() => import("./pages/Sell"));
+const Products = lazy(() => import("./pages/Products"));
+const PreOrders = lazy(() => import("./pages/PreOrders"));
+const ShopAccounts = lazy(() => import("./pages/ShopAccounts"));
+const PersonalAccounts = lazy(() => import("./pages/PersonalAccounts"));
+const CreditBook = lazy(() => import("./pages/CreditBook"));
+const Notifications = lazy(() => import("./pages/Notifications"));
+const SellingHistory = lazy(() => import("./pages/SellingHistory"));
+const DailySale = lazy(() => import("./pages/DailySale"));
+const Suppliers = lazy(() => import("./pages/Suppliers"));
+const ResetPassword = lazy(() => import("./pages/ResetPassword"));
+const Profile = lazy(() => import("./pages/Profile"));
+const NotFound = lazy(() => import("./pages/NotFound"));
+
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 1000 * 60 * 5, // 5 minutes
+      gcTime: 1000 * 60 * 30, // 30 minutes cache
+      retry: 1,
+      refetchOnWindowFocus: false,
+    },
+  },
+});
+
+function PageLoader() {
+  return (
+    <div className="min-h-screen flex items-center justify-center">
+      <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
+    </div>
+  );
+}
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
   const { isOnboarded } = useStore();
   
   if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
-      </div>
-    );
+    return <PageLoader />;
   }
   
   if (!user) {
@@ -53,32 +69,34 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
 
 function AppRoutes() {
   return (
-    <Routes>
-      <Route path="/auth" element={<Auth />} />
-      <Route path="/reset-password" element={<ResetPassword />} />
-      <Route path="/subscription" element={<Subscription />} />
-      <Route path="/" element={<Index />} />
-      <Route element={
-        <ProtectedRoute>
-          <MainLayout />
-        </ProtectedRoute>
-      }>
-        <Route path="/dashboard" element={<Dashboard />} />
-        <Route path="/sell" element={<Sell />} />
-        <Route path="/products" element={<Products />} />
-        <Route path="/pre-orders" element={<PreOrders />} />
-        <Route path="/shop-accounts" element={<ShopAccounts />} />
-        <Route path="/personal-accounts" element={<PersonalAccounts />} />
-        <Route path="/credit-book" element={<CreditBook />} />
-        <Route path="/notifications" element={<Notifications />} />
-        <Route path="/selling-history" element={<SellingHistory />} />
-        <Route path="/daily-sale" element={<DailySale />} />
-        <Route path="/suppliers" element={<Suppliers />} />
-        <Route path="/profile" element={<Profile />} />
-        <Route path="/accounts" element={<Navigate to="/shop-accounts" replace />} />
-      </Route>
-      <Route path="*" element={<NotFound />} />
-    </Routes>
+    <Suspense fallback={<PageLoader />}>
+      <Routes>
+        <Route path="/auth" element={<Auth />} />
+        <Route path="/reset-password" element={<ResetPassword />} />
+        <Route path="/subscription" element={<Subscription />} />
+        <Route path="/" element={<Index />} />
+        <Route element={
+          <ProtectedRoute>
+            <MainLayout />
+          </ProtectedRoute>
+        }>
+          <Route path="/dashboard" element={<Dashboard />} />
+          <Route path="/sell" element={<Sell />} />
+          <Route path="/products" element={<Products />} />
+          <Route path="/pre-orders" element={<PreOrders />} />
+          <Route path="/shop-accounts" element={<ShopAccounts />} />
+          <Route path="/personal-accounts" element={<PersonalAccounts />} />
+          <Route path="/credit-book" element={<CreditBook />} />
+          <Route path="/notifications" element={<Notifications />} />
+          <Route path="/selling-history" element={<SellingHistory />} />
+          <Route path="/daily-sale" element={<DailySale />} />
+          <Route path="/suppliers" element={<Suppliers />} />
+          <Route path="/profile" element={<Profile />} />
+          <Route path="/accounts" element={<Navigate to="/shop-accounts" replace />} />
+        </Route>
+        <Route path="*" element={<NotFound />} />
+      </Routes>
+    </Suspense>
   );
 }
 
