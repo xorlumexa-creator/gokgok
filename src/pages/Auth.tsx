@@ -95,38 +95,19 @@ export default function Auth() {
     }
     setRecoveryLoading(true);
     try {
-      let foundEmail: string | null = null;
-      const isEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(input);
-
-      if (isEmail) {
-        // Search by email
-        const { data: profile } = await supabase.from('profiles').select('user_id, email').eq('email', input).maybeSingle();
-        if (!profile) {
-          toast({ title: "এই ইমেইল দিয়ে কোন অ্যাকাউন্ট পাওয়া যায়নি", variant: "destructive" });
-          setRecoveryLoading(false);
-          return;
-        }
-        foundEmail = profile.email;
-      } else {
-        // Treat as phone number - clean and search
-        let phoneSearch = input.replace(/[^0-9+]/g, '');
-        // Try matching with different formats
-        const { data: profile } = await supabase.from('profiles').select('user_id, email, phone').or(`phone.ilike.%${phoneSearch},phone.ilike.%${phoneSearch.replace(/^0/, '')}`).maybeSingle();
-        if (!profile || !profile.email) {
-          toast({ title: "এই ফোন নম্বর দিয়ে কোন অ্যাকাউন্ট পাওয়া যায়নি", variant: "destructive" });
-          setRecoveryLoading(false);
-          return;
-        }
-        foundEmail = profile.email;
-      }
-
+      // Use security definer function to bypass RLS
+      const { data: foundEmail, error: rpcError } = await supabase.rpc('find_email_for_recovery', { lookup_input: input });
+      
+      if (rpcError) throw rpcError;
+      
       if (!foundEmail) {
-        toast({ title: "অ্যাকাউন্টে কোন ইমেইল সংযুক্ত নেই", variant: "destructive" });
+        const isEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(input);
+        toast({ title: isEmail ? "এই ইমেইল দিয়ে কোন অ্যাকাউন্ট পাওয়া যায়নি" : "এই ফোন নম্বর দিয়ে কোন অ্যাকাউন্ট পাওয়া যায়নি", variant: "destructive" });
         setRecoveryLoading(false);
         return;
       }
 
-      // Record fine
+      // Record fine - use edge case: we know email exists, find user_id
       const { data: profileForFine } = await supabase.from('profiles').select('user_id').eq('email', foundEmail).maybeSingle();
       if (profileForFine) {
         await supabase.from('fines').insert({ user_id: profileForFine.user_id, amount: 10, reason: 'পাসওয়ার্ড ভুলে রিসেট অনুরোধ' });
