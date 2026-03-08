@@ -78,33 +78,69 @@ export default function Auth() {
     return true;
   };
 
-  // Password recovery handlers
+  const maskEmail = (email: string) => {
+    const [local, domain] = email.split('@');
+    if (!local || !domain) return email;
+    const visibleStart = local.slice(0, 2);
+    const visibleEnd = local.slice(-2);
+    return `${visibleStart}${'*'.repeat(Math.max(local.length - 4, 3))}${visibleEnd}@${domain}`;
+  };
+
+  // Password recovery handler
   const handleRecoveryRequest = async () => {
-    if (!recoveryEmail.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(recoveryEmail)) {
-      toast({ title: "সঠিক ইমেইল দিন", variant: "destructive" });
+    const input = recoveryInput.trim();
+    if (!input) {
+      toast({ title: "ইমেইল বা ফোন নম্বর দিন", variant: "destructive" });
       return;
     }
     setRecoveryLoading(true);
     try {
-      // Check if email exists in profiles
-      const { data: profile } = await supabase.from('profiles').select('user_id').eq('email', recoveryEmail).maybeSingle();
-      if (!profile) {
-        toast({ title: "এই ইমেইল দিয়ে কোন অ্যাকাউন্ট পাওয়া যায়নি", variant: "destructive" });
+      let foundEmail: string | null = null;
+      const isEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(input);
+
+      if (isEmail) {
+        // Search by email
+        const { data: profile } = await supabase.from('profiles').select('user_id, email').eq('email', input).maybeSingle();
+        if (!profile) {
+          toast({ title: "এই ইমেইল দিয়ে কোন অ্যাকাউন্ট পাওয়া যায়নি", variant: "destructive" });
+          setRecoveryLoading(false);
+          return;
+        }
+        foundEmail = profile.email;
+      } else {
+        // Treat as phone number - clean and search
+        let phoneSearch = input.replace(/[^0-9+]/g, '');
+        // Try matching with different formats
+        const { data: profile } = await supabase.from('profiles').select('user_id, email, phone').or(`phone.ilike.%${phoneSearch},phone.ilike.%${phoneSearch.replace(/^0/, '')}`).maybeSingle();
+        if (!profile || !profile.email) {
+          toast({ title: "এই ফোন নম্বর দিয়ে কোন অ্যাকাউন্ট পাওয়া যায়নি", variant: "destructive" });
+          setRecoveryLoading(false);
+          return;
+        }
+        foundEmail = profile.email;
+      }
+
+      if (!foundEmail) {
+        toast({ title: "অ্যাকাউন্টে কোন ইমেইল সংযুক্ত নেই", variant: "destructive" });
         setRecoveryLoading(false);
         return;
       }
-      
+
       // Record fine
-      await supabase.from('fines').insert({ user_id: profile.user_id, amount: 10, reason: 'পাসওয়ার্ড ভুলে OTP অনুরোধ' });
-      
-      // Send password reset email via Supabase Auth
-      const { error } = await supabase.auth.resetPasswordForEmail(recoveryEmail, {
-        redirectTo: `${window.location.origin}/auth?recovery=true`,
+      const { data: profileForFine } = await supabase.from('profiles').select('user_id').eq('email', foundEmail).maybeSingle();
+      if (profileForFine) {
+        await supabase.from('fines').insert({ user_id: profileForFine.user_id, amount: 10, reason: 'পাসওয়ার্ড ভুলে রিসেট অনুরোধ' });
+      }
+
+      // Send password reset email
+      const { error } = await supabase.auth.resetPasswordForEmail(foundEmail, {
+        redirectTo: `${window.location.origin}/reset-password`,
       });
       if (error) throw error;
-      
-      toast({ title: "রিসেট লিংক পাঠানো হয়েছে ✓", description: "আপনার ইমেইল চেক করুন। ১০ টাকা ফি যোগ হয়েছে 😅" });
+
+      setMaskedEmail(maskEmail(foundEmail));
       setRecoveryStep('reset');
+      toast({ title: "রিসেট লিংক পাঠানো হয়েছে ✓", description: "১০ টাকা ফি যোগ হয়েছে" });
     } catch (error: any) {
       toast({ title: error.message || "সমস্যা হয়েছে", variant: "destructive" });
     } finally {
