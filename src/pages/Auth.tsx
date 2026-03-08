@@ -255,11 +255,12 @@ export default function Auth() {
           <div className="card-elevated p-6 animate-fade-in text-center">
             <Mail className="w-16 h-16 text-profit mx-auto mb-4" />
             <h2 className="text-xl font-bold text-foreground mb-3">📧 রিসেট লিংক পাঠানো হয়েছে</h2>
-            <p className="text-muted-foreground mb-4">আপনার ইমেইলে একটি পাসওয়ার্ড রিসেট লিংক পাঠানো হয়েছে। ইমেইল চেক করুন এবং লিংকে ক্লিক করুন।</p>
-            <div className="bg-yellow-500/10 border border-yellow-500/20 rounded-xl p-4 mb-4">
-              <p className="text-sm text-yellow-700 dark:text-yellow-400">⚠️ মনে রাখবেন: পাসওয়ার্ড নিরাপদ জায়গায় লিখে রাখুন। ভুলে গেলে আবার ১০ টাকা ফি দিতে হবে! 😄</p>
+            <p className="text-muted-foreground mb-2">আপনার ইমেইলে একটি পাসওয়ার্ড রিসেট লিংক পাঠানো হয়েছে।</p>
+            <p className="text-primary font-semibold text-lg mb-4">{maskedEmail}</p>
+            <div className="bg-accent border border-border rounded-xl p-4 mb-4">
+              <p className="text-sm text-muted-foreground">⚠️ মনে রাখবেন: পাসওয়ার্ড নিরাপদ জায়গায় লিখে রাখুন। ভুলে গেলে আবার ১০ টাকা ফি দিতে হবে! 😄</p>
             </div>
-            <Button onClick={() => { setRecoveryStep('none'); setRecoveryEmail(''); }} className="w-full py-5 rounded-xl">
+            <Button onClick={() => { setRecoveryStep('none'); setRecoveryInput(''); setMaskedEmail(''); }} className="w-full py-5 rounded-xl">
               লগইন পেইজে ফিরে যান
             </Button>
           </div>
