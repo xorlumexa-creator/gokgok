@@ -217,7 +217,7 @@ export default function Auth() {
     );
   }
 
-  // Recovery email input
+  // Recovery input (email or phone)
   if (recoveryStep === 'email') {
     return (
       <div className="min-h-screen bg-gradient-to-b from-accent via-background to-background flex flex-col items-center justify-center p-6">
@@ -225,13 +225,13 @@ export default function Auth() {
           <div className="card-elevated p-6 animate-fade-in">
             <div className="text-center mb-6">
               <Mail className="w-12 h-12 text-primary mx-auto mb-3" />
-              <h2 className="text-xl font-bold text-foreground">ইমেইল দিন</h2>
-              <p className="text-muted-foreground text-sm mt-1">আপনার রেজিস্ট্রেশনের সময় দেওয়া ইমেইল দিন</p>
+              <h2 className="text-xl font-bold text-foreground">ইমেইল বা ফোন নম্বর দিন</h2>
+              <p className="text-muted-foreground text-sm mt-1">আপনার রেজিস্ট্রেশনের সময় দেওয়া ইমেইল অথবা ফোন নম্বর দিন</p>
             </div>
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium mb-2"><Mail className="w-4 h-4 inline mr-1" />ইমেইল</label>
-                <input type="email" value={recoveryEmail} onChange={(e) => setRecoveryEmail(e.target.value)} placeholder="your@email.com" className="input-field" autoFocus />
+                <label className="block text-sm font-medium mb-2"><Mail className="w-4 h-4 inline mr-1" />ইমেইল বা ফোন নম্বর</label>
+                <input type="text" value={recoveryInput} onChange={(e) => setRecoveryInput(e.target.value)} placeholder="your@email.com অথবা 01XXXXXXXXX" className="input-field" autoFocus />
               </div>
               <Button onClick={handleRecoveryRequest} disabled={recoveryLoading} className="w-full py-5 rounded-xl">
                 {recoveryLoading ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : null}
