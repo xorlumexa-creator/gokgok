@@ -74,11 +74,40 @@ export type Database = {
         }
         Relationships: []
       }
+      password_recovery_logs: {
+        Row: {
+          created_at: string
+          id: string
+          method: string
+          month: string
+          success: boolean
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          method?: string
+          month: string
+          success?: boolean
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          method?: string
+          month?: string
+          success?: boolean
+          user_id?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           address: string | null
           created_at: string
           email: string | null
+          face_descriptor: Json | null
+          face_registered_at: string | null
           full_name: string | null
           id: string
           phone: string | null
@@ -94,6 +123,8 @@ export type Database = {
           address?: string | null
           created_at?: string
           email?: string | null
+          face_descriptor?: Json | null
+          face_registered_at?: string | null
           full_name?: string | null
           id?: string
           phone?: string | null
@@ -109,6 +140,8 @@ export type Database = {
           address?: string | null
           created_at?: string
           email?: string | null
+          face_descriptor?: Json | null
+          face_registered_at?: string | null
           full_name?: string | null
           id?: string
           phone?: string | null
@@ -122,6 +155,33 @@ export type Database = {
         }
         Relationships: []
       }
+      recovery_tokens: {
+        Row: {
+          created_at: string | null
+          expires_at: string
+          id: string
+          token: string
+          used: boolean | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          expires_at: string
+          id?: string
+          token: string
+          used?: boolean | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          expires_at?: string
+          id?: string
+          token?: string
+          used?: boolean | null
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
@@ -130,6 +190,18 @@ export type Database = {
       find_email_for_recovery: {
         Args: { lookup_input: string }
         Returns: string
+      }
+      find_user_for_recovery: {
+        Args: { p_phone: string }
+        Returns: {
+          p_face_descriptor: Json
+          p_full_name: string
+          p_user_id: string
+        }[]
+      }
+      get_monthly_recovery_count: {
+        Args: { p_month: string; p_phone: string }
+        Returns: number
       }
     }
     Enums: {
