@@ -14,7 +14,7 @@ export interface Country {
 export const countries: Country[] = [
   {
     code: 'BD', name: 'Bangladesh', nameLocal: 'বাংলাদেশ', dialCode: '+880', flag: '🇧🇩',
-    currency: 'BDT', currencySymbol: '৳', monthlyPrice: 100, premiumPrice: 250, paymentMethods: ['bkash'],
+    currency: 'BDT', currencySymbol: '৳', monthlyPrice: 100, premiumPrice: 200, paymentMethods: ['bkash'],
   },
   {
     code: 'IN', name: 'India', nameLocal: 'ভারত', dialCode: '+91', flag: '🇮🇳',
