@@ -27,6 +27,17 @@ export default function Profile() {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [passwordLoading, setPasswordLoading] = useState(false);
+  const [showPasswordWarning, setShowPasswordWarning] = useState(false);
+
+  useEffect(() => {
+    // Check if user was redirected from face recovery
+    const warning = sessionStorage.getItem('password_change_warning');
+    if (warning === 'true') {
+      setShowPasswordWarning(true);
+      setShowPasswordSection(true);
+      sessionStorage.removeItem('password_change_warning');
+    }
+  }, []);
 
   useEffect(() => {
     if (user) loadProfile();

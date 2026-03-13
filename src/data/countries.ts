@@ -22,7 +22,7 @@ export const countries: Country[] = [
   },
   {
     code: 'PK', name: 'Pakistan', nameLocal: 'পাকিস্তান', dialCode: '+92', flag: '🇵🇰',
-    currency: 'PKR', currencySymbol: '₨', monthlyPrice: 100, premiumPrice: 250, paymentMethods: ['card'],
+    currency: 'PKR', currencySymbol: '₨', monthlyPrice: 100, premiumPrice: 200, paymentMethods: ['card'],
   },
   {
     code: 'US', name: 'United States', nameLocal: 'যুক্তরাষ্ট্র', dialCode: '+1', flag: '🇺🇸',
