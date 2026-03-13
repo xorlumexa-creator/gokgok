@@ -18,7 +18,7 @@ export const countries: Country[] = [
   },
   {
     code: 'IN', name: 'India', nameLocal: 'ভারত', dialCode: '+91', flag: '🇮🇳',
-    currency: 'INR', currencySymbol: '₹', monthlyPrice: 100, premiumPrice: 250, paymentMethods: ['card'],
+    currency: 'INR', currencySymbol: '₹', monthlyPrice: 100, premiumPrice: 200, paymentMethods: ['card'],
   },
   {
     code: 'PK', name: 'Pakistan', nameLocal: 'পাকিস্তান', dialCode: '+92', flag: '🇵🇰',
