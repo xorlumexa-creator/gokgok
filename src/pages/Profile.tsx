@@ -27,6 +27,17 @@ export default function Profile() {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [passwordLoading, setPasswordLoading] = useState(false);
+  const [showPasswordWarning, setShowPasswordWarning] = useState(false);
+
+  useEffect(() => {
+    // Check if user was redirected from face recovery
+    const warning = sessionStorage.getItem('password_change_warning');
+    if (warning === 'true') {
+      setShowPasswordWarning(true);
+      setShowPasswordSection(true);
+      sessionStorage.removeItem('password_change_warning');
+    }
+  }, []);
 
   useEffect(() => {
     if (user) loadProfile();
@@ -140,6 +151,18 @@ export default function Profile() {
       </div>
 
       <div className="max-w-lg mx-auto p-4 space-y-4">
+        {/* Password change warning from face recovery */}
+        {showPasswordWarning && (
+          <div className="bg-destructive/10 border border-destructive/30 rounded-xl p-4 flex items-start gap-3">
+            <span className="text-2xl">⚠️</span>
+            <div>
+              <p className="font-bold text-destructive">পাসওয়ার্ড পরিবর্তন করুন!</p>
+              <p className="text-sm text-muted-foreground mt-1">
+                মুখ স্ক্যানের মাধ্যমে লগইন করেছেন। অনুগ্রহ করে এখনই নতুন পাসওয়ার্ড সেট করুন এবং ভুলবেন না! 😄
+              </p>
+            </div>
+          </div>
+        )}
         {/* Profile Info Card */}
         <div className="card-elevated p-5 space-y-4">
           <h2 className="font-semibold text-foreground flex items-center gap-2">

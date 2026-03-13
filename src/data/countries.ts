@@ -14,15 +14,15 @@ export interface Country {
 export const countries: Country[] = [
   {
     code: 'BD', name: 'Bangladesh', nameLocal: 'বাংলাদেশ', dialCode: '+880', flag: '🇧🇩',
-    currency: 'BDT', currencySymbol: '৳', monthlyPrice: 100, premiumPrice: 250, paymentMethods: ['bkash'],
+    currency: 'BDT', currencySymbol: '৳', monthlyPrice: 100, premiumPrice: 200, paymentMethods: ['bkash'],
   },
   {
     code: 'IN', name: 'India', nameLocal: 'ভারত', dialCode: '+91', flag: '🇮🇳',
-    currency: 'INR', currencySymbol: '₹', monthlyPrice: 100, premiumPrice: 250, paymentMethods: ['card'],
+    currency: 'INR', currencySymbol: '₹', monthlyPrice: 100, premiumPrice: 200, paymentMethods: ['card'],
   },
   {
     code: 'PK', name: 'Pakistan', nameLocal: 'পাকিস্তান', dialCode: '+92', flag: '🇵🇰',
-    currency: 'PKR', currencySymbol: '₨', monthlyPrice: 100, premiumPrice: 250, paymentMethods: ['card'],
+    currency: 'PKR', currencySymbol: '₨', monthlyPrice: 100, premiumPrice: 200, paymentMethods: ['card'],
   },
   {
     code: 'US', name: 'United States', nameLocal: 'যুক্তরাষ্ট্র', dialCode: '+1', flag: '🇺🇸',

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Lock, Eye, EyeOff, Loader2, User, Store, Phone } from 'lucide-react';
+import { Lock, Eye, EyeOff, Loader2, User, Phone } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from '@/hooks/use-toast';
@@ -24,7 +24,6 @@ export default function Auth() {
   const [user, setUser] = useState<SupabaseUser | null>(null);
   const [selectedCountry, setSelectedCountry] = useState<Country>(defaultCountry);
   const [name, setName] = useState('');
-  const [shopName, setShopName] = useState('');
   const [pendingUserId, setPendingUserId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -75,7 +74,6 @@ export default function Auth() {
 
   const validateSignup = () => {
     if (!name.trim()) { toast({ title: "আপনার নাম দিন", variant: "destructive" }); return false; }
-    if (!shopName.trim()) { toast({ title: "দোকানের নাম দিন", variant: "destructive" }); return false; }
     if (!phone.trim() || phone.length < 8) { toast({ title: "সঠিক ফোন নম্বর দিন", variant: "destructive" }); return false; }
     if (!password || password.length < 8) { toast({ title: "পাসওয়ার্ড কমপক্ষে ৮ অক্ষরের হতে হবে", variant: "destructive" }); return false; }
     if (!/[0-9]/.test(password)) { toast({ title: "পাসওয়ার্ডে কমপক্ষে ১টি সংখ্যা থাকতে হবে", variant: "destructive" }); return false; }
@@ -131,7 +129,6 @@ export default function Auth() {
         await supabase.from('profiles').update({
           phone: fullPhone,
           full_name: name.trim(),
-          shop_name: shopName.trim(),
           whatsapp_number: fullPhone
         }).eq('user_id', data.user.id);
         
@@ -158,7 +155,6 @@ export default function Auth() {
     } catch (e) {
       console.error('Failed to save face descriptor:', e);
     }
-    // Proceed to app
     setSignupStep('info');
     checkProfileAndRedirect();
   };
@@ -168,12 +164,10 @@ export default function Auth() {
     checkProfileAndRedirect();
   };
 
-  // Recovery mode
   if (mode === 'recovery') {
     return <RecoveryFlow onBack={() => setMode('login')} />;
   }
 
-  // Face capture step after signup
   if (signupStep === 'face') {
     return (
       <div className="min-h-screen bg-gradient-to-b from-accent via-background to-background flex flex-col items-center justify-center p-6">
@@ -205,16 +199,10 @@ export default function Auth() {
 
           <div className="space-y-4">
             {!isLogin && (
-              <>
-                <div>
-                  <label className="block text-sm font-medium mb-2"><User className="w-4 h-4 inline mr-1" />আপনার নাম</label>
-                  <input type="text" value={name} onChange={e => setName(e.target.value)} placeholder="পুরো নাম" className="input-field" autoComplete="name" />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium mb-2"><Store className="w-4 h-4 inline mr-1" />দোকানের নাম</label>
-                  <input type="text" value={shopName} onChange={e => setShopName(e.target.value)} placeholder="আপনার দোকানের নাম" className="input-field" />
-                </div>
-              </>
+              <div>
+                <label className="block text-sm font-medium mb-2"><User className="w-4 h-4 inline mr-1" />আপনার নাম</label>
+                <input type="text" value={name} onChange={e => setName(e.target.value)} placeholder="পুরো নাম" className="input-field" autoComplete="name" />
+              </div>
             )}
 
             <div>
@@ -251,19 +239,6 @@ export default function Auth() {
               </div>
             )}
 
-            {/* Password notice for signup */}
-            {!isLogin && (
-              <div className="bg-yellow-500/10 border border-yellow-500/20 rounded-xl p-4">
-                <p className="font-bold text-sm text-yellow-700 dark:text-yellow-400 mb-2">⚠️ গুরুত্বপূর্ণ নোটিশ</p>
-                <div className="text-xs text-yellow-700 dark:text-yellow-400 space-y-1">
-                  <p>পাসওয়ার্ড নিরাপদ জায়গায় লিখে রাখুন।</p>
-                  <p>প্রতি মাসে ৩ বার বিনামূল্যে পাসওয়ার্ড রিকভার করতে পারবেন।</p>
-                  <p className="font-bold">৩ বারের বেশি হলে প্রতিবার ২০ টাকা জরিমানা হবে!</p>
-                </div>
-              </div>
-            )}
-
-            {/* Forgot password link for login */}
             {isLogin && (
               <button onClick={() => setMode('recovery')} className="text-sm text-primary hover:underline w-full text-right">
                 পাসওয়ার্ড ভুলে গেছেন?
@@ -272,7 +247,7 @@ export default function Auth() {
 
             <Button onClick={isLogin ? handleLogin : handleSignup} disabled={loading} className="w-full btn-primary py-6 text-lg rounded-xl">
               {loading ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : null}
-              {isLogin ? 'লগইন করুন' : 'নিবন্ধন করুন'}
+              {isLogin ? 'লগইন করুন' : 'অ্যাকাউন্ট তৈরি করুন'}
             </Button>
           </div>
 
