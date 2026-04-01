@@ -101,20 +101,27 @@ function AppRoutes() {
   );
 }
 
-const App = () => (
-  <QueryClientProvider client={queryClient}>
-    <StoreProvider>
-      <TooltipProvider>
-        <OfflineIndicator />
-        <InstallPrompt />
-        <Toaster />
-        <Sonner />
-        <BrowserRouter>
-          <AppRoutes />
-        </BrowserRouter>
-      </TooltipProvider>
-    </StoreProvider>
-  </QueryClientProvider>
-);
+const App = () => {
+  useEffect(() => {
+    startAutoSync();
+    return () => stopAutoSync();
+  }, []);
+
+  return (
+    <QueryClientProvider client={queryClient}>
+      <StoreProvider>
+        <TooltipProvider>
+          <OfflineIndicator />
+          <InstallPrompt />
+          <Toaster />
+          <Sonner />
+          <BrowserRouter>
+            <AppRoutes />
+          </BrowserRouter>
+        </TooltipProvider>
+      </StoreProvider>
+    </QueryClientProvider>
+  );
+};
 
 export default App;
