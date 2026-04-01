@@ -54,9 +54,9 @@ export function InstallPrompt() {
   return (
     <div className="fixed bottom-4 left-4 right-4 z-[9998] animate-slide-up">
       <div className="bg-card border border-border rounded-2xl shadow-lg p-4 flex items-center gap-3 max-w-md mx-auto">
-        <img src={logoImg} alt="ShopMate" className="w-10 h-10 rounded-xl object-cover flex-shrink-0" />
+        <img src={logoImg} alt="Dukan 360°" className="w-10 h-10 rounded-xl object-cover flex-shrink-0" />
         <div className="flex-1 min-w-0">
-          <p className="font-bold text-foreground text-sm">ShopMate ইনস্টল করুন</p>
+          <p className="font-bold text-foreground text-sm">Dukan 360° ইনস্টল করুন</p>
           <p className="text-xs text-muted-foreground">হোম স্ক্রিনে যোগ করে দ্রুত ব্যবহার করুন</p>
         </div>
         <button
