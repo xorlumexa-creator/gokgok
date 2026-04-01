@@ -6,8 +6,9 @@ export interface Country {
   flag: string;
   currency: string;
   currencySymbol: string;
-  monthlyPrice: number; // Basic plan
-  premiumPrice: number; // Premium plan (with WhatsApp + Call)
+  proPrice: number; // Pro plan (monthly)
+  premiumPrice: number; // Premium plan (monthly)
+  comboPrice: number; // Combo plan (yearly)
   paymentMethods: ('bkash' | 'card' | 'razorpay')[];
 }
 
