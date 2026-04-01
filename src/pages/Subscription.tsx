@@ -103,8 +103,8 @@ export default function Subscription() {
     <div className="min-h-screen bg-gradient-to-b from-accent via-background to-background flex flex-col items-center justify-center p-6">
       <div className="w-full max-w-lg">
         <div className="text-center mb-8">
-          <img src={logoImg} alt="ShopMate" className="w-16 h-16 rounded-2xl mx-auto mb-3 shadow-soft object-cover" />
-          <p className="text-sm text-primary font-medium mb-2">ShopMate</p>
+          <img src={logoImg} alt="Dukan 360°" className="w-16 h-16 rounded-2xl mx-auto mb-3 shadow-soft object-cover" />
+          <p className="text-sm text-primary font-medium mb-2">Dukan 360°</p>
           <h1 className="text-2xl font-bold text-foreground">
             {isExpired ? 'ট্রায়াল শেষ হয়েছে' : 'সাবস্ক্রিপশন বেছে নিন'}
           </h1>

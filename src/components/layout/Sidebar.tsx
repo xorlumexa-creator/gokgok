@@ -177,7 +177,7 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
               <span className="font-medium">লগআউট</span>
             </button>
             <p className="text-xs text-muted-foreground text-center">
-              © ২০২৬ ShopMate
+              © ২০২৬ Dukan 360°
             </p>
           </div>
         </div>

@@ -186,8 +186,8 @@ export default function Auth() {
     <div className="min-h-screen bg-gradient-to-b from-accent via-background to-background flex flex-col items-center justify-center p-6">
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
-          <img src={logoImg} alt="Dukan 360" className="w-20 h-20 rounded-2xl mx-auto mb-4 shadow-soft object-cover" />
-          <h1 className="text-3xl font-bold text-foreground">Dukan 360</h1>
+          <img src={logoImg} alt="Dukan 360°" className="w-20 h-20 rounded-2xl mx-auto mb-4 shadow-soft object-cover" />
+          <h1 className="text-3xl font-bold text-foreground">Dukan 360°</h1>
           <p className="text-muted-foreground mt-2">আপনার দোকানের হিসাব রাখুন সহজে</p>
         </div>
 

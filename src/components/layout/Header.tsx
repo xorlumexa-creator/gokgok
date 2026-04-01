@@ -22,7 +22,7 @@ export function Header({ onMenuClick, title }: HeaderProps) {
           >
             <Menu className="w-6 h-6" />
           </button>
-          <img src={logoImg} alt="ShopMate" className="w-8 h-8 rounded-lg object-cover lg:hidden" />
+          <img src={logoImg} alt="Dukan 360°" className="w-8 h-8 rounded-lg object-cover lg:hidden" />
           <h1 className="text-xl font-bold text-foreground">
             {title || storeInfo?.name || 'আমার দোকান'}
           </h1>

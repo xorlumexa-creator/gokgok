@@ -60,8 +60,8 @@ export default defineConfig(({ mode }) => ({
         ],
       },
       manifest: {
-        name: "ShopMate - দোকানের হিসাব",
-        short_name: "ShopMate",
+        name: "Dukan 360° - দোকানের হিসাব",
+        short_name: "Dukan 360°",
         description: "আপনার দোকানের স্টক, বিক্রি ও বাকির হিসাব রাখুন সহজে",
         theme_color: "#0d9488",
         background_color: "#fafafa",
