@@ -1,19 +1,11 @@
 import { useNavigate } from 'react-router-dom';
 import { 
-  ShoppingCart, 
-  Package, 
-  BookOpen, 
-  User, 
-  Calculator, 
-  History, 
-  TrendingUp,
-  CalendarCheck,
-  Bell,
-  Truck,
-  AlertTriangle
+  ShoppingCart, Package, BookOpen, User, Calculator, History, TrendingUp,
+  CalendarCheck, Bell, Truck, AlertTriangle
 } from 'lucide-react';
 import { useStore } from '@/context/StoreContext';
 import { LowStockAlert } from '@/components/dashboard/LowStockAlert';
+import { DynamicPriceProducts } from '@/components/dashboard/DynamicPriceProducts';
 import { Button } from '@/components/ui/button';
 
 export default function Dashboard() {
@@ -58,20 +50,16 @@ export default function Dashboard() {
             </h3>
           </div>
           <p className="text-sm text-amber-700 dark:text-amber-300 mb-3">
-            {unpaidCustomers.length}জন গ্রাহকের বাকি পরিশোধ হয়নি। মেসেজ পাঠান বা কল করুন।
+            {unpaidCustomers.length}জন গ্রাহকের বাকি পরিশোধ হয়নি।
           </p>
-          <Button
-            onClick={() => navigate('/credit-book')}
-            size="sm"
-            className="bg-amber-600 hover:bg-amber-700 text-white"
-          >
+          <Button onClick={() => navigate('/credit-book')} size="sm" className="bg-amber-600 hover:bg-amber-700 text-white">
             <BookOpen className="w-4 h-4 mr-2" />
             বাকির তালিকা দেখুন
           </Button>
         </div>
       )}
 
-      {/* Big Sell Button - Primary Action */}
+      {/* Big Sell Button */}
       <button
         onClick={() => navigate('/sell')}
         className="w-full py-8 text-xl font-bold rounded-2xl bg-gradient-to-r from-due to-due/80 hover:from-due/90 hover:to-due/70 text-white shadow-lg transform hover:scale-[1.02] transition-all duration-200 flex items-center justify-center gap-3"
@@ -100,6 +88,9 @@ export default function Dashboard() {
 
       {/* Low Stock Alert */}
       <LowStockAlert />
+
+      {/* Dynamic Price Products - below low stock */}
+      <DynamicPriceProducts />
     </div>
   );
 }
