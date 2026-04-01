@@ -29,13 +29,17 @@ export interface Product {
   price: number;
   profit: number;
   stock: number;
-  restockThreshold?: number; // পুনরায় মজুদ সীমা - in base units
+  restockThreshold?: number;
   createdAt: Date;
   sellingUnits?: SellingUnit[];
   supplierPhone?: string;
   supplierCountryCode?: string;
   unitsPerBox?: number;
   units?: ProductUnit[];
+  // New fields
+  dynamicPrice?: boolean; // দাম উঠা-নামা পণ্য
+  location?: string; // পণ্যের অবস্থান (যেমন: ২ নম্বর তাক)
+  expiryDate?: string; // মেয়াদ শেষের তারিখ (ISO string)
 }
 
 export interface CartItem {

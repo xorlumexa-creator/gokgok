@@ -1,4 +1,4 @@
-import { lazy, Suspense } from "react";
+import { lazy, Suspense, useEffect } from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -9,6 +9,7 @@ import { MainLayout } from "@/components/layout/MainLayout";
 import { OfflineIndicator } from "@/components/OfflineIndicator";
 import { InstallPrompt } from "@/components/InstallPrompt";
 import { useAuth } from "@/hooks/useAuth";
+import { startAutoSync, stopAutoSync } from "@/lib/syncEngine";
 
 // Lazy load all pages
 const Index = lazy(() => import("./pages/Index"));
@@ -100,20 +101,27 @@ function AppRoutes() {
   );
 }
 
-const App = () => (
-  <QueryClientProvider client={queryClient}>
-    <StoreProvider>
-      <TooltipProvider>
-        <OfflineIndicator />
-        <InstallPrompt />
-        <Toaster />
-        <Sonner />
-        <BrowserRouter>
-          <AppRoutes />
-        </BrowserRouter>
-      </TooltipProvider>
-    </StoreProvider>
-  </QueryClientProvider>
-);
+const App = () => {
+  useEffect(() => {
+    startAutoSync();
+    return () => stopAutoSync();
+  }, []);
+
+  return (
+    <QueryClientProvider client={queryClient}>
+      <StoreProvider>
+        <TooltipProvider>
+          <OfflineIndicator />
+          <InstallPrompt />
+          <Toaster />
+          <Sonner />
+          <BrowserRouter>
+            <AppRoutes />
+          </BrowserRouter>
+        </TooltipProvider>
+      </StoreProvider>
+    </QueryClientProvider>
+  );
+};
 
 export default App;

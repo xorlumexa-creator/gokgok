@@ -103,9 +103,9 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
           <div className="p-6 border-b border-sidebar-border">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <img src={logoImg} alt="ShopMate" className="w-10 h-10 rounded-lg object-cover" />
+                <img src={logoImg} alt="Dukan 360°" className="w-10 h-10 rounded-lg object-cover" />
                 <div>
-                  <h1 className="font-bold text-foreground text-lg">ShopMate</h1>
+                  <h1 className="font-bold text-foreground text-lg">Dukan 360°</h1>
                   <p className="text-xs text-muted-foreground">{storeInfo?.name || 'আমার দোকান'}</p>
                 </div>
               </div>
@@ -177,7 +177,7 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
               <span className="font-medium">লগআউট</span>
             </button>
             <p className="text-xs text-muted-foreground text-center">
-              © ২০২৬ ShopMate
+              © ২০২৬ Dukan 360°
             </p>
           </div>
         </div>

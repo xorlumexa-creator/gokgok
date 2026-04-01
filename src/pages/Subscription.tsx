@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Check, Crown, Sparkles, Loader2, CreditCard, Smartphone, Lock, MessageCircle, PhoneCall } from 'lucide-react';
+import { Check, Crown, Sparkles, Loader2, CreditCard, Smartphone, Lock, MessageCircle, PhoneCall, Gift, Calendar } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from '@/hooks/use-toast';
@@ -12,7 +12,7 @@ export default function Subscription() {
   const navigate = useNavigate();
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(false);
-  const [selectedPlan, setSelectedPlan] = useState<'trial' | 'basic' | 'premium'>('trial');
+  const [selectedPlan, setSelectedPlan] = useState<'trial' | 'pro' | 'premium' | 'combo'>('trial');
   const [userCountry, setUserCountry] = useState<Country>(defaultCountry);
   const [trialDaysLeft, setTrialDaysLeft] = useState<number | null>(null);
   const [isExpired, setIsExpired] = useState(false);
@@ -44,7 +44,7 @@ export default function Subscription() {
         const daysLeft = Math.max(0, 14 - daysPassed);
         setTrialDaysLeft(daysLeft);
         setIsExpired(daysLeft === 0 && profile.subscription_status !== 'active');
-        if (isExpired) setSelectedPlan('basic');
+        if (isExpired) setSelectedPlan('pro');
       }
     } catch (error) { console.error('Error checking trial:', error); }
   };
@@ -53,12 +53,13 @@ export default function Subscription() {
     if (!user) { navigate('/auth'); return; }
     setLoading(true);
     try {
-      if (selectedPlan === 'basic' || selectedPlan === 'premium') {
-        const price = selectedPlan === 'basic' ? userCountry.monthlyPrice : userCountry.premiumPrice;
+      if (selectedPlan === 'pro' || selectedPlan === 'premium' || selectedPlan === 'combo') {
+        const price = selectedPlan === 'pro' ? userCountry.proPrice : selectedPlan === 'premium' ? userCountry.premiumPrice : userCountry.comboPrice;
+        const period = selectedPlan === 'combo' ? '/বছর' : '/মাস';
         if (userCountry.code === 'BD') {
-          toast({ title: "বিকাশ পেমেন্ট", description: `৳${price} বিকাশ করুন: 01XXXXXXXXX (পেমেন্ট সিস্টেম শীঘ্রই আসছে)` });
+          toast({ title: "বিকাশ পেমেন্ট", description: `৳${price}${period} বিকাশ করুন: 01XXXXXXXXX (পেমেন্ট সিস্টেম শীঘ্রই আসছে)` });
         } else {
-          toast({ title: "পেমেন্ট সিস্টেম শীঘ্রই আসছে", description: `${userCountry.currencySymbol}${price}/মাস` });
+          toast({ title: "পেমেন্ট সিস্টেম শীঘ্রই আসছে", description: `${userCountry.currencySymbol}${price}${period}` });
         }
         setLoading(false);
         return;
@@ -75,14 +76,15 @@ export default function Subscription() {
     finally { setLoading(false); }
   };
 
-  const basicFeatures = [
+  const proFeatures = [
     "সীমাহীন পণ্য যোগ করুন",
     "বাকির হিসাব রাখুন",
     "বাকির লাভ ট্র্যাকিং",
     "দৈনিক/সাপ্তাহিক/মাসিক রিপোর্ট",
     "একাধিক ইউনিটে বিক্রি",
     "ব্যক্তিগত ও দোকানের হিসাব আলাদা",
-    "আগাম অর্ডার ব্যবস্থাপনা"
+    "আগাম অর্ডার ব্যবস্থাপনা",
+    "দাম উঠা-নামা পণ্য ট্র্যাকিং",
   ];
 
   const premiumExtras = [
@@ -90,21 +92,29 @@ export default function Subscription() {
     "সরাসরি কল বাটন",
   ];
 
-  const getPrice = (plan: 'basic' | 'premium') => {
-    const price = plan === 'basic' ? userCountry.monthlyPrice : userCountry.premiumPrice;
+  const getPrice = (plan: 'pro' | 'premium' | 'combo') => {
     const { currencySymbol, currency } = userCountry;
-    if (currency === 'BDT') return `৳${price}`;
-    if (currency === 'INR') return `₹${price}`;
-    if (currency === 'PKR') return `₨${price}`;
-    return `$${price}`;
+    if (plan === 'pro') {
+      const price = userCountry.proPrice;
+      return `${currency === 'BDT' ? '৳' : currencySymbol}${price}`;
+    }
+    if (plan === 'premium') {
+      const price = userCountry.premiumPrice;
+      return `${currency === 'BDT' ? '৳' : currencySymbol}${price}`;
+    }
+    const price = userCountry.comboPrice;
+    return `${currency === 'BDT' ? '৳' : currencySymbol}${price}`;
   };
+
+  const comboMonthlyEquivalent = Math.round(userCountry.comboPrice / 12);
+  const comboDiscount = (userCountry.premiumPrice * 12) - userCountry.comboPrice;
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-accent via-background to-background flex flex-col items-center justify-center p-6">
       <div className="w-full max-w-lg">
         <div className="text-center mb-8">
-          <img src={logoImg} alt="ShopMate" className="w-16 h-16 rounded-2xl mx-auto mb-3 shadow-soft object-cover" />
-          <p className="text-sm text-primary font-medium mb-2">ShopMate</p>
+          <img src={logoImg} alt="Dukan 360°" className="w-16 h-16 rounded-2xl mx-auto mb-3 shadow-soft object-cover" />
+          <p className="text-sm text-primary font-medium mb-2">Dukan 360°</p>
           <h1 className="text-2xl font-bold text-foreground">
             {isExpired ? 'ট্রায়াল শেষ হয়েছে' : 'সাবস্ক্রিপশন বেছে নিন'}
           </h1>
@@ -145,44 +155,41 @@ export default function Subscription() {
             </button>
           )}
 
-          {/* Basic Plan - 60tk */}
+          {/* Pro Plan - 60tk/month */}
           <button
-            onClick={() => setSelectedPlan('basic')}
+            onClick={() => setSelectedPlan('pro')}
             className={`w-full p-6 rounded-2xl border-2 transition-all text-left ${
-              selectedPlan === 'basic' ? 'border-primary bg-primary/5' : 'border-border bg-card hover:border-primary/50'
+              selectedPlan === 'pro' ? 'border-primary bg-primary/5' : 'border-border bg-card hover:border-primary/50'
             }`}
           >
             <div className="flex items-start gap-4">
-              <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${selectedPlan === 'basic' ? 'bg-primary/10' : 'bg-muted'}`}>
-                <Crown className={`w-6 h-6 ${selectedPlan === 'basic' ? 'text-primary' : 'text-muted-foreground'}`} />
+              <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${selectedPlan === 'pro' ? 'bg-primary/10' : 'bg-muted'}`}>
+                <Crown className={`w-6 h-6 ${selectedPlan === 'pro' ? 'text-primary' : 'text-muted-foreground'}`} />
               </div>
               <div className="flex-1">
-                <h3 className="text-lg font-bold text-foreground">বেসিক প্ল্যান</h3>
+                <h3 className="text-lg font-bold text-foreground">প্রো প্ল্যান</h3>
                 <p className="text-muted-foreground text-sm">সব ফিচার (WhatsApp ও কল ছাড়া)</p>
                 <p className="text-3xl font-bold text-primary mt-2">
-                  {getPrice('basic')}<span className="text-sm font-normal text-muted-foreground">/মাস</span>
+                  {getPrice('pro')}<span className="text-sm font-normal text-muted-foreground">/মাস</span>
                 </p>
                 <div className="mt-2 flex items-center gap-2 text-xs text-muted-foreground">
                   <Lock className="w-3 h-3" />
                   <span>WhatsApp ও কল বাটন লক থাকবে</span>
                 </div>
               </div>
-              <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center ${selectedPlan === 'basic' ? 'border-primary bg-primary' : 'border-muted-foreground'}`}>
-                {selectedPlan === 'basic' && <Check className="w-4 h-4 text-primary-foreground" />}
+              <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center ${selectedPlan === 'pro' ? 'border-primary bg-primary' : 'border-muted-foreground'}`}>
+                {selectedPlan === 'pro' && <Check className="w-4 h-4 text-primary-foreground" />}
               </div>
             </div>
           </button>
 
-          {/* Premium Plan - 150tk */}
+          {/* Premium Plan - 120tk/month */}
           <button
             onClick={() => setSelectedPlan('premium')}
-            className={`w-full p-6 rounded-2xl border-2 transition-all text-left relative overflow-hidden ${
+            className={`w-full p-6 rounded-2xl border-2 transition-all text-left ${
               selectedPlan === 'premium' ? 'border-primary bg-primary/5' : 'border-border bg-card hover:border-primary/50'
             }`}
           >
-            {isExpired && (
-              <div className="absolute top-0 right-0 bg-profit text-white px-3 py-1 rounded-bl-xl text-xs font-medium">সম্পূর্ণ</div>
-            )}
             <div className="flex items-start gap-4">
               <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${selectedPlan === 'premium' ? 'bg-primary/10' : 'bg-muted'}`}>
                 <Crown className={`w-6 h-6 ${selectedPlan === 'premium' ? 'text-primary' : 'text-muted-foreground'}`} />
@@ -202,20 +209,41 @@ export default function Subscription() {
                 {selectedPlan === 'premium' && <Check className="w-4 h-4 text-primary-foreground" />}
               </div>
             </div>
+          </button>
 
-            <div className="mt-4 pt-4 border-t border-border">
-              <p className="text-xs text-muted-foreground mb-2">পেমেন্ট মাধ্যম:</p>
-              <div className="flex gap-2">
-                {userCountry.code === 'BD' && (
-                  <div className="flex items-center gap-2 px-3 py-2 bg-[#E2136E]/10 rounded-lg">
-                    <Smartphone className="w-4 h-4 text-[#E2136E]" />
-                    <span className="text-sm font-medium text-[#E2136E]">বিকাশ</span>
+          {/* Combo Plan - Annual */}
+          <button
+            onClick={() => setSelectedPlan('combo')}
+            className={`w-full p-6 rounded-2xl border-2 transition-all text-left relative overflow-hidden ${
+              selectedPlan === 'combo' ? 'border-primary bg-primary/5' : 'border-border bg-card hover:border-primary/50'
+            }`}
+          >
+            <div className="absolute top-0 right-0 bg-gradient-to-l from-profit to-profit/80 text-white px-3 py-1 rounded-bl-xl text-xs font-bold flex items-center gap-1">
+              <Gift className="w-3 h-3" />
+              ৳{comboDiscount} সাশ্রয়!
+            </div>
+            <div className="flex items-start gap-4">
+              <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${selectedPlan === 'combo' ? 'bg-primary/10' : 'bg-muted'}`}>
+                <Calendar className={`w-6 h-6 ${selectedPlan === 'combo' ? 'text-primary' : 'text-muted-foreground'}`} />
+              </div>
+              <div className="flex-1">
+                <h3 className="text-lg font-bold text-foreground">কম্বো প্ল্যান</h3>
+                <p className="text-muted-foreground text-sm">সব ফিচার + WhatsApp + কল (বার্ষিক)</p>
+                <p className="text-3xl font-bold text-primary mt-2">
+                  {getPrice('combo')}<span className="text-sm font-normal text-muted-foreground">/বছর</span>
+                </p>
+                <div className="mt-2 space-y-1">
+                  <div className="flex items-center gap-2 text-xs text-profit">
+                    <Gift className="w-3 h-3" />
+                    <span>প্রিমিয়ামের সব ফিচার + ৳{comboDiscount} ছাড়!</span>
                   </div>
-                )}
-                <div className="flex items-center gap-2 px-3 py-2 bg-muted rounded-lg">
-                  <CreditCard className="w-4 h-4 text-muted-foreground" />
-                  <span className="text-sm text-muted-foreground">{userCountry.code === 'BD' ? 'শীঘ্রই আসছে' : 'কার্ড (শীঘ্রই)'}</span>
+                  <p className="text-xs text-muted-foreground">
+                    মাসিক মাত্র ৳{comboMonthlyEquivalent} (প্রিমিয়ামে ৳{userCountry.premiumPrice}/মাস)
+                  </p>
                 </div>
+              </div>
+              <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center ${selectedPlan === 'combo' ? 'border-primary bg-primary' : 'border-muted-foreground'}`}>
+                {selectedPlan === 'combo' && <Check className="w-4 h-4 text-primary-foreground" />}
               </div>
             </div>
           </button>
@@ -223,9 +251,9 @@ export default function Subscription() {
 
         {/* Features */}
         <div className="card-elevated p-6 mb-6">
-          <h4 className="font-semibold text-foreground mb-4">বেসিক ফিচার:</h4>
+          <h4 className="font-semibold text-foreground mb-4">প্রো ফিচার:</h4>
           <ul className="space-y-3 mb-4">
-            {basicFeatures.map((f, i) => (
+            {proFeatures.map((f, i) => (
               <li key={i} className="flex items-center gap-3 text-sm">
                 <div className="w-5 h-5 rounded-full bg-profit/10 flex items-center justify-center flex-shrink-0">
                   <Check className="w-3 h-3 text-profit" />
@@ -236,7 +264,7 @@ export default function Subscription() {
           </ul>
           <h4 className="font-semibold text-foreground mb-3 flex items-center gap-2">
             <Crown className="w-4 h-4 text-primary" />
-            প্রিমিয়াম এক্সট্রা:
+            প্রিমিয়াম/কম্বো এক্সট্রা:
           </h4>
           <ul className="space-y-3">
             {premiumExtras.map((f, i) => (
@@ -248,6 +276,23 @@ export default function Subscription() {
               </li>
             ))}
           </ul>
+        </div>
+
+        {/* Payment methods */}
+        <div className="card-elevated p-4 mb-6">
+          <p className="text-xs text-muted-foreground mb-2">পেমেন্ট মাধ্যম:</p>
+          <div className="flex gap-2">
+            {userCountry.code === 'BD' && (
+              <div className="flex items-center gap-2 px-3 py-2 bg-[#E2136E]/10 rounded-lg">
+                <Smartphone className="w-4 h-4 text-[#E2136E]" />
+                <span className="text-sm font-medium text-[#E2136E]">বিকাশ</span>
+              </div>
+            )}
+            <div className="flex items-center gap-2 px-3 py-2 bg-muted rounded-lg">
+              <CreditCard className="w-4 h-4 text-muted-foreground" />
+              <span className="text-sm text-muted-foreground">{userCountry.code === 'BD' ? 'শীঘ্রই আসছে' : 'কার্ড (শীঘ্রই)'}</span>
+            </div>
+          </div>
         </div>
 
         <Button onClick={handleStartPlan} disabled={loading} className="w-full btn-primary py-6 text-lg rounded-xl">

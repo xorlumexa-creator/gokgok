@@ -1,6 +1,7 @@
 import { Menu, Bell, User } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useStore } from '@/context/StoreContext';
+import { SyncIndicator } from '@/components/dashboard/SyncIndicator';
 import logoImg from '@/assets/logo.png';
 
 interface HeaderProps {
@@ -22,13 +23,14 @@ export function Header({ onMenuClick, title }: HeaderProps) {
           >
             <Menu className="w-6 h-6" />
           </button>
-          <img src={logoImg} alt="ShopMate" className="w-8 h-8 rounded-lg object-cover lg:hidden" />
+          <img src={logoImg} alt="Dukan 360°" className="w-8 h-8 rounded-lg object-cover lg:hidden" />
           <h1 className="text-xl font-bold text-foreground">
             {title || storeInfo?.name || 'আমার দোকান'}
           </h1>
         </div>
 
         <div className="flex items-center gap-2">
+          <SyncIndicator />
           <button className="p-2 text-muted-foreground hover:text-foreground hover:bg-muted rounded-lg transition-colors relative">
             <Bell className="w-5 h-5" />
             <span className="absolute top-1 right-1 w-2 h-2 bg-destructive rounded-full" />
