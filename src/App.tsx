@@ -28,6 +28,7 @@ const DailySale = lazy(() => import("./pages/DailySale"));
 const Suppliers = lazy(() => import("./pages/Suppliers"));
 const ResetPassword = lazy(() => import("./pages/ResetPassword"));
 const Profile = lazy(() => import("./pages/Profile"));
+const Invoice = lazy(() => import("./pages/Invoice"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 
 const queryClient = new QueryClient({
