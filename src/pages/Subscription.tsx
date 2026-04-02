@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Check, Crown, Sparkles, Loader2, CreditCard, Smartphone, Lock, MessageCircle, PhoneCall, Gift, Calendar } from 'lucide-react';
+import { Check, Crown, Sparkles, Loader2, CreditCard, Smartphone, Lock, MessageCircle, PhoneCall, ChevronDown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from '@/hooks/use-toast';
@@ -8,14 +8,17 @@ import { countries, Country, getCountryByCode, defaultCountry } from '@/data/cou
 import type { User } from '@supabase/supabase-js';
 import logoImg from '@/assets/logo.png';
 
+const MONTH_OPTIONS = [1, 2, 3, 4, 5, 6, 12];
+
 export default function Subscription() {
   const navigate = useNavigate();
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(false);
-  const [selectedPlan, setSelectedPlan] = useState<'trial' | 'pro' | 'premium' | 'combo'>('trial');
+  const [selectedPlan, setSelectedPlan] = useState<'trial' | 'pro' | 'premium'>('trial');
   const [userCountry, setUserCountry] = useState<Country>(defaultCountry);
   const [trialDaysLeft, setTrialDaysLeft] = useState<number | null>(null);
   const [isExpired, setIsExpired] = useState(false);
+  const [months, setMonths] = useState(1);
 
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
@@ -53,13 +56,14 @@ export default function Subscription() {
     if (!user) { navigate('/auth'); return; }
     setLoading(true);
     try {
-      if (selectedPlan === 'pro' || selectedPlan === 'premium' || selectedPlan === 'combo') {
-        const price = selectedPlan === 'pro' ? userCountry.proPrice : selectedPlan === 'premium' ? userCountry.premiumPrice : userCountry.comboPrice;
-        const period = selectedPlan === 'combo' ? '/বছর' : '/মাস';
+      if (selectedPlan === 'pro' || selectedPlan === 'premium') {
+        const basePrice = selectedPlan === 'pro' ? userCountry.proPrice : userCountry.premiumPrice;
+        const totalPrice = basePrice * months;
+        const period = months === 1 ? '/মাস' : ` (${months} মাস)`;
         if (userCountry.code === 'BD') {
-          toast({ title: "বিকাশ পেমেন্ট", description: `৳${price}${period} বিকাশ করুন: 01XXXXXXXXX (পেমেন্ট সিস্টেম শীঘ্রই আসছে)` });
+          toast({ title: "বিকাশ পেমেন্ট", description: `৳${totalPrice}${period} বিকাশ করুন: 01XXXXXXXXX (পেমেন্ট সিস্টেম শীঘ্রই আসছে)` });
         } else {
-          toast({ title: "পেমেন্ট সিস্টেম শীঘ্রই আসছে", description: `${userCountry.currencySymbol}${price}${period}` });
+          toast({ title: "পেমেন্ট সিস্টেম শীঘ্রই আসছে", description: `${userCountry.currencySymbol}${totalPrice}${period}` });
         }
         setLoading(false);
         return;
@@ -77,14 +81,16 @@ export default function Subscription() {
   };
 
   const proFeatures = [
-    "সীমাহীন পণ্য যোগ করুন",
-    "বাকির হিসাব রাখুন",
+    "সীমাহীন পণ্য যোগ করুন (৫,০০০ পর্যন্ত)",
+    "বাকির হিসাব রাখুন (১,০০০ গ্রাহক)",
+    "দৈনিক ১,০০০ বিক্রি",
     "বাকির লাভ ট্র্যাকিং",
     "দৈনিক/সাপ্তাহিক/মাসিক রিপোর্ট",
     "একাধিক ইউনিটে বিক্রি",
     "ব্যক্তিগত ও দোকানের হিসাব আলাদা",
     "আগাম অর্ডার ব্যবস্থাপনা",
     "দাম উঠা-নামা পণ্য ট্র্যাকিং",
+    "ইনভয়েস তৈরি ও প্রিন্ট",
   ];
 
   const premiumExtras = [
@@ -92,22 +98,12 @@ export default function Subscription() {
     "সরাসরি কল বাটন",
   ];
 
-  const getPrice = (plan: 'pro' | 'premium' | 'combo') => {
+  const getPrice = (plan: 'pro' | 'premium') => {
     const { currencySymbol, currency } = userCountry;
-    if (plan === 'pro') {
-      const price = userCountry.proPrice;
-      return `${currency === 'BDT' ? '৳' : currencySymbol}${price}`;
-    }
-    if (plan === 'premium') {
-      const price = userCountry.premiumPrice;
-      return `${currency === 'BDT' ? '৳' : currencySymbol}${price}`;
-    }
-    const price = userCountry.comboPrice;
-    return `${currency === 'BDT' ? '৳' : currencySymbol}${price}`;
+    const base = plan === 'pro' ? userCountry.proPrice : userCountry.premiumPrice;
+    const sym = currency === 'BDT' ? '৳' : currencySymbol;
+    return `${sym}${base * months}`;
   };
-
-  const comboMonthlyEquivalent = Math.round(userCountry.comboPrice / 12);
-  const comboDiscount = (userCountry.premiumPrice * 12) - userCountry.comboPrice;
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-accent via-background to-background flex flex-col items-center justify-center p-6">
@@ -127,6 +123,27 @@ export default function Subscription() {
             </div>
           )}
         </div>
+
+        {/* Month Selector */}
+        {(selectedPlan === 'pro' || selectedPlan === 'premium') && (
+          <div className="mb-4 p-4 card-elevated rounded-2xl">
+            <label className="block text-sm font-medium text-foreground mb-2">কত মাসের জন্য?</label>
+            <div className="relative">
+              <select
+                value={months}
+                onChange={(e) => setMonths(parseInt(e.target.value))}
+                className="w-full py-3 px-4 rounded-xl border border-border bg-background text-foreground appearance-none text-lg font-medium focus:outline-none focus:ring-2 focus:ring-primary"
+              >
+                {MONTH_OPTIONS.map(m => (
+                  <option key={m} value={m}>
+                    {m === 12 ? '১২ মাস (১ বছর)' : `${m} মাস`}
+                  </option>
+                ))}
+              </select>
+              <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground pointer-events-none" />
+            </div>
+          </div>
+        )}
 
         <div className="space-y-4 mb-6">
           {/* Free Trial */}
@@ -155,7 +172,7 @@ export default function Subscription() {
             </button>
           )}
 
-          {/* Pro Plan - 60tk/month */}
+          {/* Pro Plan */}
           <button
             onClick={() => setSelectedPlan('pro')}
             className={`w-full p-6 rounded-2xl border-2 transition-all text-left ${
@@ -170,7 +187,7 @@ export default function Subscription() {
                 <h3 className="text-lg font-bold text-foreground">প্রো প্ল্যান</h3>
                 <p className="text-muted-foreground text-sm">সব ফিচার (WhatsApp ও কল ছাড়া)</p>
                 <p className="text-3xl font-bold text-primary mt-2">
-                  {getPrice('pro')}<span className="text-sm font-normal text-muted-foreground">/মাস</span>
+                  {getPrice('pro')}<span className="text-sm font-normal text-muted-foreground">/{months > 1 ? `${months} মাস` : 'মাস'}</span>
                 </p>
                 <div className="mt-2 flex items-center gap-2 text-xs text-muted-foreground">
                   <Lock className="w-3 h-3" />
@@ -183,7 +200,7 @@ export default function Subscription() {
             </div>
           </button>
 
-          {/* Premium Plan - 120tk/month */}
+          {/* Premium Plan */}
           <button
             onClick={() => setSelectedPlan('premium')}
             className={`w-full p-6 rounded-2xl border-2 transition-all text-left ${
@@ -198,7 +215,7 @@ export default function Subscription() {
                 <h3 className="text-lg font-bold text-foreground">প্রিমিয়াম প্ল্যান</h3>
                 <p className="text-muted-foreground text-sm">সব ফিচার + WhatsApp + কল</p>
                 <p className="text-3xl font-bold text-primary mt-2">
-                  {getPrice('premium')}<span className="text-sm font-normal text-muted-foreground">/মাস</span>
+                  {getPrice('premium')}<span className="text-sm font-normal text-muted-foreground">/{months > 1 ? `${months} মাস` : 'মাস'}</span>
                 </p>
                 <div className="mt-2 flex items-center gap-2 text-xs text-profit">
                   <MessageCircle className="w-3 h-3" />
@@ -210,43 +227,28 @@ export default function Subscription() {
               </div>
             </div>
           </button>
+        </div>
 
-          {/* Combo Plan - Annual */}
-          <button
-            onClick={() => setSelectedPlan('combo')}
-            className={`w-full p-6 rounded-2xl border-2 transition-all text-left relative overflow-hidden ${
-              selectedPlan === 'combo' ? 'border-primary bg-primary/5' : 'border-border bg-card hover:border-primary/50'
-            }`}
-          >
-            <div className="absolute top-0 right-0 bg-gradient-to-l from-profit to-profit/80 text-white px-3 py-1 rounded-bl-xl text-xs font-bold flex items-center gap-1">
-              <Gift className="w-3 h-3" />
-              ৳{comboDiscount} সাশ্রয়!
+        {/* Limits info */}
+        <div className="card-elevated p-4 mb-4 bg-primary/5 rounded-2xl">
+          <p className="text-sm font-medium text-foreground mb-2">📊 প্রতিটি প্ল্যানের সীমা:</p>
+          <div className="grid grid-cols-3 gap-2 text-center text-xs">
+            <div className="p-2 bg-background rounded-lg">
+              <p className="font-bold text-foreground">১,০০০</p>
+              <p className="text-muted-foreground">দৈনিক বিক্রি</p>
             </div>
-            <div className="flex items-start gap-4">
-              <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${selectedPlan === 'combo' ? 'bg-primary/10' : 'bg-muted'}`}>
-                <Calendar className={`w-6 h-6 ${selectedPlan === 'combo' ? 'text-primary' : 'text-muted-foreground'}`} />
-              </div>
-              <div className="flex-1">
-                <h3 className="text-lg font-bold text-foreground">কম্বো প্ল্যান</h3>
-                <p className="text-muted-foreground text-sm">সব ফিচার + WhatsApp + কল (বার্ষিক)</p>
-                <p className="text-3xl font-bold text-primary mt-2">
-                  {getPrice('combo')}<span className="text-sm font-normal text-muted-foreground">/বছর</span>
-                </p>
-                <div className="mt-2 space-y-1">
-                  <div className="flex items-center gap-2 text-xs text-profit">
-                    <Gift className="w-3 h-3" />
-                    <span>প্রিমিয়ামের সব ফিচার + ৳{comboDiscount} ছাড়!</span>
-                  </div>
-                  <p className="text-xs text-muted-foreground">
-                    মাসিক মাত্র ৳{comboMonthlyEquivalent} (প্রিমিয়ামে ৳{userCountry.premiumPrice}/মাস)
-                  </p>
-                </div>
-              </div>
-              <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center ${selectedPlan === 'combo' ? 'border-primary bg-primary' : 'border-muted-foreground'}`}>
-                {selectedPlan === 'combo' && <Check className="w-4 h-4 text-primary-foreground" />}
-              </div>
+            <div className="p-2 bg-background rounded-lg">
+              <p className="font-bold text-foreground">৫,০০০</p>
+              <p className="text-muted-foreground">পণ্য তালিকা</p>
             </div>
-          </button>
+            <div className="p-2 bg-background rounded-lg">
+              <p className="font-bold text-foreground">১,০০০</p>
+              <p className="text-muted-foreground">বাকি গ্রাহক</p>
+            </div>
+          </div>
+          <p className="text-xs text-muted-foreground mt-2 text-center">
+            সীমা বাড়াতে চাইলে দ্বিগুণ মূল্যে দ্বিগুণ সুবিধা পান!
+          </p>
         </div>
 
         {/* Features */}
@@ -264,7 +266,7 @@ export default function Subscription() {
           </ul>
           <h4 className="font-semibold text-foreground mb-3 flex items-center gap-2">
             <Crown className="w-4 h-4 text-primary" />
-            প্রিমিয়াম/কম্বো এক্সট্রা:
+            প্রিমিয়াম এক্সট্রা:
           </h4>
           <ul className="space-y-3">
             {premiumExtras.map((f, i) => (
