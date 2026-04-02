@@ -110,6 +110,17 @@ export default function Products() {
 
   const [showSuggestions, setShowSuggestions] = useState(false);
 
+  // Auto-open edit form if navigated from dashboard
+  useEffect(() => {
+    const state = location.state as any;
+    if (state?.editProductId) {
+      const product = products.find(p => p.id === state.editProductId);
+      if (product) handleEdit(product);
+      // Clear the state
+      window.history.replaceState({}, document.title);
+    }
+  }, [location.state]);
+
   const filteredProducts = products.filter(p =>
     p.name.toLowerCase().includes(searchTerm.toLowerCase())
   );
