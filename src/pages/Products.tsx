@@ -1,4 +1,5 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
 import { Package, Plus, Search, Edit2, Trash2, X, HelpCircle, ChevronDown, ChevronUp, Scale, Hash, Droplets, Info, MapPin, CalendarDays, TrendingUp } from 'lucide-react';
 import { useStore } from '@/context/StoreContext';
 import { Button } from '@/components/ui/button';
@@ -80,6 +81,7 @@ const STOCK_TYPE_CONFIG: Record<StockType, {
 
 export default function Products() {
   const { products, addProduct, updateProduct, deleteProduct, getProductSuggestions } = useStore();
+  const location = useLocation();
   const [searchTerm, setSearchTerm] = useState('');
   const [showAddForm, setShowAddForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -107,6 +109,17 @@ export default function Products() {
   ]);
 
   const [showSuggestions, setShowSuggestions] = useState(false);
+
+  // Auto-open edit form if navigated from dashboard
+  useEffect(() => {
+    const state = location.state as any;
+    if (state?.editProductId) {
+      const product = products.find(p => p.id === state.editProductId);
+      if (product) handleEdit(product);
+      // Clear the state
+      window.history.replaceState({}, document.title);
+    }
+  }, [location.state]);
 
   const filteredProducts = products.filter(p =>
     p.name.toLowerCase().includes(searchTerm.toLowerCase())

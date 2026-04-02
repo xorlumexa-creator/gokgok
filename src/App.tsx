@@ -28,6 +28,7 @@ const DailySale = lazy(() => import("./pages/DailySale"));
 const Suppliers = lazy(() => import("./pages/Suppliers"));
 const ResetPassword = lazy(() => import("./pages/ResetPassword"));
 const Profile = lazy(() => import("./pages/Profile"));
+const Invoice = lazy(() => import("./pages/Invoice"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 
 const queryClient = new QueryClient({
@@ -93,6 +94,7 @@ function AppRoutes() {
           <Route path="/daily-sale" element={<DailySale />} />
           <Route path="/suppliers" element={<Suppliers />} />
           <Route path="/profile" element={<Profile />} />
+          <Route path="/invoice" element={<Invoice />} />
           <Route path="/accounts" element={<Navigate to="/shop-accounts" replace />} />
         </Route>
         <Route path="*" element={<NotFound />} />
