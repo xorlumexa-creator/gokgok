@@ -1,4 +1,5 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
 import { Package, Plus, Search, Edit2, Trash2, X, HelpCircle, ChevronDown, ChevronUp, Scale, Hash, Droplets, Info, MapPin, CalendarDays, TrendingUp } from 'lucide-react';
 import { useStore } from '@/context/StoreContext';
 import { Button } from '@/components/ui/button';
