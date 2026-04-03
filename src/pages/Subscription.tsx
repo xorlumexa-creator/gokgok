@@ -104,9 +104,9 @@ export default function Subscription() {
     "সরাসরি কল বাটন",
   ];
 
-  const getPrice = (plan: 'pro' | 'premium') => {
+  const getPrice = (plan: 'pro' | 'premium' | 'ultra') => {
     const { currencySymbol, currency } = userCountry;
-    const base = plan === 'pro' ? userCountry.proPrice : userCountry.premiumPrice;
+    const base = plan === 'pro' ? userCountry.proPrice : plan === 'premium' ? userCountry.premiumPrice : userCountry.ultraPrice;
     const sym = currency === 'BDT' ? '৳' : currencySymbol;
     return `${sym}${base * months}`;
   };
