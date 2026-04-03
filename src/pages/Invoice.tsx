@@ -1,9 +1,10 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { ArrowLeft, Printer, MessageCircle, Receipt, X } from 'lucide-react';
+import { ArrowLeft, Printer, MessageCircle, Receipt, X, MapPin } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useStore } from '@/context/StoreContext';
 import { getUnitLabel } from '@/types/store';
+import { PhoneInputWithCode } from '@/components/common/PhoneInputWithCode';
 
 interface InvoiceItem {
   productName: string;
