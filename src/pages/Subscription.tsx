@@ -56,8 +56,8 @@ export default function Subscription() {
     if (!user) { navigate('/auth'); return; }
     setLoading(true);
     try {
-      if (selectedPlan === 'pro' || selectedPlan === 'premium') {
-        const basePrice = selectedPlan === 'pro' ? userCountry.proPrice : userCountry.premiumPrice;
+      if (selectedPlan === 'pro' || selectedPlan === 'premium' || selectedPlan === 'ultra') {
+        const basePrice = selectedPlan === 'pro' ? userCountry.proPrice : selectedPlan === 'premium' ? userCountry.premiumPrice : userCountry.ultraPrice;
         const totalPrice = basePrice * months;
         const period = months === 1 ? '/মাস' : ` (${months} মাস)`;
         if (userCountry.code === 'BD') {
