@@ -56,6 +56,7 @@ interface FlexCartItem {
 }
 
 export default function Sell() {
+  const navigate = useNavigate();
   const { 
     products, 
     customers, 
