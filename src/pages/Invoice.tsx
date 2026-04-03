@@ -80,13 +80,16 @@ export default function Invoice() {
   };
 
   const handleWhatsApp = () => {
-    const phone = invoiceData.customerPhone.replace(/[^0-9+]/g, '');
+    const phone = whatsappPhone.replace(/[^0-9+]/g, '');
+    if (!phone || phone.length < 8) {
+      return;
+    }
     const itemsText = invoiceData.items
       .map(i => `- ${i.productName} (${i.quantity} ${i.unitName}) = ৳${i.totalPrice}`)
       .join('\n');
 
     const message = `🧾 Invoice - Dukan 360°
-${invoiceData.shopAddress ? `📍 ${invoiceData.shopAddress}` : ''}
+${shopLocation ? `📍 ${shopLocation}` : ''}
 ${invoiceData.customerName ? `👤 ${invoiceData.customerName}` : ''}
 📅 ${new Date(invoiceData.date).toLocaleDateString('bn-BD')}
 
