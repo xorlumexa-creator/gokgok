@@ -131,7 +131,7 @@ export default function Subscription() {
         </div>
 
         {/* Month Selector */}
-        {(selectedPlan === 'pro' || selectedPlan === 'premium') && (
+        {(selectedPlan === 'pro' || selectedPlan === 'premium' || selectedPlan === 'ultra') && (
           <div className="mb-4 p-4 card-elevated rounded-2xl">
             <label className="block text-sm font-medium text-foreground mb-2">কত মাসের জন্য?</label>
             <div className="relative">
