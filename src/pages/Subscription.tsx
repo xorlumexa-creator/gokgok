@@ -14,7 +14,7 @@ export default function Subscription() {
   const navigate = useNavigate();
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(false);
-  const [selectedPlan, setSelectedPlan] = useState<'trial' | 'pro' | 'premium'>('trial');
+  const [selectedPlan, setSelectedPlan] = useState<'trial' | 'pro' | 'premium' | 'ultra'>('trial');
   const [userCountry, setUserCountry] = useState<Country>(defaultCountry);
   const [trialDaysLeft, setTrialDaysLeft] = useState<number | null>(null);
   const [isExpired, setIsExpired] = useState(false);
