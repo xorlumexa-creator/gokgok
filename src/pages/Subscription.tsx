@@ -98,6 +98,12 @@ export default function Subscription() {
     "সরাসরি কল বাটন",
   ];
 
+  const ultraExtras = [
+    "ইনভয়েস তৈরি, প্রিন্ট ও WhatsApp এ পাঠান",
+    "WhatsApp রিমাইন্ডার",
+    "সরাসরি কল বাটন",
+  ];
+
   const getPrice = (plan: 'pro' | 'premium') => {
     const { currencySymbol, currency } = userCountry;
     const base = plan === 'pro' ? userCountry.proPrice : userCountry.premiumPrice;
