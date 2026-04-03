@@ -145,7 +145,16 @@ ${dueAmount > 0 ? `বাকি: ৳${dueAmount}\n` : ''}
           {/* Shop & Invoice Info */}
           <div className="text-center border-b border-border pb-4">
             <h2 className="text-xl font-bold text-foreground">{invoiceData.shopName || 'আমার দোকান'}</h2>
-            {invoiceData.shopAddress && <p className="text-sm text-muted-foreground">{invoiceData.shopAddress}</p>}
+            <div className="flex items-center justify-center gap-1 mt-1">
+              <MapPin className="w-3.5 h-3.5 text-muted-foreground" />
+              <input
+                type="text"
+                value={shopLocation}
+                onChange={(e) => setShopLocation(e.target.value)}
+                placeholder="দোকানের ঠিকানা লিখুন"
+                className="text-sm text-muted-foreground bg-transparent border-b border-dashed border-border text-center focus:outline-none focus:border-primary w-full max-w-[250px]"
+              />
+            </div>
             <div className="flex justify-between mt-3 text-xs text-muted-foreground">
               <span>#{invoiceData.invoiceNo}</span>
               <span>{new Date(invoiceData.date).toLocaleString('bn-BD')}</span>
