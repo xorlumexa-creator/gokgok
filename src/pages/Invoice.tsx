@@ -63,6 +63,8 @@ export default function Invoice() {
 
   const [discount, setDiscount] = useState(invoiceData.discount.toString());
   const [showPrint, setShowPrint] = useState(false);
+  const [whatsappPhone, setWhatsappPhone] = useState(invoiceData.customerPhone || '');
+  const [shopLocation, setShopLocation] = useState(invoiceData.shopAddress || storeInfo?.location || '');
 
   const subtotal = invoiceData.items.reduce((s, i) => s + i.totalPrice, 0);
   const discountAmt = parseFloat(discount) || 0;
