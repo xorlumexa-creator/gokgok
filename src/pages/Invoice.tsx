@@ -1,9 +1,10 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { ArrowLeft, Printer, MessageCircle, Receipt, X } from 'lucide-react';
+import { ArrowLeft, Printer, MessageCircle, Receipt, X, MapPin } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useStore } from '@/context/StoreContext';
 import { getUnitLabel } from '@/types/store';
+import { PhoneInputWithCode } from '@/components/common/PhoneInputWithCode';
 
 interface InvoiceItem {
   productName: string;
@@ -62,6 +63,8 @@ export default function Invoice() {
 
   const [discount, setDiscount] = useState(invoiceData.discount.toString());
   const [showPrint, setShowPrint] = useState(false);
+  const [whatsappPhone, setWhatsappPhone] = useState(invoiceData.customerPhone || '');
+  const [shopLocation, setShopLocation] = useState(invoiceData.shopAddress || storeInfo?.location || '');
 
   const subtotal = invoiceData.items.reduce((s, i) => s + i.totalPrice, 0);
   const discountAmt = parseFloat(discount) || 0;
@@ -77,13 +80,16 @@ export default function Invoice() {
   };
 
   const handleWhatsApp = () => {
-    const phone = invoiceData.customerPhone.replace(/[^0-9+]/g, '');
+    const phone = whatsappPhone.replace(/[^0-9+]/g, '');
+    if (!phone || phone.length < 8) {
+      return;
+    }
     const itemsText = invoiceData.items
       .map(i => `- ${i.productName} (${i.quantity} ${i.unitName}) = ৳${i.totalPrice}`)
       .join('\n');
 
     const message = `🧾 Invoice - Dukan 360°
-${invoiceData.shopAddress ? `📍 ${invoiceData.shopAddress}` : ''}
+${shopLocation ? `📍 ${shopLocation}` : ''}
 ${invoiceData.customerName ? `👤 ${invoiceData.customerName}` : ''}
 📅 ${new Date(invoiceData.date).toLocaleDateString('bn-BD')}
 
@@ -139,7 +145,16 @@ ${dueAmount > 0 ? `বাকি: ৳${dueAmount}\n` : ''}
           {/* Shop & Invoice Info */}
           <div className="text-center border-b border-border pb-4">
             <h2 className="text-xl font-bold text-foreground">{invoiceData.shopName || 'আমার দোকান'}</h2>
-            {invoiceData.shopAddress && <p className="text-sm text-muted-foreground">{invoiceData.shopAddress}</p>}
+            <div className="flex items-center justify-center gap-1 mt-1">
+              <MapPin className="w-3.5 h-3.5 text-muted-foreground" />
+              <input
+                type="text"
+                value={shopLocation}
+                onChange={(e) => setShopLocation(e.target.value)}
+                placeholder="দোকানের ঠিকানা লিখুন"
+                className="text-sm text-muted-foreground bg-transparent border-b border-dashed border-border text-center focus:outline-none focus:border-primary w-full max-w-[250px]"
+              />
+            </div>
             <div className="flex justify-between mt-3 text-xs text-muted-foreground">
               <span>#{invoiceData.invoiceNo}</span>
               <span>{new Date(invoiceData.date).toLocaleString('bn-BD')}</span>
@@ -219,13 +234,22 @@ ${dueAmount > 0 ? `বাকি: ৳${dueAmount}\n` : ''}
           </div>
         </div>
 
+        {/* WhatsApp Phone Input */}
+        <div className="card-elevated p-4 space-y-3">
+          <p className="text-sm font-medium text-foreground">📲 WhatsApp এ পাঠাতে নম্বর দিন:</p>
+          <PhoneInputWithCode
+            value={whatsappPhone}
+            onChange={setWhatsappPhone}
+          />
+        </div>
+
         {/* Action Buttons */}
         <div className="grid grid-cols-2 gap-4">
           <Button onClick={handlePrint} className="py-6 text-base rounded-xl bg-foreground text-background hover:bg-foreground/90" size="lg">
             <Printer className="w-6 h-6 mr-2" />
             প্রিন্ট করুন
           </Button>
-          <Button onClick={handleWhatsApp} className="py-6 text-base rounded-xl bg-[#25D366] hover:bg-[#25D366]/90 text-white" size="lg">
+          <Button onClick={handleWhatsApp} disabled={!whatsappPhone || whatsappPhone.length < 8} className="py-6 text-base rounded-xl bg-[#25D366] hover:bg-[#25D366]/90 text-white disabled:opacity-50" size="lg">
             <MessageCircle className="w-6 h-6 mr-2" />
             WhatsApp
           </Button>
@@ -236,7 +260,7 @@ ${dueAmount > 0 ? `বাকি: ৳${dueAmount}\n` : ''}
       <div id="print-invoice" ref={printRef} className="hidden print:block p-6 text-black bg-white max-w-[80mm] mx-auto font-mono text-xs">
         <div className="text-center mb-4">
           <h1 className="text-lg font-bold">{invoiceData.shopName || 'আমার দোকান'}</h1>
-          {invoiceData.shopAddress && <p>{invoiceData.shopAddress}</p>}
+          {shopLocation && <p>{shopLocation}</p>}
           <p className="mt-1">#{invoiceData.invoiceNo}</p>
           <p>{new Date(invoiceData.date).toLocaleString('bn-BD')}</p>
         </div>
