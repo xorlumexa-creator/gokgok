@@ -234,13 +234,22 @@ ${dueAmount > 0 ? `বাকি: ৳${dueAmount}\n` : ''}
           </div>
         </div>
 
+        {/* WhatsApp Phone Input */}
+        <div className="card-elevated p-4 space-y-3">
+          <p className="text-sm font-medium text-foreground">📲 WhatsApp এ পাঠাতে নম্বর দিন:</p>
+          <PhoneInputWithCode
+            value={whatsappPhone}
+            onChange={setWhatsappPhone}
+          />
+        </div>
+
         {/* Action Buttons */}
         <div className="grid grid-cols-2 gap-4">
           <Button onClick={handlePrint} className="py-6 text-base rounded-xl bg-foreground text-background hover:bg-foreground/90" size="lg">
             <Printer className="w-6 h-6 mr-2" />
             প্রিন্ট করুন
           </Button>
-          <Button onClick={handleWhatsApp} className="py-6 text-base rounded-xl bg-[#25D366] hover:bg-[#25D366]/90 text-white" size="lg">
+          <Button onClick={handleWhatsApp} disabled={!whatsappPhone || whatsappPhone.length < 8} className="py-6 text-base rounded-xl bg-[#25D366] hover:bg-[#25D366]/90 text-white disabled:opacity-50" size="lg">
             <MessageCircle className="w-6 h-6 mr-2" />
             WhatsApp
           </Button>
