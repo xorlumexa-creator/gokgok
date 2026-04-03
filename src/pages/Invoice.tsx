@@ -36,7 +36,13 @@ export default function Invoice() {
 
   const [invoiceData, setInvoiceData] = useState<InvoiceData>(() => {
     const state = location.state as any;
-    if (state?.invoiceData) return state.invoiceData;
+    if (state?.invoiceData) {
+      return {
+        ...state.invoiceData,
+        shopName: state.invoiceData.shopName || storeInfo?.name || '',
+        shopAddress: state.invoiceData.shopAddress || storeInfo?.location || '',
+      };
+    }
 
     return {
       invoiceNo: `INV-${Date.now().toString(36).toUpperCase()}`,
