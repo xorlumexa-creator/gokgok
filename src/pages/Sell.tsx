@@ -344,12 +344,38 @@ export default function Sell() {
 
     addMultipleSales(salesData, customerId || undefined, customerName || undefined, isPaid || partialPaid);
 
+    // Build invoice data for navigation
+    const invoiceItems = cart.map(item => ({
+      productName: item.product.name,
+      quantity: item.sellAmount,
+      unitName: item.sellUnitLabel,
+      pricePerUnit: Math.round(item.basePrice.price / item.basePrice.conversionToBase * item.sellUnitToBase),
+      totalPrice: getFinalPrice(item),
+    }));
+
+    const invoiceData = {
+      invoiceNo: `INV-${Date.now().toString(36).toUpperCase()}`,
+      date: new Date(),
+      customerName: customerName || '',
+      customerPhone: newCustomerPhone || bakiNewCustomerPhone || '',
+      items: invoiceItems,
+      subtotal: totalPrice,
+      discount: 0,
+      total: totalPrice,
+      paymentMethod: isPaid ? 'cash' as const : 'due' as const,
+      dueAmount: !isPaid ? totalPrice : 0,
+      shopName: '',
+      shopAddress: '',
+    };
+
     toast({
       title: "বিক্রি সম্পন্ন! ✅",
       description: `মোট: ৳${totalPrice} | লাভ: ৳${Math.max(0, totalProfit).toFixed(2)}`,
     });
 
+    const navData = { invoiceData };
     clearCart();
+    navigate('/invoice', { state: navData });
   };
 
   const handleSale = () => {
