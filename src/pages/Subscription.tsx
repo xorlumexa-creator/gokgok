@@ -233,6 +233,35 @@ export default function Subscription() {
               </div>
             </div>
           </button>
+
+          {/* Ultra Plan */}
+          <button
+            onClick={() => setSelectedPlan('ultra')}
+            className={`w-full p-6 rounded-2xl border-2 transition-all text-left relative overflow-hidden ${
+              selectedPlan === 'ultra' ? 'border-primary bg-primary/5' : 'border-border bg-card hover:border-primary/50'
+            }`}
+          >
+            <div className="absolute top-0 right-0 bg-primary text-primary-foreground px-3 py-1 rounded-bl-xl text-xs font-medium">🔥 সেরা</div>
+            <div className="flex items-start gap-4">
+              <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${selectedPlan === 'ultra' ? 'bg-primary/10' : 'bg-muted'}`}>
+                <Zap className={`w-6 h-6 ${selectedPlan === 'ultra' ? 'text-primary' : 'text-muted-foreground'}`} />
+              </div>
+              <div className="flex-1">
+                <h3 className="text-lg font-bold text-foreground">আল্ট্রা প্ল্যান</h3>
+                <p className="text-muted-foreground text-sm">সব ফিচার + ইনভয়েস + WhatsApp + কল</p>
+                <p className="text-3xl font-bold text-primary mt-2">
+                  {getPrice('ultra')}<span className="text-sm font-normal text-muted-foreground">/{months > 1 ? `${months} মাস` : 'মাস'}</span>
+                </p>
+                <div className="mt-2 flex items-center gap-2 text-xs text-profit">
+                  <Receipt className="w-3 h-3" />
+                  <span>ইনভয়েস + WhatsApp + কল সব আনলক</span>
+                </div>
+              </div>
+              <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center ${selectedPlan === 'ultra' ? 'border-primary bg-primary' : 'border-muted-foreground'}`}>
+                {selectedPlan === 'ultra' && <Check className="w-4 h-4 text-primary-foreground" />}
+              </div>
+            </div>
+          </button>
         </div>
 
         {/* Limits info */}
