@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Check, Crown, Sparkles, Loader2, CreditCard, Smartphone, Lock, MessageCircle, PhoneCall, ChevronDown } from 'lucide-react';
+import { Check, Crown, Sparkles, Loader2, CreditCard, Smartphone, Lock, MessageCircle, PhoneCall, ChevronDown, Zap, Receipt } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from '@/hooks/use-toast';
@@ -14,7 +14,7 @@ export default function Subscription() {
   const navigate = useNavigate();
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(false);
-  const [selectedPlan, setSelectedPlan] = useState<'trial' | 'pro' | 'premium'>('trial');
+  const [selectedPlan, setSelectedPlan] = useState<'trial' | 'pro' | 'premium' | 'ultra'>('trial');
   const [userCountry, setUserCountry] = useState<Country>(defaultCountry);
   const [trialDaysLeft, setTrialDaysLeft] = useState<number | null>(null);
   const [isExpired, setIsExpired] = useState(false);
@@ -56,8 +56,8 @@ export default function Subscription() {
     if (!user) { navigate('/auth'); return; }
     setLoading(true);
     try {
-      if (selectedPlan === 'pro' || selectedPlan === 'premium') {
-        const basePrice = selectedPlan === 'pro' ? userCountry.proPrice : userCountry.premiumPrice;
+      if (selectedPlan === 'pro' || selectedPlan === 'premium' || selectedPlan === 'ultra') {
+        const basePrice = selectedPlan === 'pro' ? userCountry.proPrice : selectedPlan === 'premium' ? userCountry.premiumPrice : userCountry.ultraPrice;
         const totalPrice = basePrice * months;
         const period = months === 1 ? '/মাস' : ` (${months} মাস)`;
         if (userCountry.code === 'BD') {
@@ -98,9 +98,15 @@ export default function Subscription() {
     "সরাসরি কল বাটন",
   ];
 
-  const getPrice = (plan: 'pro' | 'premium') => {
+  const ultraExtras = [
+    "ইনভয়েস তৈরি, প্রিন্ট ও WhatsApp এ পাঠান",
+    "WhatsApp রিমাইন্ডার",
+    "সরাসরি কল বাটন",
+  ];
+
+  const getPrice = (plan: 'pro' | 'premium' | 'ultra') => {
     const { currencySymbol, currency } = userCountry;
-    const base = plan === 'pro' ? userCountry.proPrice : userCountry.premiumPrice;
+    const base = plan === 'pro' ? userCountry.proPrice : plan === 'premium' ? userCountry.premiumPrice : userCountry.ultraPrice;
     const sym = currency === 'BDT' ? '৳' : currencySymbol;
     return `${sym}${base * months}`;
   };
@@ -125,7 +131,7 @@ export default function Subscription() {
         </div>
 
         {/* Month Selector */}
-        {(selectedPlan === 'pro' || selectedPlan === 'premium') && (
+        {(selectedPlan === 'pro' || selectedPlan === 'premium' || selectedPlan === 'ultra') && (
           <div className="mb-4 p-4 card-elevated rounded-2xl">
             <label className="block text-sm font-medium text-foreground mb-2">কত মাসের জন্য?</label>
             <div className="relative">
@@ -227,6 +233,35 @@ export default function Subscription() {
               </div>
             </div>
           </button>
+
+          {/* Ultra Plan */}
+          <button
+            onClick={() => setSelectedPlan('ultra')}
+            className={`w-full p-6 rounded-2xl border-2 transition-all text-left relative overflow-hidden ${
+              selectedPlan === 'ultra' ? 'border-primary bg-primary/5' : 'border-border bg-card hover:border-primary/50'
+            }`}
+          >
+            <div className="absolute top-0 right-0 bg-primary text-primary-foreground px-3 py-1 rounded-bl-xl text-xs font-medium">🔥 সেরা</div>
+            <div className="flex items-start gap-4">
+              <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${selectedPlan === 'ultra' ? 'bg-primary/10' : 'bg-muted'}`}>
+                <Zap className={`w-6 h-6 ${selectedPlan === 'ultra' ? 'text-primary' : 'text-muted-foreground'}`} />
+              </div>
+              <div className="flex-1">
+                <h3 className="text-lg font-bold text-foreground">আল্ট্রা প্ল্যান</h3>
+                <p className="text-muted-foreground text-sm">সব ফিচার + ইনভয়েস + WhatsApp + কল</p>
+                <p className="text-3xl font-bold text-primary mt-2">
+                  {getPrice('ultra')}<span className="text-sm font-normal text-muted-foreground">/{months > 1 ? `${months} মাস` : 'মাস'}</span>
+                </p>
+                <div className="mt-2 flex items-center gap-2 text-xs text-profit">
+                  <Receipt className="w-3 h-3" />
+                  <span>ইনভয়েস + WhatsApp + কল সব আনলক</span>
+                </div>
+              </div>
+              <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center ${selectedPlan === 'ultra' ? 'border-primary bg-primary' : 'border-muted-foreground'}`}>
+                {selectedPlan === 'ultra' && <Check className="w-4 h-4 text-primary-foreground" />}
+              </div>
+            </div>
+          </button>
         </div>
 
         {/* Limits info */}
@@ -268,11 +303,25 @@ export default function Subscription() {
             <Crown className="w-4 h-4 text-primary" />
             প্রিমিয়াম এক্সট্রা:
           </h4>
-          <ul className="space-y-3">
+          <ul className="space-y-3 mb-4">
             {premiumExtras.map((f, i) => (
               <li key={i} className="flex items-center gap-3 text-sm">
                 <div className="w-5 h-5 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
                   {i === 0 ? <MessageCircle className="w-3 h-3 text-primary" /> : <PhoneCall className="w-3 h-3 text-primary" />}
+                </div>
+                <span className="text-foreground">{f}</span>
+              </li>
+            ))}
+          </ul>
+          <h4 className="font-semibold text-foreground mb-3 flex items-center gap-2">
+            <Zap className="w-4 h-4 text-primary" />
+            আল্ট্রা এক্সট্রা:
+          </h4>
+          <ul className="space-y-3">
+            {ultraExtras.map((f, i) => (
+              <li key={i} className="flex items-center gap-3 text-sm">
+                <div className="w-5 h-5 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
+                  {i === 0 ? <Receipt className="w-3 h-3 text-primary" /> : i === 1 ? <MessageCircle className="w-3 h-3 text-primary" /> : <PhoneCall className="w-3 h-3 text-primary" />}
                 </div>
                 <span className="text-foreground">{f}</span>
               </li>
