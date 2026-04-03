@@ -303,11 +303,25 @@ export default function Subscription() {
             <Crown className="w-4 h-4 text-primary" />
             প্রিমিয়াম এক্সট্রা:
           </h4>
-          <ul className="space-y-3">
+          <ul className="space-y-3 mb-4">
             {premiumExtras.map((f, i) => (
               <li key={i} className="flex items-center gap-3 text-sm">
                 <div className="w-5 h-5 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
                   {i === 0 ? <MessageCircle className="w-3 h-3 text-primary" /> : <PhoneCall className="w-3 h-3 text-primary" />}
+                </div>
+                <span className="text-foreground">{f}</span>
+              </li>
+            ))}
+          </ul>
+          <h4 className="font-semibold text-foreground mb-3 flex items-center gap-2">
+            <Zap className="w-4 h-4 text-primary" />
+            আল্ট্রা এক্সট্রা:
+          </h4>
+          <ul className="space-y-3">
+            {ultraExtras.map((f, i) => (
+              <li key={i} className="flex items-center gap-3 text-sm">
+                <div className="w-5 h-5 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
+                  {i === 0 ? <Receipt className="w-3 h-3 text-primary" /> : i === 1 ? <MessageCircle className="w-3 h-3 text-primary" /> : <PhoneCall className="w-3 h-3 text-primary" />}
                 </div>
                 <span className="text-foreground">{f}</span>
               </li>
