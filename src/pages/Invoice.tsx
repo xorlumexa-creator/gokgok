@@ -260,7 +260,7 @@ ${dueAmount > 0 ? `বাকি: ৳${dueAmount}\n` : ''}
       <div id="print-invoice" ref={printRef} className="hidden print:block p-6 text-black bg-white max-w-[80mm] mx-auto font-mono text-xs">
         <div className="text-center mb-4">
           <h1 className="text-lg font-bold">{invoiceData.shopName || 'আমার দোকান'}</h1>
-          {invoiceData.shopAddress && <p>{invoiceData.shopAddress}</p>}
+          {shopLocation && <p>{shopLocation}</p>}
           <p className="mt-1">#{invoiceData.invoiceNo}</p>
           <p>{new Date(invoiceData.date).toLocaleString('bn-BD')}</p>
         </div>
