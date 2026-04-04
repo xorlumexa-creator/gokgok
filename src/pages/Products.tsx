@@ -53,12 +53,14 @@ const STOCK_TYPE_CONFIG: Record<StockType, {
       { name: 'পিস', toBaseMultiplier: 1 },
       { name: 'ডজন', toBaseMultiplier: 12 },
       { name: 'হালি', toBaseMultiplier: 4 },
+      { name: 'প্যাকেট', toBaseMultiplier: 1, isCustom: true },
       { name: 'বক্স', toBaseMultiplier: 1, isCustom: true },
     ],
     sellingUnitOptions: [
       { name: '১ পিস', conversionToBase: 1 },
       { name: '১ ডজন (12 পিস)', conversionToBase: 12 },
       { name: '১ হালি (4 পিস)', conversionToBase: 4 },
+      { name: '১ প্যাকেট', conversionToBase: 1, isCustom: true },
       { name: '১ বক্স', conversionToBase: 1, isCustom: true },
     ]
   },
@@ -144,14 +146,27 @@ export default function Products() {
   const addSellingUnit = () => {
     const usedNames = sellingUnits.map(u => u.name);
     const available = config.sellingUnitOptions.find(o => !usedNames.includes(o.name));
-    const opt = available || config.sellingUnitOptions[0];
+    const opt = available || { name: '', conversionToBase: 1, isCustom: true };
     setSellingUnits([
       ...sellingUnits,
       { id: generateId(), name: opt.name, conversionToBase: opt.conversionToBase, price: 0, profit: 0, costPrice: 0 }
     ]);
   };
 
+  const addCustomSellingUnit = () => {
+    setSellingUnits([
+      ...sellingUnits,
+      { id: generateId(), name: '', conversionToBase: 1, price: 0, profit: 0, costPrice: 0 }
+    ]);
+  };
+
   const handleUnitSelect = (unitId: string, optionName: string) => {
+    if (optionName === '__custom__') {
+      setSellingUnits(sellingUnits.map(unit =>
+        unit.id === unitId ? { ...unit, name: '', conversionToBase: 1 } : unit
+      ));
+      return;
+    }
     const option = config.sellingUnitOptions.find(o => o.name === optionName);
     if (option) {
       setSellingUnits(sellingUnits.map(unit => {
@@ -161,6 +176,11 @@ export default function Products() {
         return unit;
       }));
     }
+  };
+
+  const isUnitCustom = (unit: { name: string }) => {
+    const option = config.sellingUnitOptions.find(o => o.name === unit.name);
+    return !option || option.isCustom || !unit.name;
   };
 
   const updateSellingUnit = (id: string, field: string, value: string | number) => {
@@ -300,10 +320,6 @@ export default function Products() {
     setShowSuggestions(false);
   };
 
-  const isCustomUnit = (unitName: string) => {
-    const option = config.sellingUnitOptions.find(o => o.name === unitName);
-    return option?.isCustom ?? false;
-  };
 
   const formatStock = (stock: number, unitType: UnitType) => {
     if (unitType === 'gram' || unitType === 'kg') {
@@ -502,11 +518,17 @@ export default function Products() {
                 </div>
 
                 {config.stockUnits.find(u => u.name === selectedStockUnit)?.isCustom && (
-                  <div className="flex items-center gap-2 animate-fade-in">
-                    <span className="text-sm text-muted-foreground whitespace-nowrap">১ {selectedStockUnit} =</span>
-                    <input type="number" value={customStockConversion} onChange={(e) => setCustomStockConversion(e.target.value)}
-                      placeholder="কত পিস?" className="input-field flex-1" min="1" />
-                    <span className="text-sm text-muted-foreground">{config.baseUnitName}</span>
+                  <div className="space-y-2 animate-fade-in p-3 bg-accent/50 rounded-lg border border-border/50">
+                    <p className="text-xs font-medium text-foreground">১ {selectedStockUnit} এ কত আছে?</p>
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm text-muted-foreground whitespace-nowrap">১ {selectedStockUnit} =</span>
+                      <input type="number" value={customStockConversion} onChange={(e) => setCustomStockConversion(e.target.value)}
+                        placeholder="কত পিস?" className="input-field flex-1" min="1" />
+                      <span className="text-sm text-muted-foreground">{config.baseUnitName}</span>
+                    </div>
+                    {selectedStockUnit === 'বক্স' && (
+                      <p className="text-xs text-muted-foreground">যেকোনো একটি দিলেই হবে: পিস অথবা প্যাকেট সংখ্যা</p>
+                    )}
                   </div>
                 )}
 
@@ -572,9 +594,14 @@ export default function Products() {
               <div className="border-t border-border pt-4">
                 <div className="flex items-center justify-between mb-3">
                   <label className="text-sm font-medium">বিক্রয় মূল্য সেট করুন</label>
-                  <button type="button" onClick={addSellingUnit} className="text-sm text-primary flex items-center gap-1">
-                    <Plus className="w-4 h-4" />আরও যোগ করুন
-                  </button>
+                  <div className="flex gap-2">
+                    <button type="button" onClick={addCustomSellingUnit} className="text-xs text-muted-foreground border border-dashed border-border px-2 py-1 rounded-lg hover:border-primary hover:text-primary transition-all">
+                      + কাস্টম ইউনিট
+                    </button>
+                    <button type="button" onClick={addSellingUnit} className="text-sm text-primary flex items-center gap-1">
+                      <Plus className="w-4 h-4" />যোগ করুন
+                    </button>
+                  </div>
                 </div>
 
                 <div className="space-y-3">
@@ -583,19 +610,30 @@ export default function Products() {
                       <div className="flex items-end gap-2">
                         <div className="flex-1">
                           <label className="text-xs text-muted-foreground mb-1 block">ইউনিট</label>
-                          <select value={unit.name} onChange={(e) => handleUnitSelect(unit.id, e.target.value)}
-                            className="input-field text-sm py-2.5 bg-background appearance-none cursor-pointer">
-                            {config.sellingUnitOptions.map(opt => (
-                              <option key={opt.name} value={opt.name}>{opt.name}</option>
-                            ))}
-                          </select>
+                          {isUnitCustom(unit) && !config.sellingUnitOptions.find(o => o.name === unit.name) ? (
+                            <input
+                              type="text"
+                              value={unit.name}
+                              onChange={(e) => updateSellingUnit(unit.id, 'name', e.target.value)}
+                              placeholder="ইউনিটের নাম (যেমন: ১ থালা, ১ বান্ডেল)"
+                              className="input-field text-sm py-2.5"
+                            />
+                          ) : (
+                            <select value={unit.name} onChange={(e) => handleUnitSelect(unit.id, e.target.value)}
+                              className="input-field text-sm py-2.5 bg-background appearance-none cursor-pointer">
+                              {config.sellingUnitOptions.map(opt => (
+                                <option key={opt.name} value={opt.name}>{opt.name}</option>
+                              ))}
+                              <option value="__custom__">✏️ কাস্টম ইউনিট তৈরি করুন</option>
+                            </select>
+                          )}
                         </div>
                         <div className="w-28">
                           <label className="text-xs text-muted-foreground mb-1 block">= {config.baseUnitName}</label>
                           <input type="number" value={unit.conversionToBase || ''}
                             onChange={(e) => updateSellingUnit(unit.id, 'conversionToBase', parseFloat(e.target.value) || 0)}
-                            className={`input-field text-sm py-2.5 text-center ${isCustomUnit(unit.name) ? 'bg-background' : 'bg-muted/80'}`}
-                            readOnly={!isCustomUnit(unit.name)} min="0.001" step="any" />
+                            className={`input-field text-sm py-2.5 text-center ${isUnitCustom(unit) ? 'bg-background' : 'bg-muted/80'}`}
+                            readOnly={!isUnitCustom(unit)} min="0.001" step="any" />
                         </div>
                         {sellingUnits.length > 1 && (
                           <button type="button" onClick={() => removeSellingUnit(unit.id)} className="p-2 text-due hover:bg-due/10 rounded-lg mb-0.5">
