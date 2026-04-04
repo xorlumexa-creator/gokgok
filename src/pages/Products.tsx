@@ -146,14 +146,27 @@ export default function Products() {
   const addSellingUnit = () => {
     const usedNames = sellingUnits.map(u => u.name);
     const available = config.sellingUnitOptions.find(o => !usedNames.includes(o.name));
-    const opt = available || config.sellingUnitOptions[0];
+    const opt = available || { name: '', conversionToBase: 1, isCustom: true };
     setSellingUnits([
       ...sellingUnits,
       { id: generateId(), name: opt.name, conversionToBase: opt.conversionToBase, price: 0, profit: 0, costPrice: 0 }
     ]);
   };
 
+  const addCustomSellingUnit = () => {
+    setSellingUnits([
+      ...sellingUnits,
+      { id: generateId(), name: '', conversionToBase: 1, price: 0, profit: 0, costPrice: 0 }
+    ]);
+  };
+
   const handleUnitSelect = (unitId: string, optionName: string) => {
+    if (optionName === '__custom__') {
+      setSellingUnits(sellingUnits.map(unit =>
+        unit.id === unitId ? { ...unit, name: '', conversionToBase: 1 } : unit
+      ));
+      return;
+    }
     const option = config.sellingUnitOptions.find(o => o.name === optionName);
     if (option) {
       setSellingUnits(sellingUnits.map(unit => {
@@ -163,6 +176,11 @@ export default function Products() {
         return unit;
       }));
     }
+  };
+
+  const isUnitCustom = (unit: { name: string }) => {
+    const option = config.sellingUnitOptions.find(o => o.name === unit.name);
+    return !option || option.isCustom || !unit.name;
   };
 
   const updateSellingUnit = (id: string, field: string, value: string | number) => {
