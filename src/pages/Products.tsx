@@ -53,12 +53,14 @@ const STOCK_TYPE_CONFIG: Record<StockType, {
       { name: 'পিস', toBaseMultiplier: 1 },
       { name: 'ডজন', toBaseMultiplier: 12 },
       { name: 'হালি', toBaseMultiplier: 4 },
+      { name: 'প্যাকেট', toBaseMultiplier: 1, isCustom: true },
       { name: 'বক্স', toBaseMultiplier: 1, isCustom: true },
     ],
     sellingUnitOptions: [
       { name: '১ পিস', conversionToBase: 1 },
       { name: '১ ডজন (12 পিস)', conversionToBase: 12 },
       { name: '১ হালি (4 পিস)', conversionToBase: 4 },
+      { name: '১ প্যাকেট', conversionToBase: 1, isCustom: true },
       { name: '১ বক্স', conversionToBase: 1, isCustom: true },
     ]
   },
