@@ -504,11 +504,17 @@ export default function Products() {
                 </div>
 
                 {config.stockUnits.find(u => u.name === selectedStockUnit)?.isCustom && (
-                  <div className="flex items-center gap-2 animate-fade-in">
-                    <span className="text-sm text-muted-foreground whitespace-nowrap">১ {selectedStockUnit} =</span>
-                    <input type="number" value={customStockConversion} onChange={(e) => setCustomStockConversion(e.target.value)}
-                      placeholder="কত পিস?" className="input-field flex-1" min="1" />
-                    <span className="text-sm text-muted-foreground">{config.baseUnitName}</span>
+                  <div className="space-y-2 animate-fade-in p-3 bg-accent/50 rounded-lg border border-border/50">
+                    <p className="text-xs font-medium text-foreground">১ {selectedStockUnit} এ কত আছে?</p>
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm text-muted-foreground whitespace-nowrap">১ {selectedStockUnit} =</span>
+                      <input type="number" value={customStockConversion} onChange={(e) => setCustomStockConversion(e.target.value)}
+                        placeholder="কত পিস?" className="input-field flex-1" min="1" />
+                      <span className="text-sm text-muted-foreground">{config.baseUnitName}</span>
+                    </div>
+                    {selectedStockUnit === 'বক্স' && (
+                      <p className="text-xs text-muted-foreground">যেকোনো একটি দিলেই হবে: পিস অথবা প্যাকেট সংখ্যা</p>
+                    )}
                   </div>
                 )}
 
