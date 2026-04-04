@@ -598,9 +598,14 @@ export default function Products() {
               <div className="border-t border-border pt-4">
                 <div className="flex items-center justify-between mb-3">
                   <label className="text-sm font-medium">বিক্রয় মূল্য সেট করুন</label>
-                  <button type="button" onClick={addSellingUnit} className="text-sm text-primary flex items-center gap-1">
-                    <Plus className="w-4 h-4" />আরও যোগ করুন
-                  </button>
+                  <div className="flex gap-2">
+                    <button type="button" onClick={addCustomSellingUnit} className="text-xs text-muted-foreground border border-dashed border-border px-2 py-1 rounded-lg hover:border-primary hover:text-primary transition-all">
+                      + কাস্টম ইউনিট
+                    </button>
+                    <button type="button" onClick={addSellingUnit} className="text-sm text-primary flex items-center gap-1">
+                      <Plus className="w-4 h-4" />যোগ করুন
+                    </button>
+                  </div>
                 </div>
 
                 <div className="space-y-3">
@@ -609,19 +614,30 @@ export default function Products() {
                       <div className="flex items-end gap-2">
                         <div className="flex-1">
                           <label className="text-xs text-muted-foreground mb-1 block">ইউনিট</label>
-                          <select value={unit.name} onChange={(e) => handleUnitSelect(unit.id, e.target.value)}
-                            className="input-field text-sm py-2.5 bg-background appearance-none cursor-pointer">
-                            {config.sellingUnitOptions.map(opt => (
-                              <option key={opt.name} value={opt.name}>{opt.name}</option>
-                            ))}
-                          </select>
+                          {isUnitCustom(unit) && !config.sellingUnitOptions.find(o => o.name === unit.name) ? (
+                            <input
+                              type="text"
+                              value={unit.name}
+                              onChange={(e) => updateSellingUnit(unit.id, 'name', e.target.value)}
+                              placeholder="ইউনিটের নাম (যেমন: ১ থালা, ১ বান্ডেল)"
+                              className="input-field text-sm py-2.5"
+                            />
+                          ) : (
+                            <select value={unit.name} onChange={(e) => handleUnitSelect(unit.id, e.target.value)}
+                              className="input-field text-sm py-2.5 bg-background appearance-none cursor-pointer">
+                              {config.sellingUnitOptions.map(opt => (
+                                <option key={opt.name} value={opt.name}>{opt.name}</option>
+                              ))}
+                              <option value="__custom__">✏️ কাস্টম ইউনিট তৈরি করুন</option>
+                            </select>
+                          )}
                         </div>
                         <div className="w-28">
                           <label className="text-xs text-muted-foreground mb-1 block">= {config.baseUnitName}</label>
                           <input type="number" value={unit.conversionToBase || ''}
                             onChange={(e) => updateSellingUnit(unit.id, 'conversionToBase', parseFloat(e.target.value) || 0)}
-                            className={`input-field text-sm py-2.5 text-center ${isCustomUnit(unit.name) ? 'bg-background' : 'bg-muted/80'}`}
-                            readOnly={!isCustomUnit(unit.name)} min="0.001" step="any" />
+                            className={`input-field text-sm py-2.5 text-center ${isUnitCustom(unit) ? 'bg-background' : 'bg-muted/80'}`}
+                            readOnly={!isUnitCustom(unit)} min="0.001" step="any" />
                         </div>
                         {sellingUnits.length > 1 && (
                           <button type="button" onClick={() => removeSellingUnit(unit.id)} className="p-2 text-due hover:bg-due/10 rounded-lg mb-0.5">

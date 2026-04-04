@@ -1,10 +1,12 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { ArrowLeft, Printer, MessageCircle, Receipt, X, MapPin } from 'lucide-react';
+import { ArrowLeft, Printer, MessageCircle, Receipt, X, MapPin, Phone } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useStore } from '@/context/StoreContext';
 import { getUnitLabel } from '@/types/store';
 import { PhoneInputWithCode } from '@/components/common/PhoneInputWithCode';
+
+const INVOICE_STORAGE_KEY = 'dukan360_invoice_settings';
 
 interface InvoiceItem {
   productName: string;
@@ -29,11 +31,26 @@ interface InvoiceData {
   shopAddress: string;
 }
 
+const loadSavedSettings = () => {
+  try {
+    const saved = localStorage.getItem(INVOICE_STORAGE_KEY);
+    if (saved) return JSON.parse(saved);
+  } catch {}
+  return null;
+};
+
+const saveSettings = (phone: string, location: string) => {
+  try {
+    localStorage.setItem(INVOICE_STORAGE_KEY, JSON.stringify({ phone, location }));
+  } catch {}
+};
+
 export default function Invoice() {
   const navigate = useNavigate();
   const location = useLocation();
   const { storeInfo } = useStore();
   const printRef = useRef<HTMLDivElement>(null);
+  const savedSettings = useRef(loadSavedSettings());
 
   const [invoiceData, setInvoiceData] = useState<InvoiceData>(() => {
     const state = location.state as any;
@@ -62,9 +79,20 @@ export default function Invoice() {
   });
 
   const [discount, setDiscount] = useState(invoiceData.discount.toString());
-  const [showPrint, setShowPrint] = useState(false);
-  const [whatsappPhone, setWhatsappPhone] = useState(invoiceData.customerPhone || '');
-  const [shopLocation, setShopLocation] = useState(invoiceData.shopAddress || storeInfo?.location || '');
+  const [whatsappPhone, setWhatsappPhone] = useState(
+    invoiceData.customerPhone || savedSettings.current?.phone || ''
+  );
+  const [shopLocation, setShopLocation] = useState(
+    invoiceData.shopAddress || savedSettings.current?.location || storeInfo?.location || ''
+  );
+  const [shopPhone, setShopPhone] = useState(savedSettings.current?.phone || storeInfo?.phone || '');
+
+  // Save settings when they change
+  useEffect(() => {
+    if (shopPhone || shopLocation) {
+      saveSettings(shopPhone, shopLocation);
+    }
+  }, [shopPhone, shopLocation]);
 
   const subtotal = invoiceData.items.reduce((s, i) => s + i.totalPrice, 0);
   const discountAmt = parseFloat(discount) || 0;
@@ -72,24 +100,19 @@ export default function Invoice() {
   const dueAmount = invoiceData.paymentMethod === 'due' ? total : invoiceData.dueAmount;
 
   const handlePrint = () => {
-    setShowPrint(true);
-    setTimeout(() => {
-      window.print();
-      setShowPrint(false);
-    }, 300);
+    window.print();
   };
 
   const handleWhatsApp = () => {
     const phone = whatsappPhone.replace(/[^0-9+]/g, '');
-    if (!phone || phone.length < 8) {
-      return;
-    }
+    if (!phone || phone.length < 8) return;
     const itemsText = invoiceData.items
       .map(i => `- ${i.productName} (${i.quantity} ${i.unitName}) = ৳${i.totalPrice}`)
       .join('\n');
 
     const message = `🧾 Invoice - Dukan 360°
 ${shopLocation ? `📍 ${shopLocation}` : ''}
+${shopPhone ? `📞 ${shopPhone}` : ''}
 ${invoiceData.customerName ? `👤 ${invoiceData.customerName}` : ''}
 📅 ${new Date(invoiceData.date).toLocaleDateString('bn-BD')}
 
@@ -119,18 +142,49 @@ ${dueAmount > 0 ? `বাকি: ৳${dueAmount}\n` : ''}
 
   return (
     <>
-      {/* Print-only view */}
+      {/* Thermal receipt print styles */}
       <style>{`
         @media print {
-          body * { visibility: hidden; }
-          #print-invoice, #print-invoice * { visibility: visible; }
-          #print-invoice { position: absolute; left: 0; top: 0; width: 100%; }
+          @page {
+            size: 80mm auto;
+            margin: 0;
+          }
+          html, body {
+            width: 80mm !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            background: white !important;
+          }
+          body * {
+            visibility: hidden !important;
+          }
+          #print-invoice, #print-invoice * {
+            visibility: visible !important;
+          }
+          #print-invoice {
+            position: absolute !important;
+            left: 0 !important;
+            top: 0 !important;
+            width: 80mm !important;
+            max-width: 80mm !important;
+            padding: 4mm !important;
+            margin: 0 !important;
+            font-family: monospace !important;
+            font-size: 12px !important;
+            color: black !important;
+            background: white !important;
+          }
+          .no-print, nav, header, footer, .print\\:hidden,
+          [data-lovable], iframe {
+            display: none !important;
+            visibility: hidden !important;
+          }
         }
       `}</style>
 
       <div className="space-y-6 animate-fade-in print:hidden">
         {/* Header */}
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 no-print">
           <button onClick={() => navigate(-1)} className="p-2 -ml-2 text-muted-foreground hover:text-foreground hover:bg-muted rounded-lg">
             <ArrowLeft className="w-5 h-5" />
           </button>
@@ -153,6 +207,16 @@ ${dueAmount > 0 ? `বাকি: ৳${dueAmount}\n` : ''}
                 onChange={(e) => setShopLocation(e.target.value)}
                 placeholder="দোকানের ঠিকানা লিখুন"
                 className="text-sm text-muted-foreground bg-transparent border-b border-dashed border-border text-center focus:outline-none focus:border-primary w-full max-w-[250px]"
+              />
+            </div>
+            <div className="flex items-center justify-center gap-1 mt-1">
+              <Phone className="w-3.5 h-3.5 text-muted-foreground" />
+              <input
+                type="tel"
+                value={shopPhone}
+                onChange={(e) => setShopPhone(e.target.value)}
+                placeholder="দোকানের ফোন নম্বর"
+                className="text-sm text-muted-foreground bg-transparent border-b border-dashed border-border text-center focus:outline-none focus:border-primary w-full max-w-[200px]"
               />
             </div>
             <div className="flex justify-between mt-3 text-xs text-muted-foreground">
@@ -193,7 +257,7 @@ ${dueAmount > 0 ? `বাকি: ৳${dueAmount}\n` : ''}
               <span className="text-muted-foreground">সাবটোটাল:</span>
               <span className="text-foreground">৳{subtotal}</span>
             </div>
-            <div className="flex items-center justify-between text-sm">
+            <div className="flex items-center justify-between text-sm no-print">
               <span className="text-muted-foreground">ছাড়:</span>
               <input
                 type="number"
@@ -211,7 +275,7 @@ ${dueAmount > 0 ? `বাকি: ৳${dueAmount}\n` : ''}
           </div>
 
           {/* Payment Method */}
-          <div className="p-3 bg-muted/50 rounded-xl">
+          <div className="p-3 bg-muted/50 rounded-xl no-print">
             <p className="text-sm text-muted-foreground mb-2">পেমেন্ট:</p>
             <div className="flex gap-2">
               {(['cash', 'mobile', 'due'] as const).map(method => (
@@ -235,7 +299,7 @@ ${dueAmount > 0 ? `বাকি: ৳${dueAmount}\n` : ''}
         </div>
 
         {/* WhatsApp Phone Input */}
-        <div className="card-elevated p-4 space-y-3">
+        <div className="card-elevated p-4 space-y-3 no-print">
           <p className="text-sm font-medium text-foreground">📲 WhatsApp এ পাঠাতে নম্বর দিন:</p>
           <PhoneInputWithCode
             value={whatsappPhone}
@@ -244,7 +308,7 @@ ${dueAmount > 0 ? `বাকি: ৳${dueAmount}\n` : ''}
         </div>
 
         {/* Action Buttons */}
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-2 gap-4 no-print">
           <Button onClick={handlePrint} className="py-6 text-base rounded-xl bg-foreground text-background hover:bg-foreground/90" size="lg">
             <Printer className="w-6 h-6 mr-2" />
             প্রিন্ট করুন
@@ -256,31 +320,38 @@ ${dueAmount > 0 ? `বাকি: ৳${dueAmount}\n` : ''}
         </div>
       </div>
 
-      {/* Printable Invoice */}
-      <div id="print-invoice" ref={printRef} className="hidden print:block p-6 text-black bg-white max-w-[80mm] mx-auto font-mono text-xs">
-        <div className="text-center mb-4">
-          <h1 className="text-lg font-bold">{invoiceData.shopName || 'আমার দোকান'}</h1>
-          {shopLocation && <p>{shopLocation}</p>}
-          <p className="mt-1">#{invoiceData.invoiceNo}</p>
-          <p>{new Date(invoiceData.date).toLocaleString('bn-BD')}</p>
+      {/* Thermal Receipt Print Layout */}
+      <div id="print-invoice" ref={printRef} className="hidden print:block" style={{ width: '72mm', maxWidth: '72mm', fontFamily: 'monospace', fontSize: '12px' }}>
+        <div style={{ textAlign: 'center', marginBottom: '8px' }}>
+          <div style={{ fontSize: '16px', fontWeight: 'bold' }}>{invoiceData.shopName || 'আমার দোকান'}</div>
+          {shopLocation && <div style={{ fontSize: '11px' }}>{shopLocation}</div>}
+          {shopPhone && <div style={{ fontSize: '11px' }}>📞 {shopPhone}</div>}
+          <div style={{ fontSize: '10px', marginTop: '4px' }}>#{invoiceData.invoiceNo}</div>
+          <div style={{ fontSize: '10px' }}>{new Date(invoiceData.date).toLocaleString('bn-BD')}</div>
         </div>
-        {invoiceData.customerName && <p>গ্রাহক: {invoiceData.customerName}</p>}
-        <hr className="my-2 border-dashed" />
+        {invoiceData.customerName && <div style={{ fontSize: '11px' }}>গ্রাহক: {invoiceData.customerName}</div>}
+        <hr style={{ border: 'none', borderTop: '1px dashed #000', margin: '6px 0' }} />
         {invoiceData.items.map((item, i) => (
-          <div key={i} className="flex justify-between py-1">
-            <span>{item.productName} x{item.quantity}</span>
+          <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '2px 0', fontSize: '11px' }}>
+            <span>{item.productName} x{item.quantity} {item.unitName}</span>
             <span>৳{item.totalPrice}</span>
           </div>
         ))}
-        <hr className="my-2 border-dashed" />
-        {discountAmt > 0 && <div className="flex justify-between"><span>ছাড়:</span><span>-৳{discountAmt}</span></div>}
-        <div className="flex justify-between font-bold text-sm">
+        <hr style={{ border: 'none', borderTop: '1px dashed #000', margin: '6px 0' }} />
+        {discountAmt > 0 && (
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px' }}>
+            <span>ছাড়:</span><span>-৳{discountAmt}</span>
+          </div>
+        )}
+        <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold', fontSize: '14px' }}>
           <span>মোট:</span><span>৳{total}</span>
         </div>
-        {invoiceData.paymentMethod === 'due' && <p className="mt-1">বাকি: ৳{total}</p>}
-        <hr className="my-2 border-dashed" />
-        <p className="text-center mt-4">ধন্যবাদ! আবার আসবেন 😊</p>
-        <p className="text-center text-[8px] mt-2">Dukan 360°</p>
+        {invoiceData.paymentMethod === 'due' && (
+          <div style={{ fontSize: '11px', marginTop: '4px' }}>বাকি: ৳{total}</div>
+        )}
+        <hr style={{ border: 'none', borderTop: '1px dashed #000', margin: '6px 0' }} />
+        <div style={{ textAlign: 'center', fontSize: '11px', marginTop: '8px' }}>ধন্যবাদ! আবার আসবেন 😊</div>
+        <div style={{ textAlign: 'center', fontSize: '8px', marginTop: '4px' }}>Dukan 360°</div>
       </div>
     </>
   );
