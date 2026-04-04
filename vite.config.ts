@@ -63,6 +63,7 @@ export default defineConfig(({ mode }) => ({
         ],
       },
       manifest: {
+        id: "/",
         name: "Dukan 360° - দোকানের হিসাব",
         short_name: "Dukan 360°",
         description: "আপনার দোকানের স্টক, বিক্রি ও বাকির হিসাব রাখুন সহজে",
@@ -72,6 +73,7 @@ export default defineConfig(({ mode }) => ({
         orientation: "portrait",
         start_url: "/",
         scope: "/",
+        categories: ["business", "finance", "productivity"],
         icons: [
           {
             src: "/icons/icon-192.png",
