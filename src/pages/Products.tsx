@@ -320,10 +320,6 @@ export default function Products() {
     setShowSuggestions(false);
   };
 
-  const isCustomUnit = (unitName: string) => {
-    const option = config.sellingUnitOptions.find(o => o.name === unitName);
-    return option?.isCustom ?? false;
-  };
 
   const formatStock = (stock: number, unitType: UnitType) => {
     if (unitType === 'gram' || unitType === 'kg') {
