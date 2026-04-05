@@ -1,13 +1,28 @@
 import { useState, useRef, useCallback } from 'react';
 
 let faceapiModule: typeof import('@vladmandic/face-api') | null = null;
-const MODEL_URL = 'https://cdn.jsdelivr.net/npm/@vladmandic/face-api@1/model';
+const MODEL_URLS = ['/models', 'https://cdn.jsdelivr.net/npm/@vladmandic/face-api@1/model'];
 
 async function getFaceApi() {
   if (!faceapiModule) {
     faceapiModule = await import('@vladmandic/face-api');
   }
   return faceapiModule;
+}
+
+async function loadWithFallback(loader: (modelUrl: string) => Promise<void>) {
+  let lastError: unknown = null;
+
+  for (const modelUrl of MODEL_URLS) {
+    try {
+      await loader(modelUrl);
+      return;
+    } catch (error) {
+      lastError = error;
+    }
+  }
+
+  throw lastError;
 }
 
 export function useFaceApi() {
@@ -23,11 +38,11 @@ export function useFaceApi() {
     try {
       const faceapi = await getFaceApi();
       setLoadProgress(10);
-      await faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL);
+      await loadWithFallback((modelUrl) => faceapi.nets.tinyFaceDetector.loadFromUri(modelUrl));
       setLoadProgress(40);
-      await faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL);
+      await loadWithFallback((modelUrl) => faceapi.nets.faceLandmark68Net.loadFromUri(modelUrl));
       setLoadProgress(70);
-      await faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL);
+      await loadWithFallback((modelUrl) => faceapi.nets.faceRecognitionNet.loadFromUri(modelUrl));
       setLoadProgress(100);
       setModelsLoaded(true);
     } catch (e) {
@@ -51,7 +66,7 @@ export function useFaceApi() {
 
   const stopCamera = useCallback(() => {
     if (streamRef.current) {
-      streamRef.current.getTracks().forEach(t => t.stop());
+      streamRef.current.getTracks().forEach((t) => t.stop());
       streamRef.current = null;
     }
     if (videoRef.current) {
@@ -68,9 +83,7 @@ export function useFaceApi() {
     return detection || null;
   }, []);
 
-  const getDescriptorArray = (descriptor: Float32Array): number[] => {
-    return Array.from(descriptor);
-  };
+  const getDescriptorArray = (descriptor: Float32Array): number[] => Array.from(descriptor);
 
   const compareDescriptors = async (stored: number[], live: Float32Array): Promise<number> => {
     const faceapi = await getFaceApi();

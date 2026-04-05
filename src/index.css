@@ -1,11 +1,11 @@
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+Bengali:wght@400;500;600;700&display=swap&text=আ-হ০-৯');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 /* Shopkeeper Stock Management App - Bangladesh */
 /* Design System: Clean, trustworthy, accessible */
-
-@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+Bengali:wght@400;500;600;700&display=swap&text=আ-হ০-৯');
 
 @layer base {
   :root {

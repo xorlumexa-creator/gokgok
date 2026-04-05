@@ -658,9 +658,15 @@ export default function Sell() {
                       <label className="text-xs text-muted-foreground mb-1 block">পরিমাণ</label>
                       <input
                         type="number"
-                        value={item.sellAmount || ''}
+                        value={item.sellAmount === 0 ? '' : item.sellAmount}
                         onChange={(e) => {
-                          const val = parseFloat(e.target.value) || 0;
+                          if (e.target.value === '') {
+                            updateCartItem(idx, 0);
+                            return;
+                          }
+
+                          const val = Number(e.target.value);
+                          if (Number.isNaN(val)) return;
                           updateCartItem(idx, val);
                         }}
                         placeholder="পরিমাণ"
