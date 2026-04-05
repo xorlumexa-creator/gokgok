@@ -1,13 +1,13 @@
 import { useState, useRef, useCallback } from 'react';
 
-let faceapi: typeof import('@vladmandic/face-api') | null = null;
+let faceapiModule: typeof import('@vladmandic/face-api') | null = null;
 const MODEL_URL = 'https://cdn.jsdelivr.net/npm/@vladmandic/face-api@1/model';
 
-async function loadFaceApiModule() {
-  if (!faceapi) {
-    faceapi = await import('@vladmandic/face-api');
+async function getFaceApi() {
+  if (!faceapiModule) {
+    faceapiModule = await import('@vladmandic/face-api');
   }
-  return faceapi;
+  return faceapiModule;
 }
 
 export function useFaceApi() {
@@ -21,6 +21,7 @@ export function useFaceApi() {
     if (modelsLoaded || modelLoading) return;
     setModelLoading(true);
     try {
+      const faceapi = await getFaceApi();
       setLoadProgress(10);
       await faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL);
       setLoadProgress(40);
@@ -59,6 +60,7 @@ export function useFaceApi() {
   }, []);
 
   const detectFace = useCallback(async (video: HTMLVideoElement) => {
+    const faceapi = await getFaceApi();
     const detection = await faceapi
       .detectSingleFace(video, new faceapi.TinyFaceDetectorOptions({ scoreThreshold: 0.5 }))
       .withFaceLandmarks()
@@ -70,7 +72,8 @@ export function useFaceApi() {
     return Array.from(descriptor);
   };
 
-  const compareDescriptors = (stored: number[], live: Float32Array): number => {
+  const compareDescriptors = async (stored: number[], live: Float32Array): Promise<number> => {
+    const faceapi = await getFaceApi();
     const storedArr = new Float32Array(stored);
     return faceapi.euclideanDistance(storedArr, live);
   };
