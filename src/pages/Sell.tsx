@@ -224,12 +224,22 @@ export default function Sell() {
       if (i !== index) return item;
       const newUnitToBase = sellUnitToBase ?? item.sellUnitToBase;
       const newLabel = sellUnitLabel ?? item.sellUnitLabel;
-      const newAmount = sellAmount;
-      
-      if (newAmount <= 0) return item;
-      
+      const newAmount = Number.isFinite(sellAmount) ? Math.max(0, sellAmount) : 0;
+
+      if (newAmount === 0) {
+        return {
+          ...item,
+          sellUnitLabel: newLabel,
+          sellUnitToBase: newUnitToBase,
+          sellAmount: 0,
+          quantityInBaseUnit: 0,
+          totalPrice: 0,
+          totalProfit: 0,
+        };
+      }
+
       const { totalPrice: tp, totalProfit: tpr, quantityInBaseUnit } = calcPrice(item.basePrice, newAmount, newUnitToBase);
-      
+
       return {
         ...item,
         sellUnitLabel: newLabel,
@@ -648,9 +658,15 @@ export default function Sell() {
                       <label className="text-xs text-muted-foreground mb-1 block">পরিমাণ</label>
                       <input
                         type="number"
-                        value={item.sellAmount || ''}
+                        value={item.sellAmount === 0 ? '' : item.sellAmount}
                         onChange={(e) => {
-                          const val = parseFloat(e.target.value) || 0;
+                          if (e.target.value === '') {
+                            updateCartItem(idx, 0);
+                            return;
+                          }
+
+                          const val = Number(e.target.value);
+                          if (Number.isNaN(val)) return;
                           updateCartItem(idx, val);
                         }}
                         placeholder="পরিমাণ"

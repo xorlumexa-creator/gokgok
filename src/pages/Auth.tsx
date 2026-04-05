@@ -35,10 +35,15 @@ export default function Auth() {
   }, []);
 
   useEffect(() => {
-    if (user && signupStep !== 'face') {
-      setTimeout(() => checkProfileAndRedirect(), 0);
-    }
-  }, [user, signupStep]);
+    if (!user) return;
+    if (mode === 'signup' || signupStep === 'face') return;
+
+    const timer = window.setTimeout(() => {
+      checkProfileAndRedirect();
+    }, 0);
+
+    return () => window.clearTimeout(timer);
+  }, [user, signupStep, mode]);
 
   const checkProfileAndRedirect = async () => {
     if (!user) return;
