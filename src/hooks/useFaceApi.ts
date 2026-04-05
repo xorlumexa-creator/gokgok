@@ -1,7 +1,14 @@
 import { useState, useRef, useCallback } from 'react';
-import * as faceapi from '@vladmandic/face-api';
 
+let faceapi: typeof import('@vladmandic/face-api') | null = null;
 const MODEL_URL = 'https://cdn.jsdelivr.net/npm/@vladmandic/face-api@1/model';
+
+async function loadFaceApiModule() {
+  if (!faceapi) {
+    faceapi = await import('@vladmandic/face-api');
+  }
+  return faceapi;
+}
 
 export function useFaceApi() {
   const [modelsLoaded, setModelsLoaded] = useState(false);

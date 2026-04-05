@@ -155,33 +155,28 @@ async function performSync(): Promise<void> {
   notifyListeners();
 }
 
-// 20-minute auto sync timer
+// 5-minute auto sync timer (always-on)
 let syncTimer: ReturnType<typeof setTimeout> | null = null;
 
 function scheduleSyncCycle() {
   if (syncTimer) clearTimeout(syncTimer);
-  if (!navigator.onLine) return;
   
   syncTimer = setTimeout(async () => {
     await performSync();
-    // Schedule next cycle only if still online
-    if (navigator.onLine) scheduleSyncCycle();
-  }, 20 * 60 * 1000); // 20 minutes
+    // Always schedule next cycle
+    scheduleSyncCycle();
+  }, 5 * 60 * 1000); // 5 minutes
 }
 
 export function startAutoSync(): void {
-  // Initial sync after short delay
-  setTimeout(() => {
-    performSync().then(() => {
-      if (navigator.onLine) scheduleSyncCycle();
-    });
-  }, 3000);
+  // Initial sync immediately
+  performSync().then(() => scheduleSyncCycle());
 
   window.addEventListener('online', () => {
     syncStatus = 'safe';
     notifyListeners();
-    // Wait 20 min before syncing on reconnect
-    scheduleSyncCycle();
+    // Sync immediately on reconnect
+    performSync().then(() => scheduleSyncCycle());
   });
 
   window.addEventListener('offline', () => {
