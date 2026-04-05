@@ -102,4 +102,16 @@ export default defineConfig(({ mode }) => ({
       "@": path.resolve(__dirname, "./src"),
     },
   },
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          'face-api': ['@vladmandic/face-api'],
+          'vendor-ui': ['react', 'react-dom', 'react-router-dom'],
+          'vendor-query': ['@tanstack/react-query'],
+          'supabase': ['@supabase/supabase-js'],
+        },
+      },
+    },
+  },
 }));
