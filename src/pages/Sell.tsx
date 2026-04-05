@@ -224,12 +224,22 @@ export default function Sell() {
       if (i !== index) return item;
       const newUnitToBase = sellUnitToBase ?? item.sellUnitToBase;
       const newLabel = sellUnitLabel ?? item.sellUnitLabel;
-      const newAmount = sellAmount;
-      
-      if (newAmount <= 0) return item;
-      
+      const newAmount = Number.isFinite(sellAmount) ? Math.max(0, sellAmount) : 0;
+
+      if (newAmount === 0) {
+        return {
+          ...item,
+          sellUnitLabel: newLabel,
+          sellUnitToBase: newUnitToBase,
+          sellAmount: 0,
+          quantityInBaseUnit: 0,
+          totalPrice: 0,
+          totalProfit: 0,
+        };
+      }
+
       const { totalPrice: tp, totalProfit: tpr, quantityInBaseUnit } = calcPrice(item.basePrice, newAmount, newUnitToBase);
-      
+
       return {
         ...item,
         sellUnitLabel: newLabel,
