@@ -56,7 +56,7 @@ export function FaceScan({ storedDescriptor, onMatch, onFail, maxAttempts = 3 }:
         return;
       }
 
-      const distance = compareDescriptors(storedDescriptor, detection.descriptor);
+      const distance = await compareDescriptors(storedDescriptor, detection.descriptor);
       const newAttempts = attempts + 1;
       setAttempts(newAttempts);
 
