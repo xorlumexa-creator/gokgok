@@ -1,9 +1,8 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { ArrowLeft, Printer, MessageCircle, Receipt, X, MapPin, Phone } from 'lucide-react';
+import { ArrowLeft, Printer, MessageCircle, Receipt, MapPin, Phone, FileText } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useStore } from '@/context/StoreContext';
-import { getUnitLabel } from '@/types/store';
 import { PhoneInputWithCode } from '@/components/common/PhoneInputWithCode';
 
 const INVOICE_STORAGE_KEY = 'dukan360_invoice_settings';
@@ -51,6 +50,7 @@ export default function Invoice() {
   const { storeInfo } = useStore();
   const printRef = useRef<HTMLDivElement>(null);
   const savedSettings = useRef(loadSavedSettings());
+  const [printMode, setPrintMode] = useState<'thermal' | 'a4'>('thermal');
 
   const [invoiceData, setInvoiceData] = useState<InvoiceData>(() => {
     const state = location.state as any;
@@ -61,56 +61,36 @@ export default function Invoice() {
         shopAddress: state.invoiceData.shopAddress || storeInfo?.location || '',
       };
     }
-
     return {
       invoiceNo: `INV-${Date.now().toString(36).toUpperCase()}`,
-      date: new Date(),
-      customerName: '',
-      customerPhone: '',
-      items: [],
-      subtotal: 0,
-      discount: 0,
-      total: 0,
-      paymentMethod: 'cash',
-      dueAmount: 0,
-      shopName: storeInfo?.name || '',
-      shopAddress: storeInfo?.location || '',
+      date: new Date(), customerName: '', customerPhone: '',
+      items: [], subtotal: 0, discount: 0, total: 0,
+      paymentMethod: 'cash', dueAmount: 0,
+      shopName: storeInfo?.name || '', shopAddress: storeInfo?.location || '',
     };
   });
 
   const [discount, setDiscount] = useState(invoiceData.discount.toString());
-  const [whatsappPhone, setWhatsappPhone] = useState(
-    invoiceData.customerPhone || savedSettings.current?.phone || ''
-  );
-  const [shopLocation, setShopLocation] = useState(
-    invoiceData.shopAddress || savedSettings.current?.location || storeInfo?.location || ''
-  );
+  const [whatsappPhone, setWhatsappPhone] = useState(invoiceData.customerPhone || savedSettings.current?.phone || '');
+  const [shopLocation, setShopLocation] = useState(invoiceData.shopAddress || savedSettings.current?.location || storeInfo?.location || '');
   const [shopPhone, setShopPhone] = useState(savedSettings.current?.phone || storeInfo?.phone || '');
-
-  // Save settings when they change
-  useEffect(() => {
-    if (shopPhone || shopLocation) {
-      saveSettings(shopPhone, shopLocation);
-    }
-  }, [shopPhone, shopLocation]);
 
   const subtotal = invoiceData.items.reduce((s, i) => s + i.totalPrice, 0);
   const discountAmt = parseFloat(discount) || 0;
   const total = Math.max(0, subtotal - discountAmt);
   const dueAmount = invoiceData.paymentMethod === 'due' ? total : invoiceData.dueAmount;
 
-  const handlePrint = () => {
-    window.print();
+  const handlePrint = (mode: 'thermal' | 'a4') => {
+    setPrintMode(mode);
+    if (shopPhone || shopLocation) saveSettings(shopPhone, shopLocation);
+    setTimeout(() => window.print(), 100);
   };
 
   const handleWhatsApp = () => {
     const phone = whatsappPhone.replace(/[^0-9+]/g, '');
     if (!phone || phone.length < 8) return;
-    const itemsText = invoiceData.items
-      .map(i => `- ${i.productName} (${i.quantity} ${i.unitName}) = ৳${i.totalPrice}`)
-      .join('\n');
-
-    const message = `🧾 Invoice - Dukan 360°
+    const itemsText = invoiceData.items.map(i => `- ${i.productName} (${i.quantity} ${i.unitName}) = ৳${i.totalPrice}`).join('\n');
+    const message = `🧾 Invoice - ${invoiceData.shopName || 'Dukan 360°'}
 ${shopLocation ? `📍 ${shopLocation}` : ''}
 ${shopPhone ? `📞 ${shopPhone}` : ''}
 ${invoiceData.customerName ? `👤 ${invoiceData.customerName}` : ''}
@@ -121,10 +101,9 @@ ${itemsText}
 
 ${discountAmt > 0 ? `ছাড়: ৳${discountAmt}\n` : ''}মোট: ৳${total}
 ${dueAmount > 0 ? `বাকি: ৳${dueAmount}\n` : ''}
-ধন্যবাদ! আবার আসবেন 😊`;
-
-    const url = `https://wa.me/${phone.replace('+', '')}?text=${encodeURIComponent(message)}`;
-    window.open(url, '_blank');
+ধন্যবাদ! আবার আসবেন 😊
+_Dukan 360°_`;
+    window.open(`https://wa.me/${phone.replace('+', '')}?text=${encodeURIComponent(message)}`, '_blank');
   };
 
   if (invoiceData.items.length === 0) {
@@ -133,52 +112,40 @@ ${dueAmount > 0 ? `বাকি: ৳${dueAmount}\n` : ''}
         <Receipt className="w-16 h-16 text-muted-foreground mb-4" />
         <h2 className="text-xl font-bold text-foreground mb-2">কোন ইনভয়েস নেই</h2>
         <p className="text-muted-foreground mb-6">বিক্রি সম্পন্ন করার পর ইনভয়েস তৈরি হবে</p>
-        <Button onClick={() => navigate('/sell')} className="btn-primary rounded-xl">
-          বিক্রি করুন
-        </Button>
+        <Button onClick={() => navigate('/sell')} className="btn-primary rounded-xl">বিক্রি করুন</Button>
       </div>
     );
   }
 
   return (
     <>
-      {/* Thermal receipt print styles */}
+      {/* Print styles */}
       <style>{`
         @media print {
-          @page {
-            size: 80mm auto;
-            margin: 0;
-          }
-          html, body {
-            width: 80mm !important;
-            margin: 0 !important;
-            padding: 0 !important;
-            background: white !important;
-          }
-          body * {
-            visibility: hidden !important;
-          }
-          #print-invoice, #print-invoice * {
-            visibility: visible !important;
-          }
+          body * { visibility: hidden !important; }
+          #print-invoice, #print-invoice * { visibility: visible !important; }
           #print-invoice {
-            position: absolute !important;
-            left: 0 !important;
-            top: 0 !important;
-            width: 80mm !important;
-            max-width: 80mm !important;
-            padding: 4mm !important;
-            margin: 0 !important;
-            font-family: monospace !important;
-            font-size: 12px !important;
-            color: black !important;
-            background: white !important;
+            position: absolute !important; left: 0 !important; top: 0 !important;
+            margin: 0 !important; color: black !important; background: white !important;
           }
-          .no-print, nav, header, footer, .print\\:hidden,
-          [data-lovable], iframe {
-            display: none !important;
-            visibility: hidden !important;
+          .no-print, nav, header, footer, .print\\:hidden, [data-lovable], iframe {
+            display: none !important; visibility: hidden !important;
           }
+        }
+        @media print {
+          #print-invoice.thermal-mode {
+            width: 58mm !important; max-width: 58mm !important;
+            padding: 3mm !important; font-family: 'Courier New', monospace !important; font-size: 11px !important;
+          }
+          #print-invoice.thermal-mode .a4-only { display: none !important; }
+          @page { size: ${printMode === 'thermal' ? '58mm auto' : 'A4'}; margin: ${printMode === 'thermal' ? '0' : '10mm'}; }
+        }
+        @media print {
+          #print-invoice.a4-mode {
+            width: 210mm !important; min-height: 297mm !important;
+            padding: 15mm !important; font-family: Arial, sans-serif !important; font-size: 13px !important;
+          }
+          #print-invoice.a4-mode .thermal-only { display: none !important; }
         }
       `}</style>
 
@@ -196,28 +163,19 @@ ${dueAmount > 0 ? `বাকি: ৳${dueAmount}\n` : ''}
 
         {/* Invoice Card */}
         <div className="card-elevated p-5 space-y-4">
-          {/* Shop & Invoice Info */}
           <div className="text-center border-b border-border pb-4">
             <h2 className="text-xl font-bold text-foreground">{invoiceData.shopName || 'আমার দোকান'}</h2>
             <div className="flex items-center justify-center gap-1 mt-1">
               <MapPin className="w-3.5 h-3.5 text-muted-foreground" />
-              <input
-                type="text"
-                value={shopLocation}
-                onChange={(e) => setShopLocation(e.target.value)}
+              <input type="text" value={shopLocation} onChange={(e) => setShopLocation(e.target.value)}
                 placeholder="দোকানের ঠিকানা লিখুন"
-                className="text-sm text-muted-foreground bg-transparent border-b border-dashed border-border text-center focus:outline-none focus:border-primary w-full max-w-[250px]"
-              />
+                className="text-sm text-muted-foreground bg-transparent border-b border-dashed border-border text-center focus:outline-none focus:border-primary w-full max-w-[250px]" />
             </div>
             <div className="flex items-center justify-center gap-1 mt-1">
               <Phone className="w-3.5 h-3.5 text-muted-foreground" />
-              <input
-                type="tel"
-                value={shopPhone}
-                onChange={(e) => setShopPhone(e.target.value)}
+              <input type="tel" value={shopPhone} onChange={(e) => setShopPhone(e.target.value)}
                 placeholder="দোকানের ফোন নম্বর"
-                className="text-sm text-muted-foreground bg-transparent border-b border-dashed border-border text-center focus:outline-none focus:border-primary w-full max-w-[200px]"
-              />
+                className="text-sm text-muted-foreground bg-transparent border-b border-dashed border-border text-center focus:outline-none focus:border-primary w-full max-w-[200px]" />
             </div>
             <div className="flex justify-between mt-3 text-xs text-muted-foreground">
               <span>#{invoiceData.invoiceNo}</span>
@@ -225,7 +183,6 @@ ${dueAmount > 0 ? `বাকি: ৳${dueAmount}\n` : ''}
             </div>
           </div>
 
-          {/* Customer */}
           {(invoiceData.customerName || invoiceData.customerPhone) && (
             <div className="p-3 bg-muted/50 rounded-xl">
               {invoiceData.customerName && <p className="font-medium text-foreground">{invoiceData.customerName}</p>}
@@ -233,7 +190,6 @@ ${dueAmount > 0 ? `বাকি: ৳${dueAmount}\n` : ''}
             </div>
           )}
 
-          {/* Product List */}
           <div className="space-y-2">
             <div className="grid grid-cols-12 text-xs font-medium text-muted-foreground pb-2 border-b border-border">
               <span className="col-span-5">পণ্য</span>
@@ -251,7 +207,6 @@ ${dueAmount > 0 ? `বাকি: ৳${dueAmount}\n` : ''}
             ))}
           </div>
 
-          {/* Totals */}
           <div className="space-y-2 pt-2">
             <div className="flex justify-between text-sm">
               <span className="text-muted-foreground">সাবটোটাল:</span>
@@ -259,14 +214,7 @@ ${dueAmount > 0 ? `বাকি: ৳${dueAmount}\n` : ''}
             </div>
             <div className="flex items-center justify-between text-sm no-print">
               <span className="text-muted-foreground">ছাড়:</span>
-              <input
-                type="number"
-                value={discount}
-                onChange={(e) => setDiscount(e.target.value)}
-                placeholder="০"
-                className="w-24 text-right input-field py-1 px-2 text-sm"
-                min="0"
-              />
+              <input type="number" value={discount} onChange={(e) => setDiscount(e.target.value)} placeholder="০" className="w-24 text-right input-field py-1 px-2 text-sm" min="0" />
             </div>
             <div className="flex justify-between text-lg font-bold border-t border-border pt-2">
               <span className="text-foreground">মোট:</span>
@@ -274,84 +222,94 @@ ${dueAmount > 0 ? `বাকি: ৳${dueAmount}\n` : ''}
             </div>
           </div>
 
-          {/* Payment Method */}
           <div className="p-3 bg-muted/50 rounded-xl no-print">
             <p className="text-sm text-muted-foreground mb-2">পেমেন্ট:</p>
             <div className="flex gap-2">
               {(['cash', 'mobile', 'due'] as const).map(method => (
-                <button
-                  key={method}
-                  onClick={() => setInvoiceData(prev => ({ ...prev, paymentMethod: method }))}
+                <button key={method} onClick={() => setInvoiceData(prev => ({ ...prev, paymentMethod: method }))}
                   className={`flex-1 py-2 px-3 rounded-lg text-sm font-medium transition-all ${
                     invoiceData.paymentMethod === method
                       ? method === 'due' ? 'bg-destructive/10 text-destructive border-2 border-destructive' : 'bg-primary/10 text-primary border-2 border-primary'
                       : 'bg-muted text-muted-foreground border-2 border-transparent'
-                  }`}
-                >
+                  }`}>
                   {method === 'cash' ? '💵 নগদ' : method === 'mobile' ? '📱 মোবাইল' : '📝 বাকি'}
                 </button>
               ))}
             </div>
-            {invoiceData.paymentMethod === 'due' && (
-              <p className="text-sm text-destructive font-medium mt-2">বাকি: ৳{total}</p>
-            )}
+            {invoiceData.paymentMethod === 'due' && <p className="text-sm text-destructive font-medium mt-2">বাকি: ৳{total}</p>}
           </div>
         </div>
 
-        {/* WhatsApp Phone Input */}
+        {/* WhatsApp Phone */}
         <div className="card-elevated p-4 space-y-3 no-print">
           <p className="text-sm font-medium text-foreground">📲 WhatsApp এ পাঠাতে নম্বর দিন:</p>
-          <PhoneInputWithCode
-            value={whatsappPhone}
-            onChange={setWhatsappPhone}
-          />
+          <PhoneInputWithCode value={whatsappPhone} onChange={setWhatsappPhone} />
         </div>
 
         {/* Action Buttons */}
-        <div className="grid grid-cols-2 gap-4 no-print">
-          <Button onClick={handlePrint} className="py-6 text-base rounded-xl bg-foreground text-background hover:bg-foreground/90" size="lg">
-            <Printer className="w-6 h-6 mr-2" />
-            প্রিন্ট করুন
-          </Button>
-          <Button onClick={handleWhatsApp} disabled={!whatsappPhone || whatsappPhone.length < 8} className="py-6 text-base rounded-xl bg-[#25D366] hover:bg-[#25D366]/90 text-white disabled:opacity-50" size="lg">
-            <MessageCircle className="w-6 h-6 mr-2" />
-            WhatsApp
+        <div className="space-y-3 no-print">
+          <div className="grid grid-cols-2 gap-3">
+            <Button onClick={() => handlePrint('thermal')} className="py-5 text-sm rounded-xl bg-foreground text-background hover:bg-foreground/90" size="lg">
+              <Printer className="w-5 h-5 mr-1" />
+              🧾 রসিদ (Thermal)
+            </Button>
+            <Button onClick={() => handlePrint('a4')} variant="outline" className="py-5 text-sm rounded-xl" size="lg">
+              <FileText className="w-5 h-5 mr-1" />
+              📄 A4 প্রিন্ট
+            </Button>
+          </div>
+          <Button onClick={handleWhatsApp} disabled={!whatsappPhone || whatsappPhone.length < 8}
+            className="w-full py-5 text-base rounded-xl bg-[#25D366] hover:bg-[#25D366]/90 text-white disabled:opacity-50" size="lg">
+            <MessageCircle className="w-5 h-5 mr-2" />
+            WhatsApp এ পাঠান
           </Button>
         </div>
       </div>
 
-      {/* Thermal Receipt Print Layout */}
-      <div id="print-invoice" ref={printRef} className="hidden print:block" style={{ width: '72mm', maxWidth: '72mm', fontFamily: 'monospace', fontSize: '12px' }}>
+      {/* Print Layout */}
+      <div id="print-invoice" ref={printRef} className={`hidden print:block ${printMode === 'thermal' ? 'thermal-mode' : 'a4-mode'}`}
+        style={{ fontFamily: printMode === 'thermal' ? "'Courier New', monospace" : 'Arial, sans-serif', fontSize: printMode === 'thermal' ? '11px' : '13px' }}>
+        
         <div style={{ textAlign: 'center', marginBottom: '8px' }}>
-          <div style={{ fontSize: '16px', fontWeight: 'bold' }}>{invoiceData.shopName || 'আমার দোকান'}</div>
-          {shopLocation && <div style={{ fontSize: '11px' }}>{shopLocation}</div>}
-          {shopPhone && <div style={{ fontSize: '11px' }}>📞 {shopPhone}</div>}
-          <div style={{ fontSize: '10px', marginTop: '4px' }}>#{invoiceData.invoiceNo}</div>
-          <div style={{ fontSize: '10px' }}>{new Date(invoiceData.date).toLocaleString('bn-BD')}</div>
+          <div style={{ fontSize: printMode === 'thermal' ? '14px' : '22px', fontWeight: 'bold' }}>{invoiceData.shopName || 'আমার দোকান'}</div>
+          {shopLocation && <div style={{ fontSize: printMode === 'thermal' ? '10px' : '12px' }}>{shopLocation}</div>}
+          {shopPhone && <div style={{ fontSize: printMode === 'thermal' ? '10px' : '12px' }}>📞 {shopPhone}</div>}
         </div>
-        {invoiceData.customerName && <div style={{ fontSize: '11px' }}>গ্রাহক: {invoiceData.customerName}</div>}
+
         <hr style={{ border: 'none', borderTop: '1px dashed #000', margin: '6px 0' }} />
+        
+        <div style={{ fontSize: printMode === 'thermal' ? '10px' : '12px' }}>
+          <div>Invoice: #{invoiceData.invoiceNo}</div>
+          <div>তারিখ: {new Date(invoiceData.date).toLocaleString('bn-BD')}</div>
+          {invoiceData.customerName && <div>গ্রাহক: {invoiceData.customerName}</div>}
+        </div>
+
+        <hr style={{ border: 'none', borderTop: '1px dashed #000', margin: '6px 0' }} />
+
         {invoiceData.items.map((item, i) => (
-          <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '2px 0', fontSize: '11px' }}>
+          <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '2px 0', fontSize: printMode === 'thermal' ? '10px' : '12px' }}>
             <span>{item.productName} x{item.quantity} {item.unitName}</span>
             <span>৳{item.totalPrice}</span>
           </div>
         ))}
+
         <hr style={{ border: 'none', borderTop: '1px dashed #000', margin: '6px 0' }} />
+        
         {discountAmt > 0 && (
           <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px' }}>
             <span>ছাড়:</span><span>-৳{discountAmt}</span>
           </div>
         )}
-        <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold', fontSize: '14px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold', fontSize: printMode === 'thermal' ? '13px' : '16px' }}>
           <span>মোট:</span><span>৳{total}</span>
         </div>
         {invoiceData.paymentMethod === 'due' && (
           <div style={{ fontSize: '11px', marginTop: '4px' }}>বাকি: ৳{total}</div>
         )}
+
         <hr style={{ border: 'none', borderTop: '1px dashed #000', margin: '6px 0' }} />
         <div style={{ textAlign: 'center', fontSize: '11px', marginTop: '8px' }}>ধন্যবাদ! আবার আসবেন 😊</div>
-        <div style={{ textAlign: 'center', fontSize: '8px', marginTop: '4px' }}>Dukan 360°</div>
+        <div style={{ textAlign: 'center', fontSize: '9px', marginTop: '4px' }}>Dukan 360°</div>
       </div>
     </>
   );

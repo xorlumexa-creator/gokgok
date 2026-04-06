@@ -45,6 +45,7 @@ export type Database = {
         Row: {
           attempts: number
           created_at: string
+          email: string | null
           expires_at: string
           id: string
           otp_hash: string
@@ -55,6 +56,7 @@ export type Database = {
         Insert: {
           attempts?: number
           created_at?: string
+          email?: string | null
           expires_at: string
           id?: string
           otp_hash: string
@@ -65,6 +67,7 @@ export type Database = {
         Update: {
           attempts?: number
           created_at?: string
+          email?: string | null
           expires_at?: string
           id?: string
           otp_hash?: string
@@ -108,12 +111,16 @@ export type Database = {
           email: string | null
           face_descriptor: Json | null
           face_registered_at: string | null
+          fines_unpaid: number | null
           full_name: string | null
           id: string
+          monthly_recovery_count: number | null
           phone: string | null
+          recovery_month: string | null
           shop_name: string | null
           subscription_start_date: string | null
           subscription_status: string
+          total_fines: number | null
           trial_start_date: string
           updated_at: string
           user_id: string
@@ -125,12 +132,16 @@ export type Database = {
           email?: string | null
           face_descriptor?: Json | null
           face_registered_at?: string | null
+          fines_unpaid?: number | null
           full_name?: string | null
           id?: string
+          monthly_recovery_count?: number | null
           phone?: string | null
+          recovery_month?: string | null
           shop_name?: string | null
           subscription_start_date?: string | null
           subscription_status?: string
+          total_fines?: number | null
           trial_start_date?: string
           updated_at?: string
           user_id: string
@@ -142,12 +153,16 @@ export type Database = {
           email?: string | null
           face_descriptor?: Json | null
           face_registered_at?: string | null
+          fines_unpaid?: number | null
           full_name?: string | null
           id?: string
+          monthly_recovery_count?: number | null
           phone?: string | null
+          recovery_month?: string | null
           shop_name?: string | null
           subscription_start_date?: string | null
           subscription_status?: string
+          total_fines?: number | null
           trial_start_date?: string
           updated_at?: string
           user_id?: string
