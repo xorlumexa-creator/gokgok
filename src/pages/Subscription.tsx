@@ -14,7 +14,7 @@ export default function Subscription() {
   const navigate = useNavigate();
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(false);
-  const [selectedPlan, setSelectedPlan] = useState<'trial' | 'pro' | 'premium' | 'ultra'>('trial');
+  const [selectedPlan, setSelectedPlan] = useState<'trial' | 'basic' | 'standard' | 'pro'>('trial');
   const [userCountry, setUserCountry] = useState<Country>(defaultCountry);
   const [trialDaysLeft, setTrialDaysLeft] = useState<number | null>(null);
   const [isExpired, setIsExpired] = useState(false);
@@ -47,7 +47,7 @@ export default function Subscription() {
         const daysLeft = Math.max(0, 14 - daysPassed);
         setTrialDaysLeft(daysLeft);
         setIsExpired(daysLeft === 0 && profile.subscription_status !== 'active');
-        if (isExpired) setSelectedPlan('pro');
+        if (isExpired) setSelectedPlan('basic');
       }
     } catch (error) { console.error('Error checking trial:', error); }
   };
@@ -56,8 +56,8 @@ export default function Subscription() {
     if (!user) { navigate('/auth'); return; }
     setLoading(true);
     try {
-      if (selectedPlan === 'pro' || selectedPlan === 'premium' || selectedPlan === 'ultra') {
-        const basePrice = selectedPlan === 'pro' ? userCountry.proPrice : selectedPlan === 'premium' ? userCountry.premiumPrice : userCountry.ultraPrice;
+      if (selectedPlan === 'basic' || selectedPlan === 'standard' || selectedPlan === 'pro') {
+        const basePrice = selectedPlan === 'basic' ? userCountry.basicPrice : selectedPlan === 'standard' ? userCountry.standardPrice : userCountry.proPrice;
         const totalPrice = basePrice * months;
         const period = months === 1 ? '/মাস' : ` (${months} মাস)`;
         if (userCountry.code === 'BD') {
@@ -80,33 +80,33 @@ export default function Subscription() {
     finally { setLoading(false); }
   };
 
-  const proFeatures = [
-    "সীমাহীন পণ্য যোগ করুন (৫,০০০ পর্যন্ত)",
+  const basicFeatures = [
+    "সীমাহীন পণ্য যোগ করুন (১,০০০ পর্যন্ত)",
     "বাকির হিসাব রাখুন (১,০০০ গ্রাহক)",
-    "দৈনিক ১,০০০ বিক্রি",
+    "দৈনিক ৫০০ বিক্রি",
     "বাকির লাভ ট্র্যাকিং",
     "দৈনিক/সাপ্তাহিক/মাসিক রিপোর্ট",
     "একাধিক ইউনিটে বিক্রি",
     "ব্যক্তিগত ও দোকানের হিসাব আলাদা",
     "আগাম অর্ডার ব্যবস্থাপনা",
     "দাম উঠা-নামা পণ্য ট্র্যাকিং",
-    "ইনভয়েস তৈরি ও প্রিন্ট",
   ];
 
-  const premiumExtras = [
+  const standardExtras = [
     "WhatsApp রিমাইন্ডার",
     "সরাসরি কল বাটন",
+    "WhatsApp মেসেজ টেমপ্লেট",
   ];
 
-  const ultraExtras = [
+  const proExtras = [
     "ইনভয়েস তৈরি, প্রিন্ট ও WhatsApp এ পাঠান",
-    "WhatsApp রিমাইন্ডার",
-    "সরাসরি কল বাটন",
+    "PDF এক্সপোর্ট",
+    "WhatsApp রিমাইন্ডার ও কল",
   ];
 
-  const getPrice = (plan: 'pro' | 'premium' | 'ultra') => {
+  const getPrice = (plan: 'basic' | 'standard' | 'pro') => {
     const { currencySymbol, currency } = userCountry;
-    const base = plan === 'pro' ? userCountry.proPrice : plan === 'premium' ? userCountry.premiumPrice : userCountry.ultraPrice;
+    const base = plan === 'basic' ? userCountry.basicPrice : plan === 'standard' ? userCountry.standardPrice : userCountry.proPrice;
     const sym = currency === 'BDT' ? '৳' : currencySymbol;
     return `${sym}${base * months}`;
   };
@@ -131,19 +131,14 @@ export default function Subscription() {
         </div>
 
         {/* Month Selector */}
-        {(selectedPlan === 'pro' || selectedPlan === 'premium' || selectedPlan === 'ultra') && (
+        {(selectedPlan === 'basic' || selectedPlan === 'standard' || selectedPlan === 'pro') && (
           <div className="mb-4 p-4 card-elevated rounded-2xl">
             <label className="block text-sm font-medium text-foreground mb-2">কত মাসের জন্য?</label>
             <div className="relative">
-              <select
-                value={months}
-                onChange={(e) => setMonths(parseInt(e.target.value))}
-                className="w-full py-3 px-4 rounded-xl border border-border bg-background text-foreground appearance-none text-lg font-medium focus:outline-none focus:ring-2 focus:ring-primary"
-              >
+              <select value={months} onChange={(e) => setMonths(parseInt(e.target.value))}
+                className="w-full py-3 px-4 rounded-xl border border-border bg-background text-foreground appearance-none text-lg font-medium focus:outline-none focus:ring-2 focus:ring-primary">
                 {MONTH_OPTIONS.map(m => (
-                  <option key={m} value={m}>
-                    {m === 12 ? '১২ মাস (১ বছর)' : `${m} মাস`}
-                  </option>
+                  <option key={m} value={m}>{m === 12 ? '১২ মাস (১ বছর)' : `${m} মাস`}</option>
                 ))}
               </select>
               <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground pointer-events-none" />
@@ -154,12 +149,8 @@ export default function Subscription() {
         <div className="space-y-4 mb-6">
           {/* Free Trial */}
           {!isExpired && (
-            <button
-              onClick={() => setSelectedPlan('trial')}
-              className={`w-full p-6 rounded-2xl border-2 transition-all text-left relative overflow-hidden ${
-                selectedPlan === 'trial' ? 'border-primary bg-primary/5' : 'border-border bg-card hover:border-primary/50'
-              }`}
-            >
+            <button onClick={() => setSelectedPlan('trial')}
+              className={`w-full p-6 rounded-2xl border-2 transition-all text-left relative overflow-hidden ${selectedPlan === 'trial' ? 'border-primary bg-primary/5' : 'border-border bg-card hover:border-primary/50'}`}>
               <div className="absolute top-0 right-0 bg-profit text-white px-3 py-1 rounded-bl-xl text-xs font-medium">প্রস্তাবিত</div>
               <div className="flex items-start gap-4">
                 <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${selectedPlan === 'trial' ? 'bg-primary/10' : 'bg-muted'}`}>
@@ -169,7 +160,6 @@ export default function Subscription() {
                   <h3 className="text-lg font-bold text-foreground">ফ্রি ট্রায়াল</h3>
                   <p className="text-muted-foreground text-sm">১৪ দিনের জন্য সব ফিচার ফ্রি</p>
                   <p className="text-3xl font-bold text-primary mt-2">{userCountry.currencySymbol}০</p>
-                  <p className="text-xs text-muted-foreground">১৪ দিনের জন্য</p>
                 </div>
                 <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center ${selectedPlan === 'trial' ? 'border-primary bg-primary' : 'border-muted-foreground'}`}>
                   {selectedPlan === 'trial' && <Check className="w-4 h-4 text-primary-foreground" />}
@@ -178,87 +168,75 @@ export default function Subscription() {
             </button>
           )}
 
-          {/* Pro Plan */}
-          <button
-            onClick={() => setSelectedPlan('pro')}
-            className={`w-full p-6 rounded-2xl border-2 transition-all text-left ${
-              selectedPlan === 'pro' ? 'border-primary bg-primary/5' : 'border-border bg-card hover:border-primary/50'
-            }`}
-          >
+          {/* Basic Plan */}
+          <button onClick={() => setSelectedPlan('basic')}
+            className={`w-full p-6 rounded-2xl border-2 transition-all text-left ${selectedPlan === 'basic' ? 'border-primary bg-primary/5' : 'border-border bg-card hover:border-primary/50'}`}>
             <div className="flex items-start gap-4">
-              <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${selectedPlan === 'pro' ? 'bg-primary/10' : 'bg-muted'}`}>
-                <Crown className={`w-6 h-6 ${selectedPlan === 'pro' ? 'text-primary' : 'text-muted-foreground'}`} />
+              <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${selectedPlan === 'basic' ? 'bg-primary/10' : 'bg-muted'}`}>
+                <Crown className={`w-6 h-6 ${selectedPlan === 'basic' ? 'text-primary' : 'text-muted-foreground'}`} />
               </div>
               <div className="flex-1">
-                <h3 className="text-lg font-bold text-foreground">প্রো প্ল্যান</h3>
-                <p className="text-muted-foreground text-sm">সব ফিচার (WhatsApp ও কল ছাড়া)</p>
+                <h3 className="text-lg font-bold text-foreground">বেসিক প্ল্যান</h3>
+                <p className="text-muted-foreground text-sm">মূল ফিচার (WhatsApp ও ইনভয়েস ছাড়া)</p>
                 <p className="text-3xl font-bold text-primary mt-2">
-                  {getPrice('pro')}<span className="text-sm font-normal text-muted-foreground">/{months > 1 ? `${months} মাস` : 'মাস'}</span>
+                  {getPrice('basic')}<span className="text-sm font-normal text-muted-foreground">/{months > 1 ? `${months} মাস` : 'মাস'}</span>
                 </p>
                 <div className="mt-2 flex items-center gap-2 text-xs text-muted-foreground">
                   <Lock className="w-3 h-3" />
-                  <span>WhatsApp ও কল বাটন লক থাকবে</span>
+                  <span>WhatsApp, কল ও ইনভয়েস লক থাকবে</span>
                 </div>
               </div>
-              <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center ${selectedPlan === 'pro' ? 'border-primary bg-primary' : 'border-muted-foreground'}`}>
-                {selectedPlan === 'pro' && <Check className="w-4 h-4 text-primary-foreground" />}
+              <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center ${selectedPlan === 'basic' ? 'border-primary bg-primary' : 'border-muted-foreground'}`}>
+                {selectedPlan === 'basic' && <Check className="w-4 h-4 text-primary-foreground" />}
               </div>
             </div>
           </button>
 
-          {/* Premium Plan */}
-          <button
-            onClick={() => setSelectedPlan('premium')}
-            className={`w-full p-6 rounded-2xl border-2 transition-all text-left ${
-              selectedPlan === 'premium' ? 'border-primary bg-primary/5' : 'border-border bg-card hover:border-primary/50'
-            }`}
-          >
+          {/* Standard Plan */}
+          <button onClick={() => setSelectedPlan('standard')}
+            className={`w-full p-6 rounded-2xl border-2 transition-all text-left ${selectedPlan === 'standard' ? 'border-primary bg-primary/5' : 'border-border bg-card hover:border-primary/50'}`}>
             <div className="flex items-start gap-4">
-              <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${selectedPlan === 'premium' ? 'bg-primary/10' : 'bg-muted'}`}>
-                <Crown className={`w-6 h-6 ${selectedPlan === 'premium' ? 'text-primary' : 'text-muted-foreground'}`} />
+              <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${selectedPlan === 'standard' ? 'bg-primary/10' : 'bg-muted'}`}>
+                <Crown className={`w-6 h-6 ${selectedPlan === 'standard' ? 'text-primary' : 'text-muted-foreground'}`} />
               </div>
               <div className="flex-1">
-                <h3 className="text-lg font-bold text-foreground">প্রিমিয়াম প্ল্যান</h3>
+                <h3 className="text-lg font-bold text-foreground">স্ট্যান্ডার্ড প্ল্যান</h3>
                 <p className="text-muted-foreground text-sm">সব ফিচার + WhatsApp + কল</p>
                 <p className="text-3xl font-bold text-primary mt-2">
-                  {getPrice('premium')}<span className="text-sm font-normal text-muted-foreground">/{months > 1 ? `${months} মাস` : 'মাস'}</span>
+                  {getPrice('standard')}<span className="text-sm font-normal text-muted-foreground">/{months > 1 ? `${months} মাস` : 'মাস'}</span>
                 </p>
                 <div className="mt-2 flex items-center gap-2 text-xs text-profit">
                   <MessageCircle className="w-3 h-3" />
                   <span>WhatsApp রিমাইন্ডার + সরাসরি কল</span>
                 </div>
               </div>
-              <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center ${selectedPlan === 'premium' ? 'border-primary bg-primary' : 'border-muted-foreground'}`}>
-                {selectedPlan === 'premium' && <Check className="w-4 h-4 text-primary-foreground" />}
+              <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center ${selectedPlan === 'standard' ? 'border-primary bg-primary' : 'border-muted-foreground'}`}>
+                {selectedPlan === 'standard' && <Check className="w-4 h-4 text-primary-foreground" />}
               </div>
             </div>
           </button>
 
-          {/* Ultra Plan */}
-          <button
-            onClick={() => setSelectedPlan('ultra')}
-            className={`w-full p-6 rounded-2xl border-2 transition-all text-left relative overflow-hidden ${
-              selectedPlan === 'ultra' ? 'border-primary bg-primary/5' : 'border-border bg-card hover:border-primary/50'
-            }`}
-          >
+          {/* Pro Plan */}
+          <button onClick={() => setSelectedPlan('pro')}
+            className={`w-full p-6 rounded-2xl border-2 transition-all text-left relative overflow-hidden ${selectedPlan === 'pro' ? 'border-primary bg-primary/5' : 'border-border bg-card hover:border-primary/50'}`}>
             <div className="absolute top-0 right-0 bg-primary text-primary-foreground px-3 py-1 rounded-bl-xl text-xs font-medium">🔥 সেরা</div>
             <div className="flex items-start gap-4">
-              <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${selectedPlan === 'ultra' ? 'bg-primary/10' : 'bg-muted'}`}>
-                <Zap className={`w-6 h-6 ${selectedPlan === 'ultra' ? 'text-primary' : 'text-muted-foreground'}`} />
+              <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${selectedPlan === 'pro' ? 'bg-primary/10' : 'bg-muted'}`}>
+                <Zap className={`w-6 h-6 ${selectedPlan === 'pro' ? 'text-primary' : 'text-muted-foreground'}`} />
               </div>
               <div className="flex-1">
-                <h3 className="text-lg font-bold text-foreground">আল্ট্রা প্ল্যান</h3>
+                <h3 className="text-lg font-bold text-foreground">প্রো প্ল্যান</h3>
                 <p className="text-muted-foreground text-sm">সব ফিচার + ইনভয়েস + WhatsApp + কল</p>
                 <p className="text-3xl font-bold text-primary mt-2">
-                  {getPrice('ultra')}<span className="text-sm font-normal text-muted-foreground">/{months > 1 ? `${months} মাস` : 'মাস'}</span>
+                  {getPrice('pro')}<span className="text-sm font-normal text-muted-foreground">/{months > 1 ? `${months} মাস` : 'মাস'}</span>
                 </p>
                 <div className="mt-2 flex items-center gap-2 text-xs text-profit">
                   <Receipt className="w-3 h-3" />
                   <span>ইনভয়েস + WhatsApp + কল সব আনলক</span>
                 </div>
               </div>
-              <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center ${selectedPlan === 'ultra' ? 'border-primary bg-primary' : 'border-muted-foreground'}`}>
-                {selectedPlan === 'ultra' && <Check className="w-4 h-4 text-primary-foreground" />}
+              <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center ${selectedPlan === 'pro' ? 'border-primary bg-primary' : 'border-muted-foreground'}`}>
+                {selectedPlan === 'pro' && <Check className="w-4 h-4 text-primary-foreground" />}
               </div>
             </div>
           </button>
@@ -269,11 +247,11 @@ export default function Subscription() {
           <p className="text-sm font-medium text-foreground mb-2">📊 প্রতিটি প্ল্যানের সীমা:</p>
           <div className="grid grid-cols-3 gap-2 text-center text-xs">
             <div className="p-2 bg-background rounded-lg">
-              <p className="font-bold text-foreground">১,০০০</p>
+              <p className="font-bold text-foreground">৫০০</p>
               <p className="text-muted-foreground">দৈনিক বিক্রি</p>
             </div>
             <div className="p-2 bg-background rounded-lg">
-              <p className="font-bold text-foreground">৫,০০০</p>
+              <p className="font-bold text-foreground">১,০০০</p>
               <p className="text-muted-foreground">পণ্য তালিকা</p>
             </div>
             <div className="p-2 bg-background rounded-lg">
@@ -288,9 +266,9 @@ export default function Subscription() {
 
         {/* Features */}
         <div className="card-elevated p-6 mb-6">
-          <h4 className="font-semibold text-foreground mb-4">প্রো ফিচার:</h4>
+          <h4 className="font-semibold text-foreground mb-4">বেসিক ফিচার:</h4>
           <ul className="space-y-3 mb-4">
-            {proFeatures.map((f, i) => (
+            {basicFeatures.map((f, i) => (
               <li key={i} className="flex items-center gap-3 text-sm">
                 <div className="w-5 h-5 rounded-full bg-profit/10 flex items-center justify-center flex-shrink-0">
                   <Check className="w-3 h-3 text-profit" />
@@ -301,10 +279,10 @@ export default function Subscription() {
           </ul>
           <h4 className="font-semibold text-foreground mb-3 flex items-center gap-2">
             <Crown className="w-4 h-4 text-primary" />
-            প্রিমিয়াম এক্সট্রা:
+            স্ট্যান্ডার্ড এক্সট্রা:
           </h4>
           <ul className="space-y-3 mb-4">
-            {premiumExtras.map((f, i) => (
+            {standardExtras.map((f, i) => (
               <li key={i} className="flex items-center gap-3 text-sm">
                 <div className="w-5 h-5 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
                   {i === 0 ? <MessageCircle className="w-3 h-3 text-primary" /> : <PhoneCall className="w-3 h-3 text-primary" />}
@@ -315,10 +293,10 @@ export default function Subscription() {
           </ul>
           <h4 className="font-semibold text-foreground mb-3 flex items-center gap-2">
             <Zap className="w-4 h-4 text-primary" />
-            আল্ট্রা এক্সট্রা:
+            প্রো এক্সট্রা:
           </h4>
           <ul className="space-y-3">
-            {ultraExtras.map((f, i) => (
+            {proExtras.map((f, i) => (
               <li key={i} className="flex items-center gap-3 text-sm">
                 <div className="w-5 h-5 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
                   {i === 0 ? <Receipt className="w-3 h-3 text-primary" /> : i === 1 ? <MessageCircle className="w-3 h-3 text-primary" /> : <PhoneCall className="w-3 h-3 text-primary" />}
