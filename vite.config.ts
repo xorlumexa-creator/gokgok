@@ -23,7 +23,7 @@ export default defineConfig(({ mode }) => ({
       includeAssets: ["logo.png"],
       workbox: {
         navigateFallbackDenylist: [/^\/~oauth/],
-        globPatterns: ["**/*.{js,css,html,ico,png,svg,woff2,json,bin}"],
+        globPatterns: ["**/*.{js,css,html,ico,png,svg,woff2,json}"],
         runtimeCaching: [
           {
             urlPattern: /^https:\/\/fonts\.googleapis\.com\/.*/i,
@@ -106,7 +106,6 @@ export default defineConfig(({ mode }) => ({
     rollupOptions: {
       output: {
         manualChunks: {
-          'face-api': ['@vladmandic/face-api'],
           'vendor-ui': ['react', 'react-dom', 'react-router-dom'],
           'vendor-query': ['@tanstack/react-query'],
           'supabase': ['@supabase/supabase-js'],

@@ -1,12 +1,11 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Lock, Eye, EyeOff, Loader2, User, Phone } from 'lucide-react';
+import { Lock, Eye, EyeOff, Loader2, User, Phone, Mail } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from '@/hooks/use-toast';
 import { PhoneInput } from '@/components/auth/PhoneInput';
 import { PasswordStrength } from '@/components/auth/PasswordStrength';
-import { FaceCapture } from '@/components/auth/FaceCapture';
 import { RecoveryFlow } from '@/components/auth/RecoveryFlow';
 import { countries, Country, defaultCountry } from '@/data/countries';
 import type { User as SupabaseUser } from '@supabase/supabase-js';
@@ -15,7 +14,6 @@ import logoImg from '@/assets/logo.png';
 export default function Auth() {
   const navigate = useNavigate();
   const [mode, setMode] = useState<'login' | 'signup' | 'recovery'>('login');
-  const [signupStep, setSignupStep] = useState<'info' | 'face'>('info');
   const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -24,7 +22,7 @@ export default function Auth() {
   const [user, setUser] = useState<SupabaseUser | null>(null);
   const [selectedCountry, setSelectedCountry] = useState<Country>(defaultCountry);
   const [name, setName] = useState('');
-  const [pendingUserId, setPendingUserId] = useState<string | null>(null);
+  const [email, setEmail] = useState('');
 
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
@@ -36,14 +34,10 @@ export default function Auth() {
 
   useEffect(() => {
     if (!user) return;
-    if (mode === 'signup' || signupStep === 'face') return;
-
-    const timer = window.setTimeout(() => {
-      checkProfileAndRedirect();
-    }, 0);
-
+    if (mode === 'signup') return;
+    const timer = window.setTimeout(() => { checkProfileAndRedirect(); }, 0);
     return () => window.clearTimeout(timer);
-  }, [user, signupStep, mode]);
+  }, [user, mode]);
 
   const checkProfileAndRedirect = async () => {
     if (!user) return;
@@ -80,6 +74,8 @@ export default function Auth() {
   const validateSignup = () => {
     if (!name.trim()) { toast({ title: "আপনার নাম দিন", variant: "destructive" }); return false; }
     if (!phone.trim() || phone.length < 8) { toast({ title: "সঠিক ফোন নম্বর দিন", variant: "destructive" }); return false; }
+    const cleanEmail = email.trim().toLowerCase();
+    if (!cleanEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail)) { toast({ title: "সঠিক ইমেইল দিন", variant: "destructive" }); return false; }
     if (!password || password.length < 8) { toast({ title: "পাসওয়ার্ড কমপক্ষে ৮ অক্ষরের হতে হবে", variant: "destructive" }); return false; }
     if (!/[0-9]/.test(password)) { toast({ title: "পাসওয়ার্ডে কমপক্ষে ১টি সংখ্যা থাকতে হবে", variant: "destructive" }); return false; }
     if (password !== confirmPassword) { toast({ title: "পাসওয়ার্ড মিলছে না", variant: "destructive" }); return false; }
@@ -114,6 +110,21 @@ export default function Auth() {
     try {
       const fullPhone = getFullPhoneNumber();
       const authEmail = `${fullPhone.replace(/\+/g, '')}@dokan360.app`;
+      const cleanUserEmail = email.trim().toLowerCase();
+
+      // Check if email already exists
+      const { data: existingProfile } = await supabase
+        .from('profiles')
+        .select('id')
+        .eq('email', cleanUserEmail)
+        .single();
+
+      if (existingProfile) {
+        toast({ title: "এই ইমেইল দিয়ে আগেই একাউন্ট আছে", variant: "destructive" });
+        setLoading(false);
+        return;
+      }
+
       const { data, error } = await supabase.auth.signUp({
         email: authEmail, password,
         options: {
@@ -130,16 +141,15 @@ export default function Auth() {
         return;
       }
       if (data.user) {
-        setPendingUserId(data.user.id);
         await supabase.from('profiles').update({
           phone: fullPhone,
           full_name: name.trim(),
+          email: cleanUserEmail,
           whatsapp_number: fullPhone
         }).eq('user_id', data.user.id);
-        
-        // Move to face capture step
-        setSignupStep('face');
-        toast({ title: "অ্যাকাউন্ট তৈরি হয়েছে! ✓", description: "এখন মুখের ছবি তুলুন" });
+
+        toast({ title: "অ্যাকাউন্ট তৈরি হয়েছে! ✓" });
+        // Auth state change will redirect
       }
     } catch (e: any) {
       toast({ title: e.message || "অ্যাকাউন্ট তৈরি করতে সমস্যা হয়েছে", variant: "destructive" });
@@ -148,41 +158,8 @@ export default function Auth() {
     }
   };
 
-  const handleFaceCapture = async (descriptor: number[]) => {
-    if (!pendingUserId && !user) return;
-    const uid = pendingUserId || user?.id;
-    try {
-      await supabase.from('profiles').update({
-        face_descriptor: descriptor as any,
-        face_registered_at: new Date().toISOString()
-      }).eq('user_id', uid);
-      toast({ title: "মুখের ছবি সেভ হয়েছে ✓" });
-    } catch (e) {
-      console.error('Failed to save face descriptor:', e);
-    }
-    setSignupStep('info');
-    checkProfileAndRedirect();
-  };
-
-  const handleSkipFace = () => {
-    setSignupStep('info');
-    checkProfileAndRedirect();
-  };
-
   if (mode === 'recovery') {
     return <RecoveryFlow onBack={() => setMode('login')} />;
-  }
-
-  if (signupStep === 'face') {
-    return (
-      <div className="min-h-screen bg-gradient-to-b from-accent via-background to-background flex flex-col items-center justify-center p-6">
-        <div className="w-full max-w-md">
-          <div className="card-elevated p-6 animate-fade-in">
-            <FaceCapture onCapture={handleFaceCapture} onSkip={handleSkipFace} />
-          </div>
-        </div>
-      </div>
-    );
   }
 
   const isLogin = mode === 'login';
@@ -214,6 +191,33 @@ export default function Auth() {
               <label className="block text-sm font-medium mb-2"><Phone className="w-4 h-4 inline mr-1" />ফোন নম্বর</label>
               <PhoneInput value={phone} onChange={setPhone} selectedCountry={selectedCountry} onCountryChange={setSelectedCountry} placeholder="1XXXXXXXXX" autoFocus={isLogin} />
             </div>
+
+            {!isLogin && (
+              <>
+                <div>
+                  <label className="block text-sm font-medium mb-2"><Mail className="w-4 h-4 inline mr-1" />ইমেইল (আবশ্যক)</label>
+                  <input
+                    type="email"
+                    value={email}
+                    onChange={e => setEmail(e.target.value)}
+                    placeholder="your@email.com"
+                    className="input-field"
+                    autoComplete="email"
+                  />
+                </div>
+
+                {/* Important notice about email */}
+                <div className="bg-yellow-500/10 border border-yellow-500/20 rounded-xl p-4">
+                  <p className="text-sm font-medium text-yellow-700 dark:text-yellow-400 mb-1">⚠️ গুরুত্বপূর্ণ নোটিশ</p>
+                  <p className="text-xs text-muted-foreground">
+                    এই ইমেইলে পাসওয়ার্ড রিকভারি কোড পাঠানো হবে। সঠিক ইমেইল দিন এবং পাসওয়ার্ড নিরাপদ জায়গায় লিখে রাখুন।
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    ⚠️ প্রতি মাসে ৩ বার বিনামূল্যে পাসওয়ার্ড রিকভার করতে পারবেন। ৩ বারের পর প্রতিবার ৳৫ জরিমানা যোগ হবে! 😄
+                  </p>
+                </div>
+              </>
+            )}
 
             <div>
               <label className="block text-sm font-medium mb-2"><Lock className="w-4 h-4 inline mr-1" />পাসওয়ার্ড</label>
