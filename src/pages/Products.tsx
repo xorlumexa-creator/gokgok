@@ -429,42 +429,6 @@ export default function Products() {
                 </div>
               )}
 
-              {/* Category */}
-              <div>
-                <label className="block text-sm font-medium mb-2">ক্যাটাগরি (ঐচ্ছিক)</label>
-                <div className="grid grid-cols-4 gap-2">
-                  {PRODUCT_CATEGORIES.slice(0, 8).map(cat => (
-                    <button
-                      key={cat.value} type="button"
-                      onClick={() => setFormData({ ...formData, category: formData.category === cat.value ? '' : cat.value })}
-                      className={`py-2 px-2 rounded-lg text-xs font-medium transition-all ${
-                        formData.category === cat.value
-                          ? 'bg-primary text-primary-foreground'
-                          : 'bg-muted text-muted-foreground hover:border-primary/50 border border-transparent'
-                      }`}
-                    >
-                      {cat.label}
-                    </button>
-                  ))}
-                </div>
-                {PRODUCT_CATEGORIES.length > 8 && (
-                  <div className="grid grid-cols-4 gap-2 mt-2">
-                    {PRODUCT_CATEGORIES.slice(8).map(cat => (
-                      <button
-                        key={cat.value} type="button"
-                        onClick={() => setFormData({ ...formData, category: formData.category === cat.value ? '' : cat.value })}
-                        className={`py-2 px-2 rounded-lg text-xs font-medium transition-all ${
-                          formData.category === cat.value
-                            ? 'bg-primary text-primary-foreground'
-                            : 'bg-muted text-muted-foreground hover:border-primary/50 border border-transparent'
-                        }`}
-                      >
-                        {cat.label}
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
 
               {/* Supplier (Optional) */}
               <PhoneInputWithCode

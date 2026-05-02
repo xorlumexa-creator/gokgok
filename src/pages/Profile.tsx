@@ -201,61 +201,6 @@ export default function Profile() {
           )}
         </div>
 
-        {/* Fine History */}
-        <div className="card-elevated p-5 space-y-4">
-          <button onClick={() => setShowFines(!showFines)} className="w-full flex items-center justify-between">
-            <h2 className="font-semibold text-foreground flex items-center gap-2">
-              💸 জরিমানার হিসাব
-            </h2>
-            <span className="text-sm text-primary">{showFines ? 'বন্ধ করুন' : 'দেখুন'}</span>
-          </button>
-          {showFines && (
-            <div className="space-y-3 pt-2">
-              <div className="grid grid-cols-2 gap-3">
-                <div className="p-3 bg-primary/5 rounded-xl text-center">
-                  <p className="text-xs text-muted-foreground">এই মাসে রিকভারি</p>
-                  <p className="text-lg font-bold text-foreground">{fineData.recoveryMonth === currentMonth ? fineData.monthlyCount : 0}/3</p>
-                </div>
-                <div className="p-3 bg-primary/5 rounded-xl text-center">
-                  <p className="text-xs text-muted-foreground">বিনামূল্যে বাকি</p>
-                  <p className="text-lg font-bold text-profit">{freeLeft} টি ✅</p>
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div className="p-3 bg-destructive/5 rounded-xl text-center">
-                  <p className="text-xs text-muted-foreground">সর্বমোট জরিমানা</p>
-                  <p className="text-lg font-bold text-foreground">৳{fineData.totalFines}</p>
-                </div>
-                <div className="p-3 bg-destructive/5 rounded-xl text-center">
-                  <p className="text-xs text-muted-foreground">বকেয়া জরিমানা</p>
-                  <p className="text-lg font-bold text-destructive">৳{fineData.finesUnpaid}</p>
-                </div>
-              </div>
-
-              {recoveryLogs.length > 0 && (
-                <div>
-                  <p className="text-sm font-medium text-foreground mb-2">ইতিহাস:</p>
-                  <div className="space-y-1">
-                    {recoveryLogs.map((log, i) => (
-                      <div key={i} className="flex justify-between text-xs p-2 bg-muted/50 rounded-lg">
-                        <span className="text-muted-foreground">
-                          {new Date(log.created_at).toLocaleDateString('bn-BD')} - রিকভারি
-                        </span>
-                        <span className={log.method === 'email_otp' ? 'text-foreground' : 'text-destructive'}>
-                          ৳০
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              <p className="text-xs text-muted-foreground text-center italic">
-                "পাসওয়ার্ড মনে রাখুন, টাকা বাঁচান! 😄"
-              </p>
-            </div>
-          )}
-        </div>
       </div>
     </div>
   );
