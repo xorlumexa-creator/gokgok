@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { User, Store, Phone, Mail, MapPin, Lock, Eye, EyeOff, Loader2, ArrowLeft, Save, Receipt } from 'lucide-react';
+import { User, Store, Phone, Mail, MapPin, Lock, Eye, EyeOff, Loader2, ArrowLeft, Save } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';

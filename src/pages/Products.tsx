@@ -4,7 +4,7 @@ import { Package, Plus, Search, Edit2, Trash2, X, HelpCircle, ChevronDown, Chevr
 import { useStore } from '@/context/StoreContext';
 import { Button } from '@/components/ui/button';
 import { toast } from '@/hooks/use-toast';
-import { UnitType, SellingUnit, getUnitLabel, PRODUCT_CATEGORIES } from '@/types/store';
+import { UnitType, SellingUnit, getUnitLabel } from '@/types/store';
 import { PhoneInputWithCode } from '@/components/common/PhoneInputWithCode';
 
 const generateId = () => Math.random().toString(36).substr(2, 9);
