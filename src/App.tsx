@@ -64,7 +64,7 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
   }
   
   if (!isOnboarded) {
-    return <Navigate to="/" replace />;
+    return <Navigate to="/setup" replace />;
   }
   
   return <>{children}</>;

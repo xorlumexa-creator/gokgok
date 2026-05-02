@@ -29,16 +29,6 @@ export default function Profile() {
   const [showPassword, setShowPassword] = useState(false);
   const [passwordLoading, setPasswordLoading] = useState(false);
 
-  // Fine history
-  const [showFines, setShowFines] = useState(false);
-  const [fineData, setFineData] = useState<{
-    monthlyCount: number;
-    totalFines: number;
-    finesUnpaid: number;
-    recoveryMonth: string;
-  }>({ monthlyCount: 0, totalFines: 0, finesUnpaid: 0, recoveryMonth: '' });
-  const [recoveryLogs, setRecoveryLogs] = useState<any[]>([]);
-
   useEffect(() => {
     if (user) loadProfile();
   }, [user]);
@@ -58,22 +48,7 @@ export default function Profile() {
         setWhatsappNumber(profile.phone || '');
         setEmail(profile.email || '');
         setAddress(profile.address || '');
-        setFineData({
-          monthlyCount: (profile as any).monthly_recovery_count || 0,
-          totalFines: (profile as any).total_fines || 0,
-          finesUnpaid: (profile as any).fines_unpaid || 0,
-          recoveryMonth: (profile as any).recovery_month || '',
-        });
       }
-
-      // Load recovery logs
-      const { data: logs } = await supabase
-        .from('password_recovery_logs')
-        .select('*')
-        .eq('user_id', user.id)
-        .order('created_at', { ascending: false })
-        .limit(10);
-      if (logs) setRecoveryLogs(logs);
     } catch (error) {
       console.error('Error loading profile:', error);
     } finally {
@@ -139,8 +114,6 @@ export default function Profile() {
     }
   };
 
-  const currentMonth = new Date().toISOString().slice(0, 7);
-  const freeLeft = fineData.recoveryMonth === currentMonth ? Math.max(0, 3 - fineData.monthlyCount) : 3;
 
   if (loadingProfile) {
     return (
