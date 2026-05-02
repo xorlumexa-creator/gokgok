@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { User, Store, Phone, Mail, MapPin, Lock, Eye, EyeOff, Loader2, ArrowLeft, Save, Receipt } from 'lucide-react';
+import { User, Store, Phone, Mail, MapPin, Lock, Eye, EyeOff, Loader2, ArrowLeft, Save } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
@@ -29,16 +29,6 @@ export default function Profile() {
   const [showPassword, setShowPassword] = useState(false);
   const [passwordLoading, setPasswordLoading] = useState(false);
 
-  // Fine history
-  const [showFines, setShowFines] = useState(false);
-  const [fineData, setFineData] = useState<{
-    monthlyCount: number;
-    totalFines: number;
-    finesUnpaid: number;
-    recoveryMonth: string;
-  }>({ monthlyCount: 0, totalFines: 0, finesUnpaid: 0, recoveryMonth: '' });
-  const [recoveryLogs, setRecoveryLogs] = useState<any[]>([]);
-
   useEffect(() => {
     if (user) loadProfile();
   }, [user]);
@@ -58,22 +48,7 @@ export default function Profile() {
         setWhatsappNumber(profile.phone || '');
         setEmail(profile.email || '');
         setAddress(profile.address || '');
-        setFineData({
-          monthlyCount: (profile as any).monthly_recovery_count || 0,
-          totalFines: (profile as any).total_fines || 0,
-          finesUnpaid: (profile as any).fines_unpaid || 0,
-          recoveryMonth: (profile as any).recovery_month || '',
-        });
       }
-
-      // Load recovery logs
-      const { data: logs } = await supabase
-        .from('password_recovery_logs')
-        .select('*')
-        .eq('user_id', user.id)
-        .order('created_at', { ascending: false })
-        .limit(10);
-      if (logs) setRecoveryLogs(logs);
     } catch (error) {
       console.error('Error loading profile:', error);
     } finally {
@@ -139,8 +114,6 @@ export default function Profile() {
     }
   };
 
-  const currentMonth = new Date().toISOString().slice(0, 7);
-  const freeLeft = fineData.recoveryMonth === currentMonth ? Math.max(0, 3 - fineData.monthlyCount) : 3;
 
   if (loadingProfile) {
     return (
@@ -228,61 +201,6 @@ export default function Profile() {
           )}
         </div>
 
-        {/* Fine History */}
-        <div className="card-elevated p-5 space-y-4">
-          <button onClick={() => setShowFines(!showFines)} className="w-full flex items-center justify-between">
-            <h2 className="font-semibold text-foreground flex items-center gap-2">
-              💸 জরিমানার হিসাব
-            </h2>
-            <span className="text-sm text-primary">{showFines ? 'বন্ধ করুন' : 'দেখুন'}</span>
-          </button>
-          {showFines && (
-            <div className="space-y-3 pt-2">
-              <div className="grid grid-cols-2 gap-3">
-                <div className="p-3 bg-primary/5 rounded-xl text-center">
-                  <p className="text-xs text-muted-foreground">এই মাসে রিকভারি</p>
-                  <p className="text-lg font-bold text-foreground">{fineData.recoveryMonth === currentMonth ? fineData.monthlyCount : 0}/3</p>
-                </div>
-                <div className="p-3 bg-primary/5 rounded-xl text-center">
-                  <p className="text-xs text-muted-foreground">বিনামূল্যে বাকি</p>
-                  <p className="text-lg font-bold text-profit">{freeLeft} টি ✅</p>
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div className="p-3 bg-destructive/5 rounded-xl text-center">
-                  <p className="text-xs text-muted-foreground">সর্বমোট জরিমানা</p>
-                  <p className="text-lg font-bold text-foreground">৳{fineData.totalFines}</p>
-                </div>
-                <div className="p-3 bg-destructive/5 rounded-xl text-center">
-                  <p className="text-xs text-muted-foreground">বকেয়া জরিমানা</p>
-                  <p className="text-lg font-bold text-destructive">৳{fineData.finesUnpaid}</p>
-                </div>
-              </div>
-
-              {recoveryLogs.length > 0 && (
-                <div>
-                  <p className="text-sm font-medium text-foreground mb-2">ইতিহাস:</p>
-                  <div className="space-y-1">
-                    {recoveryLogs.map((log, i) => (
-                      <div key={i} className="flex justify-between text-xs p-2 bg-muted/50 rounded-lg">
-                        <span className="text-muted-foreground">
-                          {new Date(log.created_at).toLocaleDateString('bn-BD')} - রিকভারি
-                        </span>
-                        <span className={log.method === 'email_otp' ? 'text-foreground' : 'text-destructive'}>
-                          ৳০
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              <p className="text-xs text-muted-foreground text-center italic">
-                "পাসওয়ার্ড মনে রাখুন, টাকা বাঁচান! 😄"
-              </p>
-            </div>
-          )}
-        </div>
       </div>
     </div>
   );

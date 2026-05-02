@@ -1,165 +1,171 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Lock, Eye, EyeOff, Loader2, User, Phone, Mail } from 'lucide-react';
+import { Lock, Eye, EyeOff, Loader2, User, Phone, Mail, Store, ArrowLeft, AlertTriangle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from '@/hooks/use-toast';
 import { PhoneInput } from '@/components/auth/PhoneInput';
-import { PasswordStrength } from '@/components/auth/PasswordStrength';
-import { RecoveryFlow } from '@/components/auth/RecoveryFlow';
 import { countries, Country, defaultCountry } from '@/data/countries';
 import type { User as SupabaseUser } from '@supabase/supabase-js';
 import logoImg from '@/assets/logo.png';
 
+type Mode = 'login' | 'signup' | 'forgot';
+
 export default function Auth() {
   const navigate = useNavigate();
-  const [mode, setMode] = useState<'login' | 'signup' | 'recovery'>('login');
-  const [phone, setPhone] = useState('');
+  const [mode, setMode] = useState<Mode>('login');
+
+  // Shared
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [user, setUser] = useState<SupabaseUser | null>(null);
-  const [selectedCountry, setSelectedCountry] = useState<Country>(defaultCountry);
+
+  // Signup-only
   const [name, setName] = useState('');
-  const [email, setEmail] = useState('');
+  const [shopName, setShopName] = useState('');
+  const [phone, setPhone] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [selectedCountry, setSelectedCountry] = useState<Country>(defaultCountry);
+
+  const [user, setUser] = useState<SupabaseUser | null>(null);
 
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (event, session) => { setUser(session?.user ?? null); }
+      (_evt, session) => setUser(session?.user ?? null)
     );
-    supabase.auth.getSession().then(({ data: { session } }) => { setUser(session?.user ?? null); });
+    supabase.auth.getSession().then(({ data: { session } }) => setUser(session?.user ?? null));
     return () => subscription.unsubscribe();
   }, []);
 
   useEffect(() => {
     if (!user) return;
-    if (mode === 'signup') return;
-    const timer = window.setTimeout(() => { checkProfileAndRedirect(); }, 0);
-    return () => window.clearTimeout(timer);
-  }, [user, mode]);
+    // Defer to allow profile trigger to populate
+    const t = window.setTimeout(() => navigate('/dashboard'), 50);
+    return () => window.clearTimeout(t);
+  }, [user, navigate]);
 
-  const checkProfileAndRedirect = async () => {
-    if (!user) return;
-    try {
-      const { data: profile, error } = await supabase
-        .from('profiles')
-        .select('subscription_status, trial_start_date, shop_name')
-        .eq('user_id', user.id)
-        .single();
-      if (error) throw error;
-      if (profile?.subscription_status === 'trial') {
-        const trialStart = new Date(profile.trial_start_date);
-        const now = new Date();
-        const daysPassed = Math.floor((now.getTime() - trialStart.getTime()) / (1000 * 60 * 60 * 24));
-        if (daysPassed >= 14) { navigate('/subscription'); return; }
-      }
-      if (profile?.subscription_status === 'trial' || profile?.subscription_status === 'active') {
-        if (!profile?.shop_name) { navigate('/'); } else { navigate('/dashboard'); }
-      } else { navigate('/subscription'); }
-    } catch { navigate('/subscription'); }
-  };
-
-  const getFullPhoneNumber = () => {
-    const cleanPhone = phone.startsWith('0') ? phone.slice(1) : phone;
-    return `${selectedCountry.dialCode}${cleanPhone}`;
-  };
-
-  const validateLogin = () => {
-    if (!phone.trim() || phone.length < 8) { toast({ title: "সঠিক ফোন নম্বর দিন", variant: "destructive" }); return false; }
-    if (!password || password.length < 6) { toast({ title: "পাসওয়ার্ড দিন", variant: "destructive" }); return false; }
-    return true;
-  };
-
-  const validateSignup = () => {
-    if (!name.trim()) { toast({ title: "আপনার নাম দিন", variant: "destructive" }); return false; }
-    if (!phone.trim() || phone.length < 8) { toast({ title: "সঠিক ফোন নম্বর দিন", variant: "destructive" }); return false; }
-    const cleanEmail = email.trim().toLowerCase();
-    if (!cleanEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail)) { toast({ title: "সঠিক ইমেইল দিন", variant: "destructive" }); return false; }
-    if (!password || password.length < 8) { toast({ title: "পাসওয়ার্ড কমপক্ষে ৮ অক্ষরের হতে হবে", variant: "destructive" }); return false; }
-    if (!/[0-9]/.test(password)) { toast({ title: "পাসওয়ার্ডে কমপক্ষে ১টি সংখ্যা থাকতে হবে", variant: "destructive" }); return false; }
-    if (password !== confirmPassword) { toast({ title: "পাসওয়ার্ড মিলছে না", variant: "destructive" }); return false; }
-    return true;
-  };
+  const validEmail = (e: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e);
 
   const handleLogin = async () => {
-    if (!validateLogin()) return;
+    const cleanEmail = email.trim().toLowerCase();
+    if (!validEmail(cleanEmail)) { toast({ title: 'সঠিক ইমেইল দিন', variant: 'destructive' }); return; }
+    if (password.length < 6) { toast({ title: 'পাসওয়ার্ড কমপক্ষে ৬ অক্ষরের হতে হবে', variant: 'destructive' }); return; }
     setLoading(true);
     try {
-      const authEmail = `${getFullPhoneNumber().replace(/\+/g, '')}@dokan360.app`;
-      const { error } = await supabase.auth.signInWithPassword({ email: authEmail, password });
+      const { error } = await supabase.auth.signInWithPassword({ email: cleanEmail, password });
       if (error) {
-        if (error.message.includes('Invalid login credentials')) {
-          toast({ title: "ভুল ফোন নম্বর বা পাসওয়ার্ড", variant: "destructive" });
-        } else {
-          toast({ title: error.message, variant: "destructive" });
-        }
+        toast({ title: 'ইমেইল বা পাসওয়ার্ড ভুল', variant: 'destructive' });
         return;
       }
-      toast({ title: "সফলভাবে লগইন হয়েছে! ✓" });
-    } catch (e: any) {
-      toast({ title: e.message || "লগইন করতে সমস্যা হয়েছে", variant: "destructive" });
+      toast({ title: 'সফলভাবে লগইন হয়েছে ✓' });
     } finally {
       setLoading(false);
     }
   };
 
   const handleSignup = async () => {
-    if (!validateSignup()) return;
+    const cleanEmail = email.trim().toLowerCase();
+    if (!name.trim()) { toast({ title: 'আপনার নাম দিন', variant: 'destructive' }); return; }
+    if (!shopName.trim()) { toast({ title: 'দোকানের নাম দিন', variant: 'destructive' }); return; }
+    if (!phone.trim() || phone.length < 8) { toast({ title: 'সঠিক ফোন নম্বর দিন', variant: 'destructive' }); return; }
+    if (!validEmail(cleanEmail)) { toast({ title: 'সঠিক ইমেইল দিন', variant: 'destructive' }); return; }
+    if (password.length < 6) { toast({ title: 'পাসওয়ার্ড কমপক্ষে ৬ অক্ষরের হতে হবে', variant: 'destructive' }); return; }
+    if (password !== confirmPassword) { toast({ title: 'পাসওয়ার্ড মিলছে না', variant: 'destructive' }); return; }
+
     setLoading(true);
     try {
-      const fullPhone = getFullPhoneNumber();
-      const authEmail = `${fullPhone.replace(/\+/g, '')}@dokan360.app`;
-      const cleanUserEmail = email.trim().toLowerCase();
-
-      // Check if email already exists
-      const { data: existingProfile } = await supabase
-        .from('profiles')
-        .select('id')
-        .eq('email', cleanUserEmail)
-        .single();
-
-      if (existingProfile) {
-        toast({ title: "এই ইমেইল দিয়ে আগেই একাউন্ট আছে", variant: "destructive" });
-        setLoading(false);
-        return;
-      }
-
+      const cleanPhone = phone.startsWith('0') ? phone.slice(1) : phone;
+      const fullPhone = `${selectedCountry.dialCode}${cleanPhone}`;
       const { data, error } = await supabase.auth.signUp({
-        email: authEmail, password,
+        email: cleanEmail,
+        password,
         options: {
           emailRedirectTo: `${window.location.origin}/`,
-          data: { full_name: name, phone: fullPhone, country: selectedCountry.code }
-        }
+          data: {
+            full_name: name.trim(),
+            shop_name: shopName.trim(),
+            phone: fullPhone,
+            country: selectedCountry.code,
+          },
+        },
       });
       if (error) {
-        if (error.message.includes('User already registered')) {
-          toast({ title: "এই ফোন নম্বর দিয়ে আগেই অ্যাকাউন্ট করা হয়েছে", variant: "destructive" });
+        if (error.message.toLowerCase().includes('already')) {
+          toast({ title: 'এই ইমেইল দিয়ে আগেই একাউন্ট আছে', variant: 'destructive' });
         } else {
-          toast({ title: error.message, variant: "destructive" });
+          toast({ title: error.message, variant: 'destructive' });
         }
         return;
       }
-      if (data.user) {
-        await supabase.from('profiles').update({
-          phone: fullPhone,
-          full_name: name.trim(),
-          email: cleanUserEmail,
-          whatsapp_number: fullPhone
-        }).eq('user_id', data.user.id);
-
-        toast({ title: "অ্যাকাউন্ট তৈরি হয়েছে! ✓" });
-        // Auth state change will redirect
+      // With auto_confirm_email = true, session is returned immediately
+      if (data.session) {
+        toast({ title: 'একাউন্ট তৈরি হয়েছে ✓' });
+      } else {
+        // Fallback: explicit sign-in
+        await supabase.auth.signInWithPassword({ email: cleanEmail, password });
+        toast({ title: 'একাউন্ট তৈরি হয়েছে ✓' });
       }
     } catch (e: any) {
-      toast({ title: e.message || "অ্যাকাউন্ট তৈরি করতে সমস্যা হয়েছে", variant: "destructive" });
+      toast({ title: e.message || 'একাউন্ট তৈরি করতে সমস্যা হয়েছে', variant: 'destructive' });
     } finally {
       setLoading(false);
     }
   };
 
-  if (mode === 'recovery') {
-    return <RecoveryFlow onBack={() => setMode('login')} />;
+  const handleForgot = async () => {
+    const cleanEmail = email.trim().toLowerCase();
+    if (!validEmail(cleanEmail)) { toast({ title: 'সঠিক ইমেইল দিন', variant: 'destructive' }); return; }
+    setLoading(true);
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(cleanEmail, {
+        redirectTo: `${window.location.origin}/reset-password`,
+      });
+      if (error) throw error;
+      toast({ title: 'রিসেট লিংক ইমেইলে পাঠানো হয়েছে ✓', description: 'ইনবক্স/স্প্যাম দেখুন।' });
+      setMode('login');
+    } catch (e: any) {
+      toast({ title: e.message || 'সমস্যা হয়েছে', variant: 'destructive' });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const Logo = (
+    <div className="text-center mb-6">
+      <img src={logoImg} alt="Dukan 360°" className="w-20 h-20 rounded-2xl mx-auto mb-3 shadow-soft object-cover" />
+      <h1 className="text-2xl font-bold text-foreground">Dukan 360°</h1>
+      <p className="text-sm text-muted-foreground mt-1">আপনার দোকান, আপনার নিয়ন্ত্রণ</p>
+    </div>
+  );
+
+  // Forgot password screen
+  if (mode === 'forgot') {
+    return (
+      <div className="min-h-screen bg-gradient-to-b from-accent via-background to-background flex flex-col items-center justify-center p-6">
+        <div className="w-full max-w-md">
+          {Logo}
+          <div className="card-elevated p-6 animate-fade-in space-y-4">
+            <div className="text-center">
+              <Mail className="w-10 h-10 text-primary mx-auto mb-2" />
+              <h2 className="text-lg font-bold">পাসওয়ার্ড রিসেট</h2>
+              <p className="text-sm text-muted-foreground mt-1">আপনার ইমেইলে রিসেট লিংক পাঠানো হবে</p>
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-2"><Mail className="w-4 h-4 inline mr-1" />ইমেইল</label>
+              <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="your@email.com" className="input-field" autoFocus />
+            </div>
+            <Button onClick={handleForgot} disabled={loading} className="w-full py-5 rounded-xl">
+              {loading ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : null}
+              রিসেট লিংক পাঠান
+            </Button>
+            <Button variant="outline" onClick={() => setMode('login')} className="w-full py-4 rounded-xl">
+              <ArrowLeft className="w-4 h-4 mr-2" /> লগইনে ফিরে যান
+            </Button>
+          </div>
+        </div>
+      </div>
+    );
   }
 
   const isLogin = mode === 'login';
@@ -167,11 +173,7 @@ export default function Auth() {
   return (
     <div className="min-h-screen bg-gradient-to-b from-accent via-background to-background flex flex-col items-center justify-center p-6">
       <div className="w-full max-w-md">
-        <div className="text-center mb-8">
-          <img src={logoImg} alt="Dukan 360°" className="w-20 h-20 rounded-2xl mx-auto mb-4 shadow-soft object-cover" />
-          <h1 className="text-3xl font-bold text-foreground">Dukan 360°</h1>
-          <p className="text-muted-foreground mt-2">আপনার দোকানের হিসাব রাখুন সহজে</p>
-        </div>
+        {Logo}
 
         <div className="card-elevated p-6 animate-fade-in">
           <div className="flex gap-2 mb-6">
@@ -181,57 +183,49 @@ export default function Auth() {
 
           <div className="space-y-4">
             {!isLogin && (
-              <div>
-                <label className="block text-sm font-medium mb-2"><User className="w-4 h-4 inline mr-1" />আপনার নাম</label>
-                <input type="text" value={name} onChange={e => setName(e.target.value)} placeholder="পুরো নাম" className="input-field" autoComplete="name" />
-              </div>
-            )}
-
-            <div>
-              <label className="block text-sm font-medium mb-2"><Phone className="w-4 h-4 inline mr-1" />ফোন নম্বর</label>
-              <PhoneInput value={phone} onChange={setPhone} selectedCountry={selectedCountry} onCountryChange={setSelectedCountry} placeholder="1XXXXXXXXX" autoFocus={isLogin} />
-            </div>
-
-            {!isLogin && (
               <>
                 <div>
-                  <label className="block text-sm font-medium mb-2"><Mail className="w-4 h-4 inline mr-1" />ইমেইল (আবশ্যক)</label>
-                  <input
-                    type="email"
-                    value={email}
-                    onChange={e => setEmail(e.target.value)}
-                    placeholder="your@email.com"
-                    className="input-field"
-                    autoComplete="email"
-                  />
+                  <label className="block text-sm font-medium mb-2"><User className="w-4 h-4 inline mr-1" />নাম</label>
+                  <input type="text" value={name} onChange={e => setName(e.target.value)} placeholder="পুরো নাম" className="input-field" autoComplete="name" />
                 </div>
-
-                {/* Important notice about email */}
-                <div className="bg-yellow-500/10 border border-yellow-500/20 rounded-xl p-4">
-                  <p className="text-sm font-medium text-yellow-700 dark:text-yellow-400 mb-1">⚠️ গুরুত্বপূর্ণ নোটিশ</p>
-                  <p className="text-xs text-muted-foreground">
-                    এই ইমেইলে পাসওয়ার্ড রিকভারি কোড পাঠানো হবে। সঠিক ইমেইল দিন এবং পাসওয়ার্ড নিরাপদ জায়গায় লিখে রাখুন।
-                  </p>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    ⚠️ প্রতি মাসে ৩ বার বিনামূল্যে পাসওয়ার্ড রিকভার করতে পারবেন। ৩ বারের পর প্রতিবার ৳৫ জরিমানা যোগ হবে! 😄
-                  </p>
+                <div>
+                  <label className="block text-sm font-medium mb-2"><Store className="w-4 h-4 inline mr-1" />দোকানের নাম</label>
+                  <input type="text" value={shopName} onChange={e => setShopName(e.target.value)} placeholder="যেমন: করিম স্টোর" className="input-field" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-2"><Phone className="w-4 h-4 inline mr-1" />মোবাইল নাম্বার</label>
+                  <PhoneInput value={phone} onChange={setPhone} selectedCountry={selectedCountry} onCountryChange={setSelectedCountry} placeholder="1XXXXXXXXX" />
                 </div>
               </>
             )}
 
             <div>
+              <label className="block text-sm font-medium mb-2"><Mail className="w-4 h-4 inline mr-1" />ইমেইল ঠিকানা</label>
+              <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="your@email.com" className="input-field" autoComplete="email" autoFocus={isLogin} />
+              {!isLogin && (
+                <div className="mt-2 flex items-start gap-2 bg-yellow-500/10 border border-yellow-500/20 rounded-xl p-3">
+                  <AlertTriangle className="w-4 h-4 text-yellow-700 dark:text-yellow-400 shrink-0 mt-0.5" />
+                  <p className="text-xs text-yellow-800 dark:text-yellow-300">এই ইমেইলে পাসওয়ার্ড রিসেট লিংক যাবে। সঠিক ইমেইল দিন।</p>
+                </div>
+              )}
+            </div>
+
+            <div>
               <label className="block text-sm font-medium mb-2"><Lock className="w-4 h-4 inline mr-1" />পাসওয়ার্ড</label>
               <div className="relative">
                 <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
-                <input type={showPassword ? 'text' : 'password'} value={password} onChange={e => setPassword(e.target.value)}
-                  placeholder={isLogin ? '••••••••' : 'কমপক্ষে ৮ অক্ষর, ১টি সংখ্যা'}
-                  className="input-field pl-10 pr-10" autoComplete={isLogin ? 'current-password' : 'new-password'} />
-                <button type="button" onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  value={password}
+                  onChange={e => setPassword(e.target.value)}
+                  placeholder={isLogin ? '••••••••' : 'কমপক্ষে ৬ অক্ষর'}
+                  className="input-field pl-10 pr-10"
+                  autoComplete={isLogin ? 'current-password' : 'new-password'}
+                />
+                <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
                   {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
                 </button>
               </div>
-              {!isLogin && <div className="mt-2"><PasswordStrength password={password} /></div>}
             </div>
 
             {!isLogin && (
@@ -239,8 +233,7 @@ export default function Auth() {
                 <label className="block text-sm font-medium mb-2"><Lock className="w-4 h-4 inline mr-1" />পাসওয়ার্ড নিশ্চিত করুন</label>
                 <div className="relative">
                   <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
-                  <input type={showPassword ? 'text' : 'password'} value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)}
-                    placeholder="আবার পাসওয়ার্ড দিন" className="input-field pl-10" autoComplete="new-password" />
+                  <input type={showPassword ? 'text' : 'password'} value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} placeholder="আবার পাসওয়ার্ড দিন" className="input-field pl-10" autoComplete="new-password" />
                 </div>
                 {confirmPassword && password !== confirmPassword && (
                   <p className="text-xs text-destructive mt-1">পাসওয়ার্ড মিলছে না</p>
@@ -249,22 +242,22 @@ export default function Auth() {
             )}
 
             {isLogin && (
-              <button onClick={() => setMode('recovery')} className="text-sm text-primary hover:underline w-full text-right">
+              <button onClick={() => setMode('forgot')} className="text-sm text-primary hover:underline w-full text-right">
                 পাসওয়ার্ড ভুলে গেছেন?
               </button>
             )}
 
-            <Button onClick={isLogin ? handleLogin : handleSignup} disabled={loading} className="w-full btn-primary py-6 text-lg rounded-xl">
+            <Button onClick={isLogin ? handleLogin : handleSignup} disabled={loading} className="w-full py-6 text-lg rounded-xl">
               {loading ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : null}
-              {isLogin ? 'লগইন করুন' : 'অ্যাকাউন্ট তৈরি করুন'}
+              {isLogin ? 'লগইন করুন' : 'একাউন্ট তৈরি করুন'}
             </Button>
           </div>
 
           <p className="text-center text-sm text-muted-foreground mt-6">
             {isLogin ? (
-              <>অ্যাকাউন্ট নেই?{' '}<button onClick={() => setMode('signup')} className="text-primary hover:underline font-medium">নিবন্ধন করুন</button></>
+              <>একাউন্ট নেই? <button onClick={() => setMode('signup')} className="text-primary hover:underline font-medium">নিবন্ধন করুন</button></>
             ) : (
-              <>অ্যাকাউন্ট আছে?{' '}<button onClick={() => setMode('login')} className="text-primary hover:underline font-medium">লগইন করুন</button></>
+              <>একাউন্ট আছে? <button onClick={() => setMode('login')} className="text-primary hover:underline font-medium">লগইন করুন</button></>
             )}
           </p>
         </div>
