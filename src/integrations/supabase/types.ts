@@ -14,113 +14,17 @@ export type Database = {
   }
   public: {
     Tables: {
-      fines: {
-        Row: {
-          amount: number
-          created_at: string
-          id: string
-          paid: boolean
-          reason: string
-          user_id: string
-        }
-        Insert: {
-          amount?: number
-          created_at?: string
-          id?: string
-          paid?: boolean
-          reason: string
-          user_id: string
-        }
-        Update: {
-          amount?: number
-          created_at?: string
-          id?: string
-          paid?: boolean
-          reason?: string
-          user_id?: string
-        }
-        Relationships: []
-      }
-      otp_requests: {
-        Row: {
-          attempts: number
-          created_at: string
-          email: string | null
-          expires_at: string
-          id: string
-          otp_hash: string
-          phone: string
-          used: boolean
-          user_id: string
-        }
-        Insert: {
-          attempts?: number
-          created_at?: string
-          email?: string | null
-          expires_at: string
-          id?: string
-          otp_hash: string
-          phone: string
-          used?: boolean
-          user_id: string
-        }
-        Update: {
-          attempts?: number
-          created_at?: string
-          email?: string | null
-          expires_at?: string
-          id?: string
-          otp_hash?: string
-          phone?: string
-          used?: boolean
-          user_id?: string
-        }
-        Relationships: []
-      }
-      password_recovery_logs: {
-        Row: {
-          created_at: string
-          id: string
-          method: string
-          month: string
-          success: boolean
-          user_id: string
-        }
-        Insert: {
-          created_at?: string
-          id?: string
-          method?: string
-          month: string
-          success?: boolean
-          user_id: string
-        }
-        Update: {
-          created_at?: string
-          id?: string
-          method?: string
-          month?: string
-          success?: boolean
-          user_id?: string
-        }
-        Relationships: []
-      }
       profiles: {
         Row: {
           address: string | null
           created_at: string
           email: string | null
-          face_descriptor: Json | null
-          face_registered_at: string | null
-          fines_unpaid: number | null
           full_name: string | null
           id: string
-          monthly_recovery_count: number | null
           phone: string | null
-          recovery_month: string | null
           shop_name: string | null
           subscription_start_date: string | null
           subscription_status: string
-          total_fines: number | null
           trial_start_date: string
           updated_at: string
           user_id: string
@@ -130,18 +34,12 @@ export type Database = {
           address?: string | null
           created_at?: string
           email?: string | null
-          face_descriptor?: Json | null
-          face_registered_at?: string | null
-          fines_unpaid?: number | null
           full_name?: string | null
           id?: string
-          monthly_recovery_count?: number | null
           phone?: string | null
-          recovery_month?: string | null
           shop_name?: string | null
           subscription_start_date?: string | null
           subscription_status?: string
-          total_fines?: number | null
           trial_start_date?: string
           updated_at?: string
           user_id: string
@@ -151,49 +49,16 @@ export type Database = {
           address?: string | null
           created_at?: string
           email?: string | null
-          face_descriptor?: Json | null
-          face_registered_at?: string | null
-          fines_unpaid?: number | null
           full_name?: string | null
           id?: string
-          monthly_recovery_count?: number | null
           phone?: string | null
-          recovery_month?: string | null
           shop_name?: string | null
           subscription_start_date?: string | null
           subscription_status?: string
-          total_fines?: number | null
           trial_start_date?: string
           updated_at?: string
           user_id?: string
           whatsapp_number?: string | null
-        }
-        Relationships: []
-      }
-      recovery_tokens: {
-        Row: {
-          created_at: string | null
-          expires_at: string
-          id: string
-          token: string
-          used: boolean | null
-          user_id: string
-        }
-        Insert: {
-          created_at?: string | null
-          expires_at: string
-          id?: string
-          token: string
-          used?: boolean | null
-          user_id: string
-        }
-        Update: {
-          created_at?: string | null
-          expires_at?: string
-          id?: string
-          token?: string
-          used?: boolean | null
-          user_id?: string
         }
         Relationships: []
       }
@@ -202,22 +67,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      find_email_for_recovery: {
-        Args: { lookup_input: string }
-        Returns: string
-      }
-      find_user_for_recovery: {
-        Args: { p_phone: string }
-        Returns: {
-          p_face_descriptor: Json
-          p_full_name: string
-          p_user_id: string
-        }[]
-      }
-      get_monthly_recovery_count: {
-        Args: { p_month: string; p_phone: string }
-        Returns: number
-      }
+      [_ in never]: never
     }
     Enums: {
       [_ in never]: never
