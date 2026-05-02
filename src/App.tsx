@@ -13,6 +13,7 @@ import { startAutoSync, stopAutoSync } from "@/lib/syncEngine";
 
 // Lazy load all pages
 const Index = lazy(() => import("./pages/Index"));
+const Landing = lazy(() => import("./pages/Landing"));
 const Auth = lazy(() => import("./pages/Auth"));
 const Subscription = lazy(() => import("./pages/Subscription"));
 const Dashboard = lazy(() => import("./pages/Dashboard"));
@@ -73,10 +74,11 @@ function AppRoutes() {
   return (
     <Suspense fallback={<PageLoader />}>
       <Routes>
+        <Route path="/" element={<Landing />} />
         <Route path="/auth" element={<Auth />} />
         <Route path="/reset-password" element={<ResetPassword />} />
         <Route path="/subscription" element={<Subscription />} />
-        <Route path="/" element={<Index />} />
+        <Route path="/setup" element={<Index />} />
         <Route element={
           <ProtectedRoute>
             <MainLayout />
