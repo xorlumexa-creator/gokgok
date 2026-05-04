@@ -81,9 +81,9 @@ export default function Subscription() {
   };
 
   const basicFeatures = [
-    "সীমাহীন পণ্য যোগ করুন (১,০০০ পর্যন্ত)",
-    "বাকির হিসাব রাখুন (১,০০০ গ্রাহক)",
-    "দৈনিক ৫০০ বিক্রি",
+    "১,০০০ পণ্য তালিকা",
+    "১,০০০ বাকি গ্রাহক",
+    "দৈনিক ৬০০ ডাটা ইনপুট (বিক্রি + বাকি + পণ্য + হিসাব)",
     "বাকির লাভ ট্র্যাকিং",
     "দৈনিক/সাপ্তাহিক/মাসিক রিপোর্ট",
     "একাধিক ইউনিটে বিক্রি",
@@ -244,24 +244,31 @@ export default function Subscription() {
 
         {/* Limits info */}
         <div className="card-elevated p-4 mb-4 bg-primary/5 rounded-2xl">
-          <p className="text-sm font-medium text-foreground mb-2">📊 প্রতিটি প্ল্যানের সীমা:</p>
+          <p className="text-sm font-medium text-foreground mb-2">📊 প্রতিটি প্ল্যানের ভিত্তি সীমা (৳৮০ প্ল্যানে):</p>
           <div className="grid grid-cols-3 gap-2 text-center text-xs">
             <div className="p-2 bg-background rounded-lg">
-              <p className="font-bold text-foreground">৫০০</p>
-              <p className="text-muted-foreground">দৈনিক বিক্রি</p>
+              <p className="font-bold text-foreground">১,০০০</p>
+              <p className="text-muted-foreground">বাকি গ্রাহক</p>
             </div>
             <div className="p-2 bg-background rounded-lg">
               <p className="font-bold text-foreground">১,০০০</p>
               <p className="text-muted-foreground">পণ্য তালিকা</p>
             </div>
             <div className="p-2 bg-background rounded-lg">
-              <p className="font-bold text-foreground">১,০০০</p>
-              <p className="text-muted-foreground">বাকি গ্রাহক</p>
+              <p className="font-bold text-foreground">৬০০</p>
+              <p className="text-muted-foreground">দৈনিক ডাটা ইনপুট</p>
             </div>
           </div>
-          <p className="text-xs text-muted-foreground mt-2 text-center">
-            সীমা বাড়াতে চাইলে দ্বিগুণ মূল্যে দ্বিগুণ সুবিধা পান!
+          <p className="text-[11px] text-muted-foreground mt-2 text-center leading-relaxed">
+            দৈনিক ৬০০ = বিক্রি + বাকির খাতা + পণ্য + হিসাব খাতা — সব মিলিয়ে।
           </p>
+          <div className="mt-3 p-3 bg-primary/10 rounded-xl">
+            <p className="text-xs font-semibold text-primary text-center mb-1">🚀 দ্বিগুণ মূল্যে দ্বিগুণ সুবিধা</p>
+            <p className="text-[11px] text-foreground text-center leading-relaxed">
+              মূল্য দ্বিগুণ করলে প্রতিটি সীমাও দ্বিগুণ হবে।<br />
+              যেমন: ৳১৬০ = ২,০০০ বাকি + ২,০০০ পণ্য + ১,২০০ দৈনিক ইনপুট।
+            </p>
+          </div>
         </div>
 
         {/* Features */}

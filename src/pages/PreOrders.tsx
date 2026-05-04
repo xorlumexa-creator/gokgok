@@ -671,7 +671,7 @@ export default function PreOrders() {
               </div>
               <div className="flex items-center justify-between"><span className="text-muted-foreground">অবস্থা:</span><span className={`px-3 py-1 rounded-full text-sm font-medium ${getPreOrderStatusColor(viewingOrder.status)}`}>{getPreOrderStatusLabel(viewingOrder.status)}</span></div>
               <div className="border-t border-border pt-4">
-                <p className="font-medium mb-3">পণ্যসমূহ:</p>
+                <p className="font-medium mb-3">পণ্য ও সেবা:</p>
                 <div className="space-y-2">
                   {viewingOrder.items.map((item, index) => (
                     <div key={index} className="flex items-center justify-between p-3 bg-muted/30 rounded-lg">

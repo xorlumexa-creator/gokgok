@@ -96,7 +96,7 @@ ${shopPhone ? `📞 ${shopPhone}` : ''}
 ${invoiceData.customerName ? `👤 ${invoiceData.customerName}` : ''}
 📅 ${new Date(invoiceData.date).toLocaleDateString('bn-BD')}
 
-পণ্যসমূহ:
+পণ্য ও সেবা:
 ${itemsText}
 
 ${discountAmt > 0 ? `ছাড়: ৳${discountAmt}\n` : ''}মোট: ৳${total}
