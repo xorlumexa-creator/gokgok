@@ -341,7 +341,7 @@ export default function Products() {
             <Package className="w-6 h-6 text-primary" />
           </div>
           <div>
-            <h1 className="text-2xl font-bold text-foreground">পণ্যসমূহ</h1>
+            <h1 className="text-2xl font-bold text-foreground">পণ্য ও সেবা</h1>
             <p className="text-muted-foreground">{products.length}টি পণ্য</p>
           </div>
         </div>

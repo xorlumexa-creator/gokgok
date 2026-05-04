@@ -29,7 +29,7 @@ interface SidebarProps {
 const navItems = [
   { path: '/dashboard', icon: LayoutDashboard, label: 'ড্যাশবোর্ড' },
   { path: '/sell', icon: ShoppingCart, label: 'বিক্রি করুন' },
-  { path: '/products', icon: Package, label: 'পণ্যসমূহ' },
+  { path: '/products', icon: Package, label: 'পণ্য ও সেবা' },
   { path: '/credit-book', icon: BookOpen, label: 'বাকির খাতা' },
   { path: '/daily-sale', icon: TrendingUp, label: 'দৈনিক বিক্রি' },
   { path: '/selling-history', icon: History, label: 'বিক্রির ইতিহাস' },

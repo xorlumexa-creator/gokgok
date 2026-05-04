@@ -205,7 +205,7 @@ export default function SellingHistory() {
               </div>
               
               <div>
-                <p className="text-sm font-medium mb-2">পণ্যসমূহ:</p>
+                <p className="text-sm font-medium mb-2">পণ্য ও সেবা:</p>
                 <div className="space-y-1">
                   {viewingSale.productNames.map((name, index) => (
                     <div key={index} className="flex items-center gap-2 p-2 bg-muted/30 rounded-lg">

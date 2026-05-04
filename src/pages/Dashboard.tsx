@@ -19,7 +19,7 @@ export default function Dashboard() {
 
   const quickNavItems = [
     { path: '/sell', icon: ShoppingCart, label: 'বিক্রি করুন', primary: true },
-    { path: '/products', icon: Package, label: 'পণ্যসমূহ' },
+    { path: '/products', icon: Package, label: 'পণ্য ও সেবা' },
     { path: '/credit-book', icon: BookOpen, label: 'বাকির খাতা' },
     { path: '/personal-accounts', icon: User, label: 'ব্যক্তিগত হিসাব' },
     { path: '/daily-sale', icon: TrendingUp, label: 'দৈনিক বিক্রি' },
