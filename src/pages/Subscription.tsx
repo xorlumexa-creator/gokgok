@@ -7,6 +7,7 @@ import { toast } from '@/hooks/use-toast';
 import { countries, Country, getCountryByCode, defaultCountry } from '@/data/countries';
 import type { User } from '@supabase/supabase-js';
 import logoImg from '@/assets/logo.png';
+import { SubscriptionPaymentForm } from '@/components/SubscriptionPaymentForm';
 
 const MONTH_OPTIONS = [1, 2, 3, 4, 5, 6, 12];
 
@@ -314,30 +315,24 @@ export default function Subscription() {
           </ul>
         </div>
 
-        {/* Payment methods */}
-        <div className="card-elevated p-4 mb-6">
-          <p className="text-xs text-muted-foreground mb-2">পেমেন্ট মাধ্যম:</p>
-          <div className="flex gap-2">
-            {userCountry.code === 'BD' && (
-              <div className="flex items-center gap-2 px-3 py-2 bg-[#E2136E]/10 rounded-lg">
-                <Smartphone className="w-4 h-4 text-[#E2136E]" />
-                <span className="text-sm font-medium text-[#E2136E]">বিকাশ</span>
-              </div>
-            )}
-            <div className="flex items-center gap-2 px-3 py-2 bg-muted rounded-lg">
-              <CreditCard className="w-4 h-4 text-muted-foreground" />
-              <span className="text-sm text-muted-foreground">{userCountry.code === 'BD' ? 'শীঘ্রই আসছে' : 'কার্ড (শীঘ্রই)'}</span>
-            </div>
-          </div>
-        </div>
-
-        <Button onClick={handleStartPlan} disabled={loading} className="w-full btn-primary py-6 text-lg rounded-xl">
-          {loading && <Loader2 className="w-5 h-5 animate-spin mr-2" />}
-          {selectedPlan === 'trial' && !isExpired ? 'ফ্রি ট্রায়াল শুরু করুন' : 'সাবস্ক্রাইব করুন'}
-        </Button>
+        {/* Payment / Submit */}
+        {(selectedPlan === 'basic' || selectedPlan === 'standard' || selectedPlan === 'pro') && user ? (
+          <SubscriptionPaymentForm
+            userId={user.id}
+            userPhone={user.user_metadata?.phone || ''}
+            plan={selectedPlan}
+            amount={getPrice(selectedPlan)}
+            onDone={() => setTimeout(() => navigate('/dashboard'), 1500)}
+          />
+        ) : (
+          <Button onClick={handleStartPlan} disabled={loading} className="w-full btn-primary py-6 text-lg rounded-xl">
+            {loading && <Loader2 className="w-5 h-5 animate-spin mr-2" />}
+            ফ্রি ট্রায়াল শুরু করুন
+          </Button>
+        )}
 
         <p className="text-center text-xs text-muted-foreground mt-4">
-          {selectedPlan === 'trial' && !isExpired ? "কোন কার্ড লাগবে না • যেকোনো সময় বাতিল করুন" : "নিরাপদ পেমেন্ট • যেকোনো সময় বাতিল করুন"}
+          ম্যানুয়াল পেমেন্ট অনুমোদন • অনুমোদন আসা পর্যন্ত ১ দিন ফ্রি অ্যাক্সেস
         </p>
       </div>
     </div>

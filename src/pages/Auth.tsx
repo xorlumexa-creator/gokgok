@@ -1,32 +1,30 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Lock, Eye, EyeOff, Loader2, User, Phone, Mail, Store, ArrowLeft, AlertTriangle } from 'lucide-react';
+import { Lock, Eye, EyeOff, Loader2, User, Phone, Store, ArrowLeft } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from '@/hooks/use-toast';
 import { PhoneInput } from '@/components/auth/PhoneInput';
-import { countries, Country, defaultCountry } from '@/data/countries';
+import { Country, defaultCountry } from '@/data/countries';
+import { normalizePhone, phoneToEmail, isManagerPhone } from '@/lib/phone';
 import type { User as SupabaseUser } from '@supabase/supabase-js';
 import logoImg from '@/assets/logo.png';
 
-type Mode = 'login' | 'signup' | 'forgot';
+type Mode = 'login' | 'signup';
 
 export default function Auth() {
   const navigate = useNavigate();
   const [mode, setMode] = useState<Mode>('login');
 
-  // Shared
-  const [email, setEmail] = useState('');
+  const [phone, setPhone] = useState('');
+  const [country, setCountry] = useState<Country>(defaultCountry);
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
 
-  // Signup-only
   const [name, setName] = useState('');
   const [shopName, setShopName] = useState('');
-  const [phone, setPhone] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
-  const [selectedCountry, setSelectedCountry] = useState<Country>(defaultCountry);
 
   const [user, setUser] = useState<SupabaseUser | null>(null);
 
@@ -40,22 +38,36 @@ export default function Auth() {
 
   useEffect(() => {
     if (!user) return;
-    // Defer to allow profile trigger to populate
-    const t = window.setTimeout(() => navigate('/dashboard'), 50);
-    return () => window.clearTimeout(t);
+    (async () => {
+      // Wait briefly for trigger; check role
+      await new Promise(r => setTimeout(r, 200));
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('role, must_change_password')
+        .eq('user_id', user.id)
+        .maybeSingle();
+      if (profile?.must_change_password) { navigate('/change-password'); return; }
+      if (profile?.role === 'manager') { navigate('/manager'); return; }
+      navigate('/dashboard');
+    })();
   }, [user, navigate]);
 
-  const validEmail = (e: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e);
-
   const handleLogin = async () => {
-    const cleanEmail = email.trim().toLowerCase();
-    if (!validEmail(cleanEmail)) { toast({ title: 'সঠিক ইমেইল দিন', variant: 'destructive' }); return; }
-    if (password.length < 6) { toast({ title: 'পাসওয়ার্ড কমপক্ষে ৬ অক্ষরের হতে হবে', variant: 'destructive' }); return; }
+    const normalized = normalizePhone(phone, country.dialCode);
+    if (!normalized || normalized.length < 8) {
+      toast({ title: 'সঠিক ফোন নম্বর দিন', variant: 'destructive' }); return;
+    }
+    if (password.length < 6) {
+      toast({ title: 'পাসওয়ার্ড কমপক্ষে ৬ অক্ষরের হতে হবে', variant: 'destructive' }); return;
+    }
     setLoading(true);
     try {
-      const { error } = await supabase.auth.signInWithPassword({ email: cleanEmail, password });
+      const { error } = await supabase.auth.signInWithPassword({
+        email: phoneToEmail(normalized),
+        password,
+      });
       if (error) {
-        toast({ title: 'ইমেইল বা পাসওয়ার্ড ভুল', variant: 'destructive' });
+        toast({ title: 'ফোন বা পাসওয়ার্ড ভুল', variant: 'destructive' });
         return;
       }
       toast({ title: 'সফলভাবে লগইন হয়েছে ✓' });
@@ -65,67 +77,46 @@ export default function Auth() {
   };
 
   const handleSignup = async () => {
-    const cleanEmail = email.trim().toLowerCase();
+    const normalized = normalizePhone(phone, country.dialCode);
     if (!name.trim()) { toast({ title: 'আপনার নাম দিন', variant: 'destructive' }); return; }
     if (!shopName.trim()) { toast({ title: 'দোকানের নাম দিন', variant: 'destructive' }); return; }
-    if (!phone.trim() || phone.length < 8) { toast({ title: 'সঠিক ফোন নম্বর দিন', variant: 'destructive' }); return; }
-    if (!validEmail(cleanEmail)) { toast({ title: 'সঠিক ইমেইল দিন', variant: 'destructive' }); return; }
+    if (!normalized || normalized.length < 8) { toast({ title: 'সঠিক ফোন নম্বর দিন', variant: 'destructive' }); return; }
     if (password.length < 6) { toast({ title: 'পাসওয়ার্ড কমপক্ষে ৬ অক্ষরের হতে হবে', variant: 'destructive' }); return; }
     if (password !== confirmPassword) { toast({ title: 'পাসওয়ার্ড মিলছে না', variant: 'destructive' }); return; }
 
     setLoading(true);
     try {
-      const cleanPhone = phone.startsWith('0') ? phone.slice(1) : phone;
-      const fullPhone = `${selectedCountry.dialCode}${cleanPhone}`;
       const { data, error } = await supabase.auth.signUp({
-        email: cleanEmail,
+        email: phoneToEmail(normalized),
         password,
         options: {
           emailRedirectTo: `${window.location.origin}/`,
           data: {
             full_name: name.trim(),
             shop_name: shopName.trim(),
-            phone: fullPhone,
-            country: selectedCountry.code,
+            phone: normalized,
+            country: country.code,
           },
         },
       });
       if (error) {
-        if (error.message.toLowerCase().includes('already')) {
-          toast({ title: 'এই ইমেইল দিয়ে আগেই একাউন্ট আছে', variant: 'destructive' });
+        if (error.message.toLowerCase().includes('already') || error.message.toLowerCase().includes('registered')) {
+          toast({ title: 'এই ফোন নম্বরে আগেই একাউন্ট আছে', variant: 'destructive' });
         } else {
           toast({ title: error.message, variant: 'destructive' });
         }
         return;
       }
-      // With auto_confirm_email = true, session is returned immediately
-      if (data.session) {
-        toast({ title: 'একাউন্ট তৈরি হয়েছে ✓' });
+      if (!data.session) {
+        await supabase.auth.signInWithPassword({ email: phoneToEmail(normalized), password });
+      }
+      if (isManagerPhone(normalized)) {
+        toast({ title: 'ম্যানেজার একাউন্ট তৈরি হয়েছে ✓' });
       } else {
-        // Fallback: explicit sign-in
-        await supabase.auth.signInWithPassword({ email: cleanEmail, password });
         toast({ title: 'একাউন্ট তৈরি হয়েছে ✓' });
       }
     } catch (e: any) {
       toast({ title: e.message || 'একাউন্ট তৈরি করতে সমস্যা হয়েছে', variant: 'destructive' });
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleForgot = async () => {
-    const cleanEmail = email.trim().toLowerCase();
-    if (!validEmail(cleanEmail)) { toast({ title: 'সঠিক ইমেইল দিন', variant: 'destructive' }); return; }
-    setLoading(true);
-    try {
-      const { error } = await supabase.auth.resetPasswordForEmail(cleanEmail, {
-        redirectTo: `${window.location.origin}/reset-password`,
-      });
-      if (error) throw error;
-      toast({ title: 'রিসেট লিংক ইমেইলে পাঠানো হয়েছে ✓', description: 'ইনবক্স/স্প্যাম দেখুন।' });
-      setMode('login');
-    } catch (e: any) {
-      toast({ title: e.message || 'সমস্যা হয়েছে', variant: 'destructive' });
     } finally {
       setLoading(false);
     }
@@ -138,35 +129,6 @@ export default function Auth() {
       <p className="text-sm text-muted-foreground mt-1">আপনার দোকান, আপনার নিয়ন্ত্রণ</p>
     </div>
   );
-
-  // Forgot password screen
-  if (mode === 'forgot') {
-    return (
-      <div className="min-h-screen bg-gradient-to-b from-accent via-background to-background flex flex-col items-center justify-center p-6">
-        <div className="w-full max-w-md">
-          {Logo}
-          <div className="card-elevated p-6 animate-fade-in space-y-4">
-            <div className="text-center">
-              <Mail className="w-10 h-10 text-primary mx-auto mb-2" />
-              <h2 className="text-lg font-bold">পাসওয়ার্ড রিসেট</h2>
-              <p className="text-sm text-muted-foreground mt-1">আপনার ইমেইলে রিসেট লিংক পাঠানো হবে</p>
-            </div>
-            <div>
-              <label className="block text-sm font-medium mb-2"><Mail className="w-4 h-4 inline mr-1" />ইমেইল</label>
-              <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="your@email.com" className="input-field" autoFocus />
-            </div>
-            <Button onClick={handleForgot} disabled={loading} className="w-full py-5 rounded-xl">
-              {loading ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : null}
-              রিসেট লিংক পাঠান
-            </Button>
-            <Button variant="outline" onClick={() => setMode('login')} className="w-full py-4 rounded-xl">
-              <ArrowLeft className="w-4 h-4 mr-2" /> লগইনে ফিরে যান
-            </Button>
-          </div>
-        </div>
-      </div>
-    );
-  }
 
   const isLogin = mode === 'login';
 
@@ -192,22 +154,12 @@ export default function Auth() {
                   <label className="block text-sm font-medium mb-2"><Store className="w-4 h-4 inline mr-1" />দোকানের নাম</label>
                   <input type="text" value={shopName} onChange={e => setShopName(e.target.value)} placeholder="যেমন: করিম স্টোর" className="input-field" />
                 </div>
-                <div>
-                  <label className="block text-sm font-medium mb-2"><Phone className="w-4 h-4 inline mr-1" />মোবাইল নাম্বার</label>
-                  <PhoneInput value={phone} onChange={setPhone} selectedCountry={selectedCountry} onCountryChange={setSelectedCountry} placeholder="1XXXXXXXXX" />
-                </div>
               </>
             )}
 
             <div>
-              <label className="block text-sm font-medium mb-2"><Mail className="w-4 h-4 inline mr-1" />ইমেইল ঠিকানা</label>
-              <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="your@email.com" className="input-field" autoComplete="email" autoFocus={isLogin} />
-              {!isLogin && (
-                <div className="mt-2 flex items-start gap-2 bg-yellow-500/10 border border-yellow-500/20 rounded-xl p-3">
-                  <AlertTriangle className="w-4 h-4 text-yellow-700 dark:text-yellow-400 shrink-0 mt-0.5" />
-                  <p className="text-xs text-yellow-800 dark:text-yellow-300">এই ইমেইলে পাসওয়ার্ড রিসেট লিংক যাবে। সঠিক ইমেইল দিন।</p>
-                </div>
-              )}
+              <label className="block text-sm font-medium mb-2"><Phone className="w-4 h-4 inline mr-1" />মোবাইল নাম্বার</label>
+              <PhoneInput value={phone} onChange={setPhone} selectedCountry={country} onCountryChange={setCountry} placeholder="1XXXXXXXXX" autoFocus={isLogin} />
             </div>
 
             <div>
@@ -242,7 +194,7 @@ export default function Auth() {
             )}
 
             {isLogin && (
-              <button onClick={() => setMode('forgot')} className="text-sm text-primary hover:underline w-full text-right">
+              <button onClick={() => navigate('/forgot-password')} className="text-sm text-primary hover:underline w-full text-right">
                 পাসওয়ার্ড ভুলে গেছেন?
               </button>
             )}
@@ -262,7 +214,9 @@ export default function Auth() {
           </p>
         </div>
 
-        <p className="text-center text-xs text-muted-foreground mt-6">১৪ দিন ফ্রি ট্রায়াল সহ শুরু করুন</p>
+        <button onClick={() => navigate('/')} className="mt-6 text-xs text-muted-foreground flex items-center justify-center w-full gap-1 hover:text-foreground">
+          <ArrowLeft className="w-3 h-3" /> হোমে ফিরে যান
+        </button>
       </div>
     </div>
   );

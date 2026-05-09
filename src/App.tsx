@@ -9,12 +9,14 @@ import { MainLayout } from "@/components/layout/MainLayout";
 import { OfflineIndicator } from "@/components/OfflineIndicator";
 import { InstallPrompt } from "@/components/InstallPrompt";
 import { useAuth } from "@/hooks/useAuth";
+import { useProfile } from "@/hooks/useProfile";
 import { startAutoSync, stopAutoSync } from "@/lib/syncEngine";
 
-// Lazy load all pages
 const Index = lazy(() => import("./pages/Index"));
 const Landing = lazy(() => import("./pages/Landing"));
 const Auth = lazy(() => import("./pages/Auth"));
+const ForgotPassword = lazy(() => import("./pages/ForgotPassword"));
+const ChangePassword = lazy(() => import("./pages/ChangePassword"));
 const Subscription = lazy(() => import("./pages/Subscription"));
 const Dashboard = lazy(() => import("./pages/Dashboard"));
 const Sell = lazy(() => import("./pages/Sell"));
@@ -27,19 +29,20 @@ const Notifications = lazy(() => import("./pages/Notifications"));
 const SellingHistory = lazy(() => import("./pages/SellingHistory"));
 const DailySale = lazy(() => import("./pages/DailySale"));
 const Suppliers = lazy(() => import("./pages/Suppliers"));
-const ResetPassword = lazy(() => import("./pages/ResetPassword"));
 const Profile = lazy(() => import("./pages/Profile"));
 const Invoice = lazy(() => import("./pages/Invoice"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 
+const ManagerLayout = lazy(() => import("./pages/manager/ManagerLayout"));
+const ManagerDashboard = lazy(() => import("./pages/manager/ManagerDashboard"));
+const ManagerSubscriptions = lazy(() => import("./pages/manager/SubscriptionRequests"));
+const ManagerPasswords = lazy(() => import("./pages/manager/PasswordResetRequests"));
+const ManagerUsers = lazy(() => import("./pages/manager/UsersList"));
+const ManagerStats = lazy(() => import("./pages/manager/Statistics"));
+
 const queryClient = new QueryClient({
   defaultOptions: {
-    queries: {
-      staleTime: 1000 * 60 * 5, // 5 minutes
-      gcTime: 1000 * 60 * 30, // 30 minutes cache
-      retry: 1,
-      refetchOnWindowFocus: false,
-    },
+    queries: { staleTime: 1000 * 60 * 5, gcTime: 1000 * 60 * 30, retry: 1, refetchOnWindowFocus: false },
   },
 });
 
@@ -53,20 +56,24 @@ function PageLoader() {
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
+  const { profile, loading: profLoading } = useProfile();
   const { isOnboarded } = useStore();
-  
-  if (loading) {
-    return <PageLoader />;
-  }
-  
-  if (!user) {
-    return <Navigate to="/auth" replace />;
-  }
-  
-  if (!isOnboarded) {
-    return <Navigate to="/setup" replace />;
-  }
-  
+
+  if (loading || profLoading) return <PageLoader />;
+  if (!user) return <Navigate to="/auth" replace />;
+  if (profile?.must_change_password) return <Navigate to="/change-password" replace />;
+  if (profile?.role === 'manager') return <Navigate to="/manager" replace />;
+  if (!isOnboarded) return <Navigate to="/setup" replace />;
+  return <>{children}</>;
+}
+
+function ManagerRoute({ children }: { children: React.ReactNode }) {
+  const { user, loading } = useAuth();
+  const { profile, loading: profLoading } = useProfile();
+  if (loading || profLoading) return <PageLoader />;
+  if (!user) return <Navigate to="/auth" replace />;
+  if (profile?.must_change_password) return <Navigate to="/change-password" replace />;
+  if (profile?.role !== 'manager') return <Navigate to="/dashboard" replace />;
   return <>{children}</>;
 }
 
@@ -76,14 +83,20 @@ function AppRoutes() {
       <Routes>
         <Route path="/" element={<Landing />} />
         <Route path="/auth" element={<Auth />} />
-        <Route path="/reset-password" element={<ResetPassword />} />
+        <Route path="/forgot-password" element={<ForgotPassword />} />
+        <Route path="/change-password" element={<ChangePassword />} />
         <Route path="/subscription" element={<Subscription />} />
         <Route path="/setup" element={<Index />} />
-        <Route element={
-          <ProtectedRoute>
-            <MainLayout />
-          </ProtectedRoute>
-        }>
+
+        <Route element={<ManagerRoute><ManagerLayout /></ManagerRoute>}>
+          <Route path="/manager" element={<ManagerDashboard />} />
+          <Route path="/manager/subscriptions" element={<ManagerSubscriptions />} />
+          <Route path="/manager/passwords" element={<ManagerPasswords />} />
+          <Route path="/manager/users" element={<ManagerUsers />} />
+          <Route path="/manager/stats" element={<ManagerStats />} />
+        </Route>
+
+        <Route element={<ProtectedRoute><MainLayout /></ProtectedRoute>}>
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/sell" element={<Sell />} />
           <Route path="/products" element={<Products />} />
@@ -99,6 +112,8 @@ function AppRoutes() {
           <Route path="/invoice" element={<Invoice />} />
           <Route path="/accounts" element={<Navigate to="/shop-accounts" replace />} />
         </Route>
+
+        <Route path="/reset-password" element={<Navigate to="/forgot-password" replace />} />
         <Route path="*" element={<NotFound />} />
       </Routes>
     </Suspense>
@@ -106,11 +121,7 @@ function AppRoutes() {
 }
 
 const App = () => {
-  useEffect(() => {
-    startAutoSync();
-    return () => stopAutoSync();
-  }, []);
-
+  useEffect(() => { startAutoSync(); return () => stopAutoSync(); }, []);
   return (
     <QueryClientProvider client={queryClient}>
       <StoreProvider>
