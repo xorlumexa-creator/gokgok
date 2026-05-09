@@ -30,37 +30,16 @@ export default function ForgotPassword() {
     }
     setLoading(true);
     try {
-      // Look up profile by phone
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('user_id, shop_name')
-        .eq('phone', normalized)
-        .maybeSingle();
-
-      if (!profile) {
-        toast({ title: 'এই ফোন নম্বরে কোনো একাউন্ট পাওয়া যায়নি।', variant: 'destructive' });
-        setLoading(false);
-        return;
-      }
-
-      const tempPassword = genTempPassword();
-
-      // Insert request (managers will see it in panel)
-      const { error: insErr } = await supabase
-        .from('password_reset_requests')
-        .insert({
-          user_id: profile.user_id,
-          user_phone: normalized,
-          temp_password: tempPassword,
-          status: 'pending',
-        });
-      if (insErr) throw insErr;
-
-      // Ask edge function to actually update the auth password (service role)
-      await supabase.functions.invoke('reset-password-temp', {
-        body: { user_id: profile.user_id, temp_password: tempPassword },
+      const { data, error } = await supabase.functions.invoke('reset-password-temp', {
+        body: { phone: normalized },
       });
-
+      if (error || (data as any)?.error === 'not_found') {
+        if ((data as any)?.error === 'not_found' || error?.message?.includes('404')) {
+          toast({ title: 'এই ফোন নম্বরে কোনো একাউন্ট পাওয়া যায়নি।', variant: 'destructive' });
+          return;
+        }
+        throw error || new Error('Failed');
+      }
       setSubmitted(true);
     } catch (e: any) {
       toast({ title: e.message || 'সমস্যা হয়েছে', variant: 'destructive' });
