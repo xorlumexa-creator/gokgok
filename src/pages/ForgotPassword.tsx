@@ -9,12 +9,7 @@ import { Country, defaultCountry } from '@/data/countries';
 import { normalizePhone } from '@/lib/phone';
 import logoImg from '@/assets/logo.png';
 
-function genTempPassword(): string {
-  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-  let s = 'DK';
-  for (let i = 0; i < 6; i++) s += chars[Math.floor(Math.random() * chars.length)];
-  return s;
-}
+
 
 export default function ForgotPassword() {
   const navigate = useNavigate();
