@@ -7,6 +7,7 @@ import { toast } from '@/hooks/use-toast';
 import { countries, Country, getCountryByCode, defaultCountry } from '@/data/countries';
 import type { User } from '@supabase/supabase-js';
 import logoImg from '@/assets/logo.png';
+import { SubscriptionPaymentForm } from '@/components/SubscriptionPaymentForm';
 
 const MONTH_OPTIONS = [1, 2, 3, 4, 5, 6, 12];
 
