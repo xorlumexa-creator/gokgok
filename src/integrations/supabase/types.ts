@@ -14,6 +14,57 @@ export type Database = {
   }
   public: {
     Tables: {
+      daily_usage: {
+        Row: {
+          count: number
+          id: string
+          usage_date: string
+          user_id: string
+        }
+        Insert: {
+          count?: number
+          id?: string
+          usage_date?: string
+          user_id: string
+        }
+        Update: {
+          count?: number
+          id?: string
+          usage_date?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      password_reset_requests: {
+        Row: {
+          created_at: string
+          id: string
+          resolved_at: string | null
+          status: string
+          temp_password: string | null
+          user_id: string | null
+          user_phone: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          resolved_at?: string | null
+          status?: string
+          temp_password?: string | null
+          user_id?: string | null
+          user_phone: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          resolved_at?: string | null
+          status?: string
+          temp_password?: string | null
+          user_id?: string | null
+          user_phone?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           address: string | null
@@ -21,10 +72,16 @@ export type Database = {
           email: string | null
           full_name: string | null
           id: string
+          must_change_password: boolean
           phone: string | null
+          plan: string | null
+          plan_expiry: string | null
+          role: string
           shop_name: string | null
           subscription_start_date: string | null
           subscription_status: string
+          temporary_access: boolean
+          temporary_expiry: string | null
           trial_start_date: string
           updated_at: string
           user_id: string
@@ -36,10 +93,16 @@ export type Database = {
           email?: string | null
           full_name?: string | null
           id?: string
+          must_change_password?: boolean
           phone?: string | null
+          plan?: string | null
+          plan_expiry?: string | null
+          role?: string
           shop_name?: string | null
           subscription_start_date?: string | null
           subscription_status?: string
+          temporary_access?: boolean
+          temporary_expiry?: string | null
           trial_start_date?: string
           updated_at?: string
           user_id: string
@@ -51,14 +114,59 @@ export type Database = {
           email?: string | null
           full_name?: string | null
           id?: string
+          must_change_password?: boolean
           phone?: string | null
+          plan?: string | null
+          plan_expiry?: string | null
+          role?: string
           shop_name?: string | null
           subscription_start_date?: string | null
           subscription_status?: string
+          temporary_access?: boolean
+          temporary_expiry?: string | null
           trial_start_date?: string
           updated_at?: string
           user_id?: string
           whatsapp_number?: string | null
+        }
+        Relationships: []
+      }
+      subscription_requests: {
+        Row: {
+          created_at: string
+          id: string
+          payment_method: string
+          plan_type: string
+          resolved_at: string | null
+          screenshot_url: string | null
+          status: string
+          transaction_id: string | null
+          user_id: string
+          user_phone: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          payment_method?: string
+          plan_type: string
+          resolved_at?: string | null
+          screenshot_url?: string | null
+          status?: string
+          transaction_id?: string | null
+          user_id: string
+          user_phone: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          payment_method?: string
+          plan_type?: string
+          resolved_at?: string | null
+          screenshot_url?: string | null
+          status?: string
+          transaction_id?: string | null
+          user_id?: string
+          user_phone?: string
         }
         Relationships: []
       }
@@ -67,7 +175,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      has_role: { Args: { _role: string; _user_id: string }; Returns: boolean }
     }
     Enums: {
       [_ in never]: never
