@@ -165,7 +165,7 @@ function scheduleSyncCycle() {
     await performSync();
     // Always schedule next cycle
     scheduleSyncCycle();
-  }, 5 * 60 * 1000); // 5 minutes
+  }, 25 * 60 * 1000); // 25 minutes
 }
 
 export function startAutoSync(): void {
