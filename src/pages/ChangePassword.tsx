@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Lock, Eye, EyeOff, Loader2, CheckCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -18,13 +18,12 @@ export default function ChangePassword() {
 
   // Block managers from changing their password through the app.
   // Manager password is fixed and may only be changed via the Lovable editor.
-  // eslint-disable-next-line react-hooks/rules-of-hooks
-  useState(() => {
+  useEffect(() => {
     if (!user) return;
     supabase.from('profiles').select('role').eq('user_id', user.id).maybeSingle().then(({ data }) => {
       if (data?.role === 'manager') setIsManager(true);
     });
-  });
+  }, [user?.id]);
 
   const submit = async () => {
     if (isManager) {
