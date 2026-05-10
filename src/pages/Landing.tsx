@@ -93,19 +93,21 @@ export default function Landing() {
       {/* Pricing */}
       <section className="px-4 py-12 max-w-5xl mx-auto">
         <h2 className="text-2xl sm:text-3xl font-bold text-center mb-2">সাশ্রয়ী প্ল্যান</h2>
-        <p className="text-center text-muted-foreground mb-3">প্রতিটি প্ল্যানে: ১,০০০ বাকি গ্রাহক + ১,০০০ পণ্য তালিকা + দৈনিক ৬০০ ডাটা ইনপুট (বিক্রি, বাকির খাতা, পণ্য, হিসাব খাতা)</p>
-        <p className="text-center text-xs text-primary font-medium mb-8">🚀 মূল্য দ্বিগুণ = সব সীমা দ্বিগুণ</p>
+        <p className="text-center text-muted-foreground mb-2">৩টি প্ল্যানেই একই ক্যাপাসিটি — পার্থক্য শুধু ফিচারে</p>
+        <div className="text-center text-xs text-muted-foreground mb-8 max-w-2xl mx-auto leading-relaxed">
+          প্রতিটি প্ল্যানে: <b className="text-foreground">১,০০০ পণ্য তালিকা</b> + <b className="text-foreground">১,০০০ বাকি গ্রাহক</b> + <b className="text-foreground">মাসিক ১৮,০০০ ডাটা ইনপুট</b><br/>
+          <span className="text-rose-600">⚠️ ১৮,০০০ ক্রেডিট মাসের মাঝে শেষ হলে আবার সাবস্ক্রাইব করতে হবে। মাস শেষেও আবার সাবস্ক্রিপশন প্রয়োজন।</span>
+        </div>
         <div className="grid sm:grid-cols-3 gap-4">
           {[
-            { name: 'Basic', price: 80, mult: 1, features: ['১,০০০ বাকি + ১,০০০ পণ্য', 'দৈনিক ৬০০ ডাটা ইনপুট', 'মূল ফিচার সব'], highlight: false },
-            { name: 'Standard', price: 160, mult: 2, features: ['২,০০০ বাকি + ২,০০০ পণ্য', 'দৈনিক ১,২০০ ডাটা ইনপুট', 'WhatsApp + কল'], highlight: true },
-            { name: 'Pro', price: 320, mult: 4, features: ['৪,০০০ বাকি + ৪,০০০ পণ্য', 'দৈনিক ২,৪০০ ডাটা ইনপুট', 'Thermal/A4 ইনভয়েস + সব'], highlight: false },
+            { name: 'Basic', price: 80, features: ['মূল ফিচার সব', 'বাকির খাতা + পণ্য + হিসাব', 'রিপোর্ট ও বিশ্লেষণ'], highlight: false },
+            { name: 'Standard', price: 140, features: ['Basic-এর সব', 'WhatsApp রিমাইন্ডার', 'সরাসরি কল বাটন'], highlight: true },
+            { name: 'Pro', price: 200, features: ['Standard-এর সব', 'Thermal/A4 ইনভয়েস', 'PDF এক্সপোর্ট + WhatsApp শেয়ার'], highlight: false },
           ].map((p, i) => (
             <div key={i} className={`rounded-2xl p-6 border-2 transition-all ${p.highlight ? 'border-primary bg-primary/5 shadow-elegant scale-[1.02]' : 'border-border bg-card'}`}>
               {p.highlight && <span className="inline-block bg-primary text-primary-foreground text-xs font-bold px-3 py-1 rounded-full mb-2">জনপ্রিয়</span>}
               <h3 className="text-xl font-bold">{p.name}</h3>
               <p className="mt-2"><span className="text-4xl font-extrabold">৳{p.price}</span><span className="text-muted-foreground">/মাস</span></p>
-              <p className="text-xs text-muted-foreground mt-1">সীমা ×{p.mult}</p>
               <ul className="mt-4 space-y-2">
                 {p.features.map((f, j) => (
                   <li key={j} className="flex items-center gap-2 text-sm"><Check className="w-4 h-4 text-primary shrink-0" />{f}</li>
