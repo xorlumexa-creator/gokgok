@@ -14,8 +14,23 @@ export default function ChangePassword() {
   const [confirm, setConfirm] = useState('');
   const [show, setShow] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [isManager, setIsManager] = useState(false);
+
+  // Block managers from changing their password through the app.
+  // Manager password is fixed and may only be changed via the Lovable editor.
+  // eslint-disable-next-line react-hooks/rules-of-hooks
+  useState(() => {
+    if (!user) return;
+    supabase.from('profiles').select('role').eq('user_id', user.id).maybeSingle().then(({ data }) => {
+      if (data?.role === 'manager') setIsManager(true);
+    });
+  });
 
   const submit = async () => {
+    if (isManager) {
+      toast({ title: 'ম্যানেজার পাসওয়ার্ড অ্যাপ থেকে পরিবর্তন করা যাবে না', description: 'শুধু Lovable Editor থেকে পরিবর্তন সম্ভব', variant: 'destructive' });
+      return;
+    }
     if (pw.length < 6) { toast({ title: 'কমপক্ষে ৬ অক্ষরের পাসওয়ার্ড দিন', variant: 'destructive' }); return; }
     if (pw !== confirm) { toast({ title: 'পাসওয়ার্ড মিলছে না', variant: 'destructive' }); return; }
     if (!user) { navigate('/auth'); return; }
