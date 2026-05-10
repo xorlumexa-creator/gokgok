@@ -38,6 +38,11 @@ Deno.serve(async (req) => {
     return j({ ok: true, results });
   }
 
+  // 2) purge_expired_trials_cron — public, idempotent purge (safe: only deletes already-expired free trials)
+  if (action === 'purge_expired_trials_cron') {
+    return await runPurge(admin);
+  }
+
   // The remaining actions require an authenticated manager.
   const authHeader = req.headers.get('Authorization') ?? '';
   const token = authHeader.replace('Bearer ', '');
@@ -63,30 +68,33 @@ Deno.serve(async (req) => {
   }
 
   if (action === 'purge_expired_trials') {
-    // Delete users who: not active, no plan, no temporary_access, created >35 days ago, role != manager
-    const cutoff = new Date(Date.now() - 35 * 24 * 60 * 60 * 1000).toISOString();
-    const { data: stale } = await admin
-      .from('profiles')
-      .select('user_id, role, subscription_status, plan, temporary_access, created_at')
-      .neq('role', 'manager')
-      .neq('subscription_status', 'active')
-      .lt('created_at', cutoff);
-    const toDelete = (stale || []).filter((p: any) => !p.temporary_access && !p.plan);
-    let deleted = 0;
-    for (const p of toDelete) {
-      await admin.from('subscription_requests').delete().eq('user_id', p.user_id);
-      await admin.from('password_reset_requests').delete().eq('user_id', p.user_id);
-      await admin.from('daily_usage').delete().eq('user_id', p.user_id);
-      await admin.from('monthly_usage').delete().eq('user_id', p.user_id);
-      await admin.from('profiles').delete().eq('user_id', p.user_id);
-      const { error } = await admin.auth.admin.deleteUser(p.user_id);
-      if (!error) deleted++;
-    }
-    return j({ ok: true, deleted, scanned: toDelete.length });
+    return await runPurge(admin);
   }
 
   return j({ ok: false, error: 'unknown action' }, 400);
 });
+
+async function runPurge(admin: any) {
+  const cutoff = new Date(Date.now() - 35 * 24 * 60 * 60 * 1000).toISOString();
+  const { data: stale } = await admin
+    .from('profiles')
+    .select('user_id, role, subscription_status, plan, temporary_access, created_at')
+    .neq('role', 'manager')
+    .neq('subscription_status', 'active')
+    .lt('created_at', cutoff);
+  const toDelete = (stale || []).filter((p: any) => !p.temporary_access && !p.plan);
+  let deleted = 0;
+  for (const p of toDelete) {
+    await admin.from('subscription_requests').delete().eq('user_id', p.user_id);
+    await admin.from('password_reset_requests').delete().eq('user_id', p.user_id);
+    await admin.from('daily_usage').delete().eq('user_id', p.user_id);
+    await admin.from('monthly_usage').delete().eq('user_id', p.user_id);
+    await admin.from('profiles').delete().eq('user_id', p.user_id);
+    const { error } = await admin.auth.admin.deleteUser(p.user_id);
+    if (!error) deleted++;
+  }
+  return j({ ok: true, deleted, scanned: toDelete.length });
+}
 
 function j(payload: any, status = 200) {
   return new Response(JSON.stringify(payload), {
