@@ -3,6 +3,7 @@ import { Outlet } from 'react-router-dom';
 import { Sidebar } from './Sidebar';
 import { Header } from './Header';
 import { SubscriptionLock } from './SubscriptionLock';
+import TrialWarningBanner from '@/components/TrialWarningBanner';
 
 interface MainLayoutProps {
   title?: string;
@@ -20,6 +21,7 @@ export function MainLayout({ title }: MainLayoutProps) {
         
         <main className="flex-1 p-4 md:p-6 overflow-auto">
           <SubscriptionLock>
+            <TrialWarningBanner />
             <Outlet />
           </SubscriptionLock>
         </main>
