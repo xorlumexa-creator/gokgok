@@ -14,6 +14,27 @@ export type Database = {
   }
   public: {
     Tables: {
+      app_settings: {
+        Row: {
+          cloud_cost_monthly: number
+          currency: string
+          id: number
+          updated_at: string
+        }
+        Insert: {
+          cloud_cost_monthly?: number
+          currency?: string
+          id?: number
+          updated_at?: string
+        }
+        Update: {
+          cloud_cost_monthly?: number
+          currency?: string
+          id?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
       daily_usage: {
         Row: {
           count: number
@@ -32,6 +53,27 @@ export type Database = {
           id?: string
           usage_date?: string
           user_id?: string
+        }
+        Relationships: []
+      }
+      monthly_usage: {
+        Row: {
+          count: number
+          id: string
+          user_id: string
+          year_month: string
+        }
+        Insert: {
+          count?: number
+          id?: string
+          user_id: string
+          year_month: string
+        }
+        Update: {
+          count?: number
+          id?: string
+          user_id?: string
+          year_month?: string
         }
         Relationships: []
       }
