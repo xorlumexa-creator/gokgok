@@ -38,11 +38,13 @@ async function loadProfile(userId: string, force = false): Promise<AppProfile | 
   cachedLoading = true;
   notifyProfileListeners();
 
-  inFlight = supabase
-    .from('profiles')
-    .select('id,user_id,full_name,shop_name,phone,role,plan,plan_expiry,subscription_status,trial_start_date,temporary_access,temporary_expiry,must_change_password')
-    .eq('user_id', userId)
-    .maybeSingle()
+  inFlight = Promise.resolve(
+    supabase
+      .from('profiles')
+      .select('id,user_id,full_name,shop_name,phone,role,plan,plan_expiry,subscription_status,trial_start_date,temporary_access,temporary_expiry,must_change_password')
+      .eq('user_id', userId)
+      .maybeSingle()
+  )
     .then(({ data }) => {
       cachedProfile = (data as AppProfile | null) ?? null;
       return cachedProfile;
