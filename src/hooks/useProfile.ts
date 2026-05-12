@@ -18,21 +18,84 @@ export interface AppProfile {
   must_change_password: boolean;
 }
 
+type ProfileListener = (profile: AppProfile | null, loading: boolean) => void;
+
+let cachedUserId: string | null = null;
+let cachedProfile: AppProfile | null = null;
+let cachedLoading = false;
+let inFlight: Promise<AppProfile | null> | null = null;
+let listeners: ProfileListener[] = [];
+
+function notifyProfileListeners() {
+  listeners.forEach(listener => listener(cachedProfile, cachedLoading));
+}
+
+async function loadProfile(userId: string, force = false): Promise<AppProfile | null> {
+  if (!force && cachedUserId === userId && cachedProfile) return cachedProfile;
+  if (!force && cachedUserId === userId && inFlight) return inFlight;
+
+  cachedUserId = userId;
+  cachedLoading = true;
+  notifyProfileListeners();
+
+  inFlight = supabase
+    .from('profiles')
+    .select('id,user_id,full_name,shop_name,phone,role,plan,plan_expiry,subscription_status,trial_start_date,temporary_access,temporary_expiry,must_change_password')
+    .eq('user_id', userId)
+    .maybeSingle()
+    .then(({ data }) => {
+      cachedProfile = (data as AppProfile | null) ?? null;
+      return cachedProfile;
+    })
+    .finally(() => {
+      cachedLoading = false;
+      inFlight = null;
+      notifyProfileListeners();
+    });
+
+  return inFlight;
+}
+
 export function useProfile() {
   const { user, loading: authLoading } = useAuth();
-  const [profile, setProfile] = useState<AppProfile | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [profile, setProfile] = useState<AppProfile | null>(cachedProfile);
+  const [loading, setLoading] = useState(cachedLoading || authLoading);
 
-  const refresh = async () => {
-    if (!user) { setProfile(null); setLoading(false); return; }
-    const { data } = await supabase.from('profiles').select('*').eq('user_id', user.id).maybeSingle();
-    setProfile((data as any) ?? null);
+  const refresh = async (force = true) => {
+    if (!user) {
+      cachedUserId = null;
+      cachedProfile = null;
+      cachedLoading = false;
+      setProfile(null);
+      setLoading(false);
+      return null;
+    }
+    const data = await loadProfile(user.id, force);
+    setProfile(data);
     setLoading(false);
+    return data;
   };
 
   useEffect(() => {
-    if (authLoading) return;
-    refresh();
+    const listener: ProfileListener = (nextProfile, nextLoading) => {
+      setProfile(nextProfile);
+      setLoading(nextLoading || authLoading);
+    };
+    listeners.push(listener);
+
+    if (authLoading) {
+      setLoading(true);
+    } else if (!user) {
+      cachedUserId = null;
+      cachedProfile = null;
+      cachedLoading = false;
+      setProfile(null);
+      setLoading(false);
+    } else {
+      loadProfile(user.id).then(setProfile).finally(() => setLoading(false));
+    }
+
+    return () => { listeners = listeners.filter(item => item !== listener); };
   }, [user?.id, authLoading]);
 
   return { profile, loading: loading || authLoading, refresh };
