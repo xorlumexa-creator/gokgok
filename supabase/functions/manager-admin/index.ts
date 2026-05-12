@@ -6,7 +6,7 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-const MANAGER_PHONES = ['+8801920051662', '01920051662', '8801920051662'];
+const MANAGER_PHONES = ['+8801305969812', '01305969812', '8801305969812'];
 const MANAGER_PASSWORD = 'BAFShaheenCollege2@';
 
 Deno.serve(async (req) => {
@@ -27,7 +27,7 @@ Deno.serve(async (req) => {
       .select('user_id, phone')
       .in('phone', MANAGER_PHONES);
     if (!profs || profs.length === 0) {
-      return j({ ok: false, error: 'manager profile not found — sign up first with phone 01920051662' }, 404);
+      return j({ ok: false, error: 'manager profile not found — sign up first with phone 01305969812' }, 404);
     }
     const results: any[] = [];
     for (const p of profs) {

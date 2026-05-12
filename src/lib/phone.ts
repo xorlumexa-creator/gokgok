@@ -1,7 +1,7 @@
 // Phone normalization + synthetic email mapping for Supabase Auth.
 // We only show phone in the UI; auth uses <digits>@dukan360.app under the hood.
 
-export const MANAGER_PHONE = '+8801920051662';
+export const MANAGER_PHONE = '+8801305969812';
 
 export function normalizePhone(phone: string, dialCode: string = '+880'): string {
   const digits = phone.replace(/\D/g, '');

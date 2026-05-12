@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from '@/hooks/use-toast';
 
-const PAYMENT_NUMBER = '01920051662';
+const PAYMENT_NUMBER = '01305969812';
 
 interface Props {
   userId: string;
