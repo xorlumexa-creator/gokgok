@@ -59,6 +59,27 @@ export async function getPendingRecords(): Promise<SyncRecord[]> {
   });
 }
 
+async function getPendingRecordsLimited(limit: number): Promise<SyncRecord[]> {
+  const database = await openDB();
+  return new Promise((resolve, reject) => {
+    const tx = database.transaction('sync_queue', 'readonly');
+    const store = tx.objectStore('sync_queue');
+    const index = store.index('sync_status');
+    const records: SyncRecord[] = [];
+    const request = index.openCursor(IDBKeyRange.only('pending'));
+    request.onsuccess = () => {
+      const cursor = request.result;
+      if (cursor && records.length < limit) {
+        records.push(cursor.value);
+        cursor.continue();
+        return;
+      }
+      resolve(records);
+    };
+    request.onerror = () => reject(request.error);
+  });
+}
+
 export async function markSynced(ids: string[]): Promise<void> {
   const database = await openDB();
   return new Promise((resolve, reject) => {
@@ -126,7 +147,7 @@ async function performSync(): Promise<void> {
     return;
   }
 
-  const pending = await getPendingRecords();
+  const pending = await getPendingRecordsLimited(30);
   if (pending.length === 0) {
     syncStatus = 'safe';
     lastSyncTime = new Date();
@@ -139,7 +160,7 @@ async function performSync(): Promise<void> {
   syncStatus = 'syncing';
   notifyListeners();
 
-  const BATCH_SIZE = 30;
+  const BATCH_SIZE = 15;
   for (let i = 0; i < pending.length; i += BATCH_SIZE) {
     const batch = pending.slice(i, i + BATCH_SIZE);
     try {
