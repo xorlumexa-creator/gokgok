@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { User, Store, Phone, Mail, MapPin, Lock, Eye, EyeOff, Loader2, ArrowLeft, Save } from 'lucide-react';
+import { User, Store, Lock, Eye, EyeOff, Loader2, ArrowLeft, Save } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
@@ -18,7 +18,6 @@ export default function Profile() {
   const [shopName, setShopName] = useState('');
   const [whatsappNumber, setWhatsappNumber] = useState('');
   const [whatsappCountryCode, setWhatsappCountryCode] = useState('+880');
-  const [email, setEmail] = useState('');
   const [address, setAddress] = useState('');
   const [loading, setLoading] = useState(false);
   const [loadingProfile, setLoadingProfile] = useState(true);
@@ -46,7 +45,6 @@ export default function Profile() {
         setFullName(profile.full_name || user.user_metadata?.full_name || '');
         setShopName(profile.shop_name || '');
         setWhatsappNumber(profile.phone || '');
-        setEmail(profile.email || '');
         setAddress(profile.address || '');
       }
     } catch (error) {
@@ -66,7 +64,6 @@ export default function Profile() {
           full_name: fullName.trim(),
           shop_name: shopName.trim(),
           phone: whatsappNumber.trim(),
-          email: email.trim().toLowerCase(),
           address: address.trim(),
         })
         .eq('user_id', user.id);
@@ -154,10 +151,6 @@ export default function Profile() {
             onChange={(phone, countryCode) => { setWhatsappNumber(phone); setWhatsappCountryCode(countryCode); }}
             label="WhatsApp নম্বর"
           />
-          <div>
-            <label className="block text-sm font-medium mb-1.5"><Mail className="w-4 h-4 inline mr-1" />ইমেইল</label>
-            <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="your@email.com" className="input-field" />
-          </div>
           <LocationPicker address={address} onAddressChange={setAddress} />
           <Button onClick={handleSaveProfile} disabled={loading} className="w-full py-5 rounded-xl">
             {loading ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : <Save className="w-5 h-5 mr-2" />}
