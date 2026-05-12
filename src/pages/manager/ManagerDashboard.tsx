@@ -63,7 +63,7 @@ export default function ManagerDashboard() {
       const { data, error } = await supabase.functions.invoke('manager-admin', { body: { action: 'bootstrap_manager_password' } });
       if (error) throw error;
       if (!data?.ok) throw new Error(data?.error || 'failed');
-      toast({ title: 'ম্যানেজার পাসওয়ার্ড সেট হয়েছে ✓', description: 'ফোন: 01920051662' });
+      toast({ title: 'ম্যানেজার পাসওয়ার্ড সেট হয়েছে ✓', description: 'ফোন: 01305969812' });
     } catch (e: any) {
       toast({ title: e.message, variant: 'destructive' });
     } finally { setBootBusy(false); }
