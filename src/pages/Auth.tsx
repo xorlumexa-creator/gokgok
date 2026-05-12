@@ -40,7 +40,7 @@ export default function Auth() {
     if (!user) return;
     (async () => {
       // Wait briefly for trigger; check role
-      await new Promise(r => setTimeout(r, 200));
+      if (isManagerPhone(user.user_metadata?.phone || '')) { navigate('/manager'); return; }
       const { data: profile } = await supabase
         .from('profiles')
         .select('role, must_change_password')
@@ -90,7 +90,6 @@ export default function Auth() {
         email: phoneToEmail(normalized),
         password,
         options: {
-          emailRedirectTo: `${window.location.origin}/`,
           data: {
             full_name: name.trim(),
             shop_name: shopName.trim(),
