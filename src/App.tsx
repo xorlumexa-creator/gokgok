@@ -121,7 +121,11 @@ function AppRoutes() {
 }
 
 const App = () => {
-  useEffect(() => { startAutoSync(); return () => stopAutoSync(); }, []);
+  useEffect(() => {
+    const start = () => startAutoSync();
+    const timer = window.setTimeout(start, 2000);
+    return () => { window.clearTimeout(timer); stopAutoSync(); };
+  }, []);
   return (
     <QueryClientProvider client={queryClient}>
       <StoreProvider>
