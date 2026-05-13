@@ -10,7 +10,6 @@ import { OfflineIndicator } from "@/components/OfflineIndicator";
 import { InstallPrompt } from "@/components/InstallPrompt";
 import { useAuth } from "@/hooks/useAuth";
 import { useProfile } from "@/hooks/useProfile";
-import { startAutoSync, stopAutoSync } from "@/lib/syncEngine";
 
 const Index = lazy(() => import("./pages/Index"));
 const Landing = lazy(() => import("./pages/Landing"));
@@ -130,9 +129,14 @@ function AppRoutes() {
 
 const App = () => {
   useEffect(() => {
-    const start = () => startAutoSync();
-    const timer = window.setTimeout(start, 2000);
-    return () => { window.clearTimeout(timer); stopAutoSync(); };
+    let stop: (() => void) | undefined;
+    const timer = window.setTimeout(() => {
+      import("@/lib/syncEngine").then(({ startAutoSync, stopAutoSync }) => {
+        startAutoSync();
+        stop = stopAutoSync;
+      });
+    }, 4000);
+    return () => { window.clearTimeout(timer); stop?.(); };
   }, []);
   return (
     <QueryClientProvider client={queryClient}>
