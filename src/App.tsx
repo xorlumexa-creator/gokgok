@@ -77,6 +77,14 @@ function ManagerRoute({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
+function StoreProtectedRoute({ children }: { children: React.ReactNode }) {
+  return (
+    <StoreProvider>
+      <ProtectedRoute>{children}</ProtectedRoute>
+    </StoreProvider>
+  );
+}
+
 function AppRoutes() {
   return (
     <Suspense fallback={<PageLoader />}>
@@ -86,7 +94,7 @@ function AppRoutes() {
         <Route path="/forgot-password" element={<ForgotPassword />} />
         <Route path="/change-password" element={<ChangePassword />} />
         <Route path="/subscription" element={<Subscription />} />
-        <Route path="/setup" element={<Index />} />
+        <Route path="/setup" element={<StoreProvider><Index /></StoreProvider>} />
 
         <Route element={<ManagerRoute><ManagerLayout /></ManagerRoute>}>
           <Route path="/manager" element={<ManagerDashboard />} />
@@ -96,7 +104,7 @@ function AppRoutes() {
           <Route path="/manager/stats" element={<ManagerStats />} />
         </Route>
 
-        <Route element={<ProtectedRoute><MainLayout /></ProtectedRoute>}>
+        <Route element={<StoreProtectedRoute><MainLayout /></StoreProtectedRoute>}>
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/sell" element={<Sell />} />
           <Route path="/products" element={<Products />} />
@@ -128,17 +136,15 @@ const App = () => {
   }, []);
   return (
     <QueryClientProvider client={queryClient}>
-      <StoreProvider>
-        <TooltipProvider>
-          <OfflineIndicator />
-          <InstallPrompt />
-          <Toaster />
-          <Sonner />
-          <BrowserRouter>
-            <AppRoutes />
-          </BrowserRouter>
-        </TooltipProvider>
-      </StoreProvider>
+      <TooltipProvider>
+        <OfflineIndicator />
+        <InstallPrompt />
+        <Toaster />
+        <Sonner />
+        <BrowserRouter>
+          <AppRoutes />
+        </BrowserRouter>
+      </TooltipProvider>
     </QueryClientProvider>
   );
 };
