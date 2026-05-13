@@ -10,7 +10,6 @@ import { OfflineIndicator } from "@/components/OfflineIndicator";
 import { InstallPrompt } from "@/components/InstallPrompt";
 import { useAuth } from "@/hooks/useAuth";
 import { useProfile } from "@/hooks/useProfile";
-import { startAutoSync, stopAutoSync } from "@/lib/syncEngine";
 
 const Index = lazy(() => import("./pages/Index"));
 const Landing = lazy(() => import("./pages/Landing"));
@@ -77,6 +76,14 @@ function ManagerRoute({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
+function StoreProtectedRoute({ children }: { children: React.ReactNode }) {
+  return (
+    <StoreProvider>
+      <ProtectedRoute>{children}</ProtectedRoute>
+    </StoreProvider>
+  );
+}
+
 function AppRoutes() {
   return (
     <Suspense fallback={<PageLoader />}>
@@ -86,7 +93,7 @@ function AppRoutes() {
         <Route path="/forgot-password" element={<ForgotPassword />} />
         <Route path="/change-password" element={<ChangePassword />} />
         <Route path="/subscription" element={<Subscription />} />
-        <Route path="/setup" element={<Index />} />
+        <Route path="/setup" element={<StoreProvider><Index /></StoreProvider>} />
 
         <Route element={<ManagerRoute><ManagerLayout /></ManagerRoute>}>
           <Route path="/manager" element={<ManagerDashboard />} />
@@ -96,7 +103,7 @@ function AppRoutes() {
           <Route path="/manager/stats" element={<ManagerStats />} />
         </Route>
 
-        <Route element={<ProtectedRoute><MainLayout /></ProtectedRoute>}>
+        <Route element={<StoreProtectedRoute><MainLayout /></StoreProtectedRoute>}>
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/sell" element={<Sell />} />
           <Route path="/products" element={<Products />} />
@@ -122,23 +129,26 @@ function AppRoutes() {
 
 const App = () => {
   useEffect(() => {
-    const start = () => startAutoSync();
-    const timer = window.setTimeout(start, 2000);
-    return () => { window.clearTimeout(timer); stopAutoSync(); };
+    let stop: (() => void) | undefined;
+    const timer = window.setTimeout(() => {
+      import("@/lib/syncEngine").then(({ startAutoSync, stopAutoSync }) => {
+        startAutoSync();
+        stop = stopAutoSync;
+      });
+    }, 4000);
+    return () => { window.clearTimeout(timer); stop?.(); };
   }, []);
   return (
     <QueryClientProvider client={queryClient}>
-      <StoreProvider>
-        <TooltipProvider>
-          <OfflineIndicator />
-          <InstallPrompt />
-          <Toaster />
-          <Sonner />
-          <BrowserRouter>
-            <AppRoutes />
-          </BrowserRouter>
-        </TooltipProvider>
-      </StoreProvider>
+      <TooltipProvider>
+        <OfflineIndicator />
+        <InstallPrompt />
+        <Toaster />
+        <Sonner />
+        <BrowserRouter>
+          <AppRoutes />
+        </BrowserRouter>
+      </TooltipProvider>
     </QueryClientProvider>
   );
 };

@@ -4,10 +4,10 @@ import { Lock, Eye, EyeOff, Loader2, User, Phone, Store, ArrowLeft } from 'lucid
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from '@/hooks/use-toast';
+import { useAuth } from '@/hooks/useAuth';
 import { PhoneInput } from '@/components/auth/PhoneInput';
 import { Country, defaultCountry } from '@/data/countries';
 import { normalizePhone, phoneToEmail, isManagerPhone } from '@/lib/phone';
-import type { User as SupabaseUser } from '@supabase/supabase-js';
 import logoImg from '@/assets/logo.png';
 
 type Mode = 'login' | 'signup';
@@ -26,15 +26,7 @@ export default function Auth() {
   const [name, setName] = useState('');
   const [shopName, setShopName] = useState('');
 
-  const [user, setUser] = useState<SupabaseUser | null>(null);
-
-  useEffect(() => {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (_evt, session) => setUser(session?.user ?? null)
-    );
-    supabase.auth.getSession().then(({ data: { session } }) => setUser(session?.user ?? null));
-    return () => subscription.unsubscribe();
-  }, []);
+  const { user } = useAuth();
 
   useEffect(() => {
     if (!user) return;
@@ -70,6 +62,9 @@ export default function Auth() {
         toast({ title: 'ফোন বা পাসওয়ার্ড ভুল', variant: 'destructive' });
         return;
       }
+      const normalizedForRoute = normalized;
+      if (isManagerPhone(normalizedForRoute)) navigate('/manager', { replace: true });
+      else navigate('/dashboard', { replace: true });
       toast({ title: 'সফলভাবে লগইন হয়েছে ✓' });
     } finally {
       setLoading(false);
@@ -109,6 +104,7 @@ export default function Auth() {
       if (!data.session) {
         await supabase.auth.signInWithPassword({ email: phoneToEmail(normalized), password });
       }
+      navigate(isManagerPhone(normalized) ? '/manager' : '/dashboard', { replace: true });
       if (isManagerPhone(normalized)) {
         toast({ title: 'ম্যানেজার একাউন্ট তৈরি হয়েছে ✓' });
       } else {

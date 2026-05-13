@@ -8,6 +8,7 @@ let cachedSession: Session | null = null;
 let cachedUser: User | null = null;
 let cachedLoading = true;
 let initialized = false;
+let initPromise: Promise<void> | null = null;
 let listeners: AuthListener[] = [];
 
 function notify() {
@@ -18,19 +19,24 @@ function initAuthOnce() {
   if (initialized) return;
   initialized = true;
 
-  supabase.auth.onAuthStateChange((_event, session) => {
+  initPromise = supabase.auth.getSession().then(({ data: { session } }) => {
     cachedSession = session;
     cachedUser = session?.user ?? null;
     cachedLoading = false;
     notify();
   });
 
-  supabase.auth.getSession().then(({ data: { session } }) => {
+  supabase.auth.onAuthStateChange((_event, session) => {
     cachedSession = session;
     cachedUser = session?.user ?? null;
     cachedLoading = false;
     notify();
   });
+}
+
+export function getCachedAuth() {
+  initAuthOnce();
+  return { user: cachedUser, session: cachedSession, loading: cachedLoading, ready: initPromise };
 }
 
 export function useAuth() {
