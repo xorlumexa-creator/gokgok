@@ -1,7 +1,6 @@
 import { Menu, Bell, User } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useStore } from '@/context/StoreContext';
-import { SyncIndicator } from '@/components/dashboard/SyncIndicator';
 import logoImg from '@/assets/logo.png';
 
 interface HeaderProps {
