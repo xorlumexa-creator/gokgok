@@ -289,9 +289,12 @@ export default function PreOrders() {
       if (i !== index) return item;
       const newUnitToBase = sellUnitToBase ?? item.sellUnitToBase;
       const newLabel = sellUnitLabel ?? item.sellUnitLabel;
-      if (sellAmount <= 0) return item;
-      const { totalPrice, totalProfit, quantityInBaseUnit } = calcPrice(item.basePrice, sellAmount, newUnitToBase);
-      return { ...item, sellUnitLabel: newLabel, sellUnitToBase: newUnitToBase, sellAmount, quantityInBaseUnit, totalPrice, totalProfit };
+      const newAmount = Number.isFinite(sellAmount) ? Math.max(0, sellAmount) : 0;
+      if (newAmount === 0) {
+        return { ...item, sellUnitLabel: newLabel, sellUnitToBase: newUnitToBase, sellAmount: 0, quantityInBaseUnit: 0, totalPrice: 0, totalProfit: 0 };
+      }
+      const { totalPrice, totalProfit, quantityInBaseUnit } = calcPrice(item.basePrice, newAmount, newUnitToBase);
+      return { ...item, sellUnitLabel: newLabel, sellUnitToBase: newUnitToBase, sellAmount: newAmount, quantityInBaseUnit, totalPrice, totalProfit };
     }));
   };
 
