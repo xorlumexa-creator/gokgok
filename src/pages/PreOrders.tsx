@@ -688,21 +688,19 @@ export default function PreOrders() {
                 </div>
                 <div className="text-right pt-3 border-t border-border mt-3"><span className="text-muted-foreground">মোট: </span><span className="text-2xl font-bold text-primary">৳{viewingOrder.totalPrice}</span></div>
               </div>
-              {viewingOrder.status === 'pending' && (
-                <div className="space-y-3 pt-4">
-                  <Button onClick={() => openSellModal(viewingOrder)} className="w-full py-5 rounded-xl bg-profit hover:bg-profit/90 text-white">
-                    <ShoppingBag className="w-5 h-5 mr-2" /> বিক্রি করুন (নগদ/বাকি)
+              <div className="space-y-3 pt-4">
+                <Button onClick={() => openSellModal(viewingOrder)} className="w-full py-5 rounded-xl bg-profit hover:bg-profit/90 text-white">
+                  <ShoppingBag className="w-5 h-5 mr-2" /> বিক্রি করুন (নগদ/বাকি)
+                </Button>
+                <div className="flex gap-3">
+                  <Button variant="outline" onClick={() => handleStatusChange(viewingOrder.id, 'cancelled')} disabled={viewingOrder.status === 'cancelled'} className="flex-1 py-5 rounded-xl border-destructive text-destructive hover:bg-destructive/10">
+                    <XCircle className="w-5 h-5 mr-2" /> বাতিল
                   </Button>
-                  <div className="flex gap-3">
-                    <Button variant="outline" onClick={() => handleStatusChange(viewingOrder.id, 'cancelled')} className="flex-1 py-5 rounded-xl border-destructive text-destructive hover:bg-destructive/10">
-                      <XCircle className="w-5 h-5 mr-2" /> বাতিল
-                    </Button>
-                    <Button variant="outline" onClick={() => handleStatusChange(viewingOrder.id, 'delivered')} className="flex-1 py-5 rounded-xl">
-                      <CheckCircle className="w-5 h-5 mr-2" /> সরবরাহ সম্পন্ন
-                    </Button>
-                  </div>
+                  <Button variant="outline" onClick={() => handleStatusChange(viewingOrder.id, 'delivered')} disabled={viewingOrder.status === 'delivered'} className="flex-1 py-5 rounded-xl">
+                    <CheckCircle className="w-5 h-5 mr-2" /> সরবরাহ সম্পন্ন
+                  </Button>
                 </div>
-              )}
+              </div>
             </div>
           </div>
         </div>
