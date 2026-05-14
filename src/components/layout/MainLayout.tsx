@@ -24,6 +24,7 @@ export function MainLayout({ title }: MainLayoutProps) {
           <SubscriptionLock>
             <TrialWarningBanner />
             <Outlet />
+            <OfflineWarning />
           </SubscriptionLock>
         </main>
       </div>
