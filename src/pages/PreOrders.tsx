@@ -254,7 +254,7 @@ export default function PreOrders() {
     }
     updatePreOrderStatus(orderId, newStatus);
     toast({ title: newStatus === 'delivered' ? 'সরবরাহ সম্পন্ন ✓' : newStatus === 'cancelled' ? 'অর্ডার বাতিল হয়েছে' : 'স্ট্যাটাস আপডেট হয়েছে' });
-    setViewingOrder(null);
+    setViewingOrder(prev => prev && prev.id === orderId ? { ...prev, status: newStatus } : prev);
   };
 
   const openSellModal = (order: PreOrder) => {
