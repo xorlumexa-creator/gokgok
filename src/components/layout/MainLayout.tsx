@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Outlet } from 'react-router-dom';
 import { Sidebar } from './Sidebar';
 import { Header } from './Header';
+import { SubscriptionLock } from './SubscriptionLock';
 import TrialWarningBanner from '@/components/TrialWarningBanner';
 import { OfflineWarning } from '@/components/OfflineWarning';
 
