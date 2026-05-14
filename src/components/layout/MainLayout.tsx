@@ -4,6 +4,7 @@ import { Sidebar } from './Sidebar';
 import { Header } from './Header';
 import { SubscriptionLock } from './SubscriptionLock';
 import TrialWarningBanner from '@/components/TrialWarningBanner';
+import { OfflineWarning } from '@/components/OfflineWarning';
 
 interface MainLayoutProps {
   title?: string;
@@ -23,6 +24,7 @@ export function MainLayout({ title }: MainLayoutProps) {
           <SubscriptionLock>
             <TrialWarningBanner />
             <Outlet />
+            <OfflineWarning />
           </SubscriptionLock>
         </main>
       </div>

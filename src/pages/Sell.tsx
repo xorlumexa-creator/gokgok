@@ -93,8 +93,8 @@ export default function Sell() {
 
   const [selectingFor, setSelectingFor] = useState<Product | null>(null);
 
-  const filteredProducts = products.filter(p => 
-    p.name.toLowerCase().includes(searchTerm.toLowerCase()) && p.stock > 0
+  const filteredProducts = products.filter(p =>
+    p.name.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   const filteredCustomers = useMemo(() => {

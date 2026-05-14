@@ -194,9 +194,12 @@ export default function PreOrders() {
       if (i !== index) return item;
       const newUnitToBase = sellUnitToBase ?? item.sellUnitToBase;
       const newLabel = sellUnitLabel ?? item.sellUnitLabel;
-      if (sellAmount <= 0) return item;
-      const { totalPrice, totalProfit, quantityInBaseUnit } = calcPrice(item.basePrice, sellAmount, newUnitToBase);
-      return { ...item, sellUnitLabel: newLabel, sellUnitToBase: newUnitToBase, sellAmount, quantityInBaseUnit, totalPrice, totalProfit };
+      const newAmount = Number.isFinite(sellAmount) ? Math.max(0, sellAmount) : 0;
+      if (newAmount === 0) {
+        return { ...item, sellUnitLabel: newLabel, sellUnitToBase: newUnitToBase, sellAmount: 0, quantityInBaseUnit: 0, totalPrice: 0, totalProfit: 0 };
+      }
+      const { totalPrice, totalProfit, quantityInBaseUnit } = calcPrice(item.basePrice, newAmount, newUnitToBase);
+      return { ...item, sellUnitLabel: newLabel, sellUnitToBase: newUnitToBase, sellAmount: newAmount, quantityInBaseUnit, totalPrice, totalProfit };
     }));
   };
 
@@ -251,7 +254,7 @@ export default function PreOrders() {
     }
     updatePreOrderStatus(orderId, newStatus);
     toast({ title: newStatus === 'delivered' ? 'সরবরাহ সম্পন্ন ✓' : newStatus === 'cancelled' ? 'অর্ডার বাতিল হয়েছে' : 'স্ট্যাটাস আপডেট হয়েছে' });
-    setViewingOrder(null);
+    setViewingOrder(prev => prev && prev.id === orderId ? { ...prev, status: newStatus } : prev);
   };
 
   const openSellModal = (order: PreOrder) => {
@@ -286,9 +289,12 @@ export default function PreOrders() {
       if (i !== index) return item;
       const newUnitToBase = sellUnitToBase ?? item.sellUnitToBase;
       const newLabel = sellUnitLabel ?? item.sellUnitLabel;
-      if (sellAmount <= 0) return item;
-      const { totalPrice, totalProfit, quantityInBaseUnit } = calcPrice(item.basePrice, sellAmount, newUnitToBase);
-      return { ...item, sellUnitLabel: newLabel, sellUnitToBase: newUnitToBase, sellAmount, quantityInBaseUnit, totalPrice, totalProfit };
+      const newAmount = Number.isFinite(sellAmount) ? Math.max(0, sellAmount) : 0;
+      if (newAmount === 0) {
+        return { ...item, sellUnitLabel: newLabel, sellUnitToBase: newUnitToBase, sellAmount: 0, quantityInBaseUnit: 0, totalPrice: 0, totalProfit: 0 };
+      }
+      const { totalPrice, totalProfit, quantityInBaseUnit } = calcPrice(item.basePrice, newAmount, newUnitToBase);
+      return { ...item, sellUnitLabel: newLabel, sellUnitToBase: newUnitToBase, sellAmount: newAmount, quantityInBaseUnit, totalPrice, totalProfit };
     }));
   };
 
@@ -682,21 +688,19 @@ export default function PreOrders() {
                 </div>
                 <div className="text-right pt-3 border-t border-border mt-3"><span className="text-muted-foreground">মোট: </span><span className="text-2xl font-bold text-primary">৳{viewingOrder.totalPrice}</span></div>
               </div>
-              {viewingOrder.status === 'pending' && (
-                <div className="space-y-3 pt-4">
-                  <Button onClick={() => openSellModal(viewingOrder)} className="w-full py-5 rounded-xl bg-profit hover:bg-profit/90 text-white">
-                    <ShoppingBag className="w-5 h-5 mr-2" /> বিক্রি করুন (নগদ/বাকি)
+              <div className="space-y-3 pt-4">
+                <Button onClick={() => openSellModal(viewingOrder)} className="w-full py-5 rounded-xl bg-profit hover:bg-profit/90 text-white">
+                  <ShoppingBag className="w-5 h-5 mr-2" /> বিক্রি করুন (নগদ/বাকি)
+                </Button>
+                <div className="flex gap-3">
+                  <Button variant="outline" onClick={() => handleStatusChange(viewingOrder.id, 'cancelled')} disabled={viewingOrder.status === 'cancelled'} className="flex-1 py-5 rounded-xl border-destructive text-destructive hover:bg-destructive/10">
+                    <XCircle className="w-5 h-5 mr-2" /> বাতিল
                   </Button>
-                  <div className="flex gap-3">
-                    <Button variant="outline" onClick={() => handleStatusChange(viewingOrder.id, 'cancelled')} className="flex-1 py-5 rounded-xl border-destructive text-destructive hover:bg-destructive/10">
-                      <XCircle className="w-5 h-5 mr-2" /> বাতিল
-                    </Button>
-                    <Button variant="outline" onClick={() => handleStatusChange(viewingOrder.id, 'delivered')} className="flex-1 py-5 rounded-xl">
-                      <CheckCircle className="w-5 h-5 mr-2" /> সরবরাহ সম্পন্ন
-                    </Button>
-                  </div>
+                  <Button variant="outline" onClick={() => handleStatusChange(viewingOrder.id, 'delivered')} disabled={viewingOrder.status === 'delivered'} className="flex-1 py-5 rounded-xl">
+                    <CheckCircle className="w-5 h-5 mr-2" /> সরবরাহ সম্পন্ন
+                  </Button>
                 </div>
-              )}
+              </div>
             </div>
           </div>
         </div>
