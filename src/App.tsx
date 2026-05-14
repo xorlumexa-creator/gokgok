@@ -127,20 +127,9 @@ function AppRoutes() {
 }
 
 const App = () => {
-  useEffect(() => {
-    let stop: (() => void) | undefined;
-    const timer = window.setTimeout(() => {
-      import("@/lib/syncEngine").then(({ startAutoSync, stopAutoSync }) => {
-        startAutoSync();
-        stop = stopAutoSync;
-      });
-    }, 4000);
-    return () => { window.clearTimeout(timer); stop?.(); };
-  }, []);
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
-        <OfflineIndicator />
         <InstallPrompt />
         <Toaster />
         <Sonner />
