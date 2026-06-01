@@ -1,11 +1,12 @@
 import { useNavigate } from 'react-router-dom';
-import { 
+import {
   ShoppingCart, Package, BookOpen, User, Calculator, History, TrendingUp,
   CalendarCheck, Bell, Truck, AlertTriangle
 } from 'lucide-react';
 import { useStore } from '@/context/StoreContext';
 import { LowStockAlert } from '@/components/dashboard/LowStockAlert';
 import { DynamicPriceProducts } from '@/components/dashboard/DynamicPriceProducts';
+import { SyncStatusBar } from '@/components/SyncStatusBar';
 import { Button } from '@/components/ui/button';
 
 export default function Dashboard() {
@@ -32,6 +33,9 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-6 animate-fade-in">
+      {/* Sync safety bar */}
+      <SyncStatusBar />
+
       {/* Welcome message */}
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-foreground">
