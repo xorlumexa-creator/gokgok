@@ -1,6 +1,7 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef, ReactNode } from 'react';
 import { Product, Sale, Customer, StoreInfo, DashboardStats, Expense, PersonalAccountStats, UnitType, PreOrder, PreOrderStatus, BulkSaleRecord, BakiPaymentRecord, CustomEarning, Supplier } from '@/types/store';
 import { supabase } from '@/integrations/supabase/client';
+import { markDirty } from '@/lib/syncEngine';
 
 interface StoreContextType {
   storeInfo: StoreInfo | null;
@@ -194,6 +195,13 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     localStorage.setItem('suppliers', JSON.stringify(suppliers));
   }, [suppliers]);
+
+  // Mark sync dirty whenever any persisted slice changes (skip initial mount).
+  const didMountRef = useRef(false);
+  useEffect(() => {
+    if (!didMountRef.current) { didMountRef.current = true; return; }
+    markDirty();
+  }, [products, sales, customers, expenses, preOrders, bulkSaleRecords, bakiPaymentRecords, customEarnings, suppliers, storeInfo]);
 
   // Generate unique display name for customers with same name
   const generateCustomerDisplayName = (name: string): string => {

@@ -1,4 +1,4 @@
-import { lazy, Suspense } from "react";
+import { lazy, Suspense, useEffect } from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -9,6 +9,7 @@ import { MainLayout } from "@/components/layout/MainLayout";
 import { InstallPrompt } from "@/components/InstallPrompt";
 import { useAuth } from "@/hooks/useAuth";
 import { useProfile } from "@/hooks/useProfile";
+import { startSyncEngine } from "@/lib/syncEngine";
 
 const Index = lazy(() => import("./pages/Index"));
 const Landing = lazy(() => import("./pages/Landing"));
@@ -127,6 +128,11 @@ function AppRoutes() {
 }
 
 const App = () => {
+  useEffect(() => {
+    const t = window.setTimeout(() => startSyncEngine(), 3000);
+    return () => window.clearTimeout(t);
+  }, []);
+
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
