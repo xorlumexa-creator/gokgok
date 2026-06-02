@@ -286,6 +286,7 @@ export default function Sell() {
     let customerDisplayName = '';
 
     if (bakiNewCustomerName.trim()) {
+      if (!guardAddCustomer()) return;
       const newCustomer = addCustomer({
         name: bakiNewCustomerName.trim(),
         phone: bakiNewCustomerPhone.trim(),
@@ -294,6 +295,7 @@ export default function Sell() {
       customerId = newCustomer.id;
       customerDisplayName = newCustomer.displayName;
     } else if (bakiSelectedCustomer) {
+
       const customer = customers.find(c => c.id === bakiSelectedCustomer);
       customerDisplayName = customer?.displayName || '';
     }
