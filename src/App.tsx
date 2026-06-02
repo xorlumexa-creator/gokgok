@@ -5,11 +5,14 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { StoreProvider, useStore } from "@/context/StoreContext";
+import { SubscriptionProvider } from "@/context/SubscriptionContext";
+import { SubscriptionLockModal } from "@/components/subscription/SubscriptionLockModal";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { InstallPrompt } from "@/components/InstallPrompt";
 import { useAuth } from "@/hooks/useAuth";
 import { useProfile } from "@/hooks/useProfile";
 import { startSyncEngine } from "@/lib/syncEngine";
+
 
 const Index = lazy(() => import("./pages/Index"));
 const Landing = lazy(() => import("./pages/Landing"));
