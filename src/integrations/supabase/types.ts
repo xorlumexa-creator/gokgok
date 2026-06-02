@@ -119,8 +119,14 @@ export type Database = {
           plan: string | null
           plan_expiry: string | null
           role: string
+          sales_credit_period: string | null
+          sales_credit_used: number
           shop_name: string | null
+          storage_level: number
+          subscription_expires_at: string | null
+          subscription_plan: string | null
           subscription_start_date: string | null
+          subscription_started_at: string | null
           subscription_status: string
           temporary_access: boolean
           temporary_expiry: string | null
@@ -140,8 +146,14 @@ export type Database = {
           plan?: string | null
           plan_expiry?: string | null
           role?: string
+          sales_credit_period?: string | null
+          sales_credit_used?: number
           shop_name?: string | null
+          storage_level?: number
+          subscription_expires_at?: string | null
+          subscription_plan?: string | null
           subscription_start_date?: string | null
+          subscription_started_at?: string | null
           subscription_status?: string
           temporary_access?: boolean
           temporary_expiry?: string | null
@@ -161,8 +173,14 @@ export type Database = {
           plan?: string | null
           plan_expiry?: string | null
           role?: string
+          sales_credit_period?: string | null
+          sales_credit_used?: number
           shop_name?: string | null
+          storage_level?: number
+          subscription_expires_at?: string | null
+          subscription_plan?: string | null
           subscription_start_date?: string | null
+          subscription_started_at?: string | null
           subscription_status?: string
           temporary_access?: boolean
           temporary_expiry?: string | null
