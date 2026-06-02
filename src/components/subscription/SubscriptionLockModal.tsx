@@ -1,4 +1,4 @@
-import { X, AlertTriangle, Lock, TrendingUp, Crown, Zap, MessageCircle, Receipt } from 'lucide-react';
+import { X, AlertTriangle, Lock, TrendingUp, MessageCircle, Receipt } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useSubscription, toBn, PLAN_BASE_PRICE, PLAN_LABEL, STORAGE_UNIT } from '@/context/SubscriptionContext';
 
