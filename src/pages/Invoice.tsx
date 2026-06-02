@@ -3,6 +3,8 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { ArrowLeft, Printer, MessageCircle, Receipt, MapPin, Phone, FileText } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useStore } from '@/context/StoreContext';
+import { useSubscription } from '@/context/SubscriptionContext';
+import { useEffect } from 'react';
 import { PhoneInputWithCode } from '@/components/common/PhoneInputWithCode';
 
 const INVOICE_STORAGE_KEY = 'dukan360_invoice_settings';
