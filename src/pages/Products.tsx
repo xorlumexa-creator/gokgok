@@ -84,6 +84,7 @@ const STOCK_TYPE_CONFIG: Record<StockType, {
 
 export default function Products() {
   const { products, addProduct, updateProduct, deleteProduct, getProductSuggestions } = useStore();
+  const { guardAddProduct } = useSubscription();
   const location = useLocation();
   const [searchTerm, setSearchTerm] = useState('');
   const [showAddForm, setShowAddForm] = useState(false);
