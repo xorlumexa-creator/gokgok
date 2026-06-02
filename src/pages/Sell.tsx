@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { ShoppingCart, Search, Plus, Minus, CheckCircle, User, X, Calculator, Phone, BookOpen, HelpCircle, AlertTriangle, Info, ChevronDown, Tag, Percent } from 'lucide-react';
 import { PhoneInputWithCode } from '@/components/common/PhoneInputWithCode';
 import { useStore } from '@/context/StoreContext';
+import { useSubscription } from '@/context/SubscriptionContext';
 import { Button } from '@/components/ui/button';
 import { toast } from '@/hooks/use-toast';
 import { CartItem, Product, SellingUnit, getUnitLabel } from '@/types/store';
