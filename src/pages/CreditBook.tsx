@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'react';
 import { BookOpen, Search, User, Phone, Plus, X, CheckCircle, AlertTriangle, MessageCircle, Send, Edit3, PhoneCall } from 'lucide-react';
 import { useStore } from '@/context/StoreContext';
+import { useSubscription } from '@/context/SubscriptionContext';
 import { Button } from '@/components/ui/button';
 import { toast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
