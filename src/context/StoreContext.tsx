@@ -196,12 +196,20 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     localStorage.setItem('suppliers', JSON.stringify(suppliers));
   }, [suppliers]);
 
-  // Mark sync dirty whenever any persisted slice changes (skip initial mount).
-  const didMountRef = useRef(false);
+  // Mark sync dirty when persisted slices change (skip initial mount).
+  // Baki-related slices (customers, baki payments) use scope='baki' so they
+  // get pushed to the cloud in real time; everything else is batched.
+  const mountedBakiRef = useRef(false);
   useEffect(() => {
-    if (!didMountRef.current) { didMountRef.current = true; return; }
-    markDirty();
-  }, [products, sales, customers, expenses, preOrders, bulkSaleRecords, bakiPaymentRecords, customEarnings, suppliers, storeInfo]);
+    if (!mountedBakiRef.current) { mountedBakiRef.current = true; return; }
+    markDirty('baki');
+  }, [customers, bakiPaymentRecords]);
+
+  const mountedOtherRef = useRef(false);
+  useEffect(() => {
+    if (!mountedOtherRef.current) { mountedOtherRef.current = true; return; }
+    markDirty('other');
+  }, [products, sales, expenses, preOrders, bulkSaleRecords, customEarnings, suppliers, storeInfo]);
 
   // Generate unique display name for customers with same name
   const generateCustomerDisplayName = (name: string): string => {
