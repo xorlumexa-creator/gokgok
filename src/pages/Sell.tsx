@@ -321,12 +321,14 @@ export default function Sell() {
       toast({ title: "কার্ট খালি আছে", variant: "destructive" });
       return;
     }
+    if (!guardRecordSale(cart.length)) return;
 
     let customerId = selectedCustomer;
     let customerName = '';
 
     if (!isPaid) {
       if (newCustomerName.trim()) {
+        if (!guardAddCustomer()) return;
         const newCustomer = addCustomer({
           name: newCustomerName.trim(),
           phone: newCustomerPhone.trim(),
@@ -357,6 +359,9 @@ export default function Sell() {
     }));
 
     addMultipleSales(salesData, customerId || undefined, customerName || undefined, isPaid || partialPaid);
+    incrementSalesCredit(cart.length);
+
+
 
     // Build invoice data for navigation
     const invoiceItems = cart.map(item => ({
