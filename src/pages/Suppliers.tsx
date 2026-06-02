@@ -9,6 +9,8 @@ import { validatePhoneWithCountryCode } from '@/types/store';
 
 export default function Suppliers() {
   const { suppliers, products, storeInfo, addSupplier, updateSupplier, deleteSupplier } = useStore();
+  const { guardFeature } = useSubscription();
+
   
   const [searchTerm, setSearchTerm] = useState('');
   const [showAddForm, setShowAddForm] = useState(false);
