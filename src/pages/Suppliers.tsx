@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'react';
 import { Truck, Plus, Search, Phone, MessageCircle, X, Edit2, Trash2, Package } from 'lucide-react';
 import { useStore } from '@/context/StoreContext';
+import { useSubscription } from '@/context/SubscriptionContext';
 import { Button } from '@/components/ui/button';
 import { toast } from '@/hooks/use-toast';
 import { PhoneInputWithCode } from '@/components/common/PhoneInputWithCode';
