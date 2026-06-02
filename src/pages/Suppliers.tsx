@@ -134,8 +134,10 @@ ${storeInfo?.name || 'আমাদের দোকান'} থেকে অন�
   };
 
   const handleSendMessage = () => {
+    if (!guardFeature('whatsapp')) return;
     const supplier = suppliers.find(s => s.id === showOrderModal);
     if (!supplier) return;
+
 
     // Format phone number for WhatsApp
     let phone = supplier.phone.replace(/\s+/g, '');
