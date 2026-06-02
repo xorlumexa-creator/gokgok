@@ -20,6 +20,7 @@ export default function CreditBook() {
     getUnpaidCustomers,
     getCustomersDueFor30Days
   } = useStore();
+  const { guardAddCustomer, guardFeature } = useSubscription();
   
   const [searchType, setSearchType] = useState<'name' | 'phone'>('name');
   const [searchTerm, setSearchTerm] = useState('');
