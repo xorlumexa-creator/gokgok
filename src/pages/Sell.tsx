@@ -68,6 +68,7 @@ export default function Sell() {
     searchCustomersByPhone,
     getExistingCustomersByName,
   } = useStore();
+  const { guardAddCustomer, guardRecordSale, incrementSalesCredit } = useSubscription();
   
   const [searchTerm, setSearchTerm] = useState('');
   const [cart, setCart] = useState<FlexCartItem[]>([]);
