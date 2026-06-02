@@ -126,12 +126,14 @@ ${storeInfo?.name || 'আমাদের দোকান'} থেকে অন�
   };
 
   const openOrderModal = (supplier: typeof suppliers[0]) => {
+    if (!guardFeature('whatsapp')) return;
     setShowOrderModal(supplier.id);
     setOrderProduct('');
     setOrderQuantity('');
     setOrderMessage(generateDefaultMessage('', ''));
     setEditingMessage(false);
   };
+
 
   const handleSendMessage = () => {
     if (!guardFeature('whatsapp')) return;
