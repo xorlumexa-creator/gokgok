@@ -50,6 +50,14 @@ export default function Invoice() {
   const navigate = useNavigate();
   const location = useLocation();
   const { storeInfo } = useStore();
+  const { hasFeature, openLock } = useSubscription();
+  useEffect(() => {
+    if (!hasFeature('invoice')) {
+      openLock({ type: 'feature_invoice' });
+      navigate('/dashboard', { replace: true });
+    }
+  }, [hasFeature, openLock, navigate]);
+
   const printRef = useRef<HTMLDivElement>(null);
   const savedSettings = useRef(loadSavedSettings());
   const [printMode, setPrintMode] = useState<'thermal' | 'a4'>('thermal');
