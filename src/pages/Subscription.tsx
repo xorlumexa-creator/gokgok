@@ -78,9 +78,8 @@ export default function Subscription() {
   const navigate = useNavigate();
   const [params] = useSearchParams();
   const focusUpgrade = params.get('focus') === 'upgrade';
-  const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(false);
-  const { plan, storageLevel, monthlyPrice, productLimit, bakiLimit, setPlan, setStorageLevel, renewPlan } = useSubscription();
+  const { plan, storageLevel, monthlyPrice, setPlan, setStorageLevel, renewPlan } = useSubscription();
   const [selectedPlan, setSelectedPlan] = useState<PlanId>(plan);
   const [desiredLevel, setDesiredLevel] = useState<number>(storageLevel);
 
@@ -89,10 +88,10 @@ export default function Subscription() {
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
-      setUser(session?.user ?? null);
       if (!session?.user) navigate('/auth');
     });
   }, [navigate]);
+
 
   const selectedBasePrice = PLAN_BASE_PRICE[selectedPlan];
   const selectedMonthly = selectedBasePrice * desiredLevel;
