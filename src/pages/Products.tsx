@@ -2,6 +2,7 @@ import { useState, useMemo, useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
 import { Package, Plus, Search, Edit2, Trash2, X, HelpCircle, ChevronDown, ChevronUp, Scale, Hash, Droplets, Info, MapPin, CalendarDays, TrendingUp } from 'lucide-react';
 import { useStore } from '@/context/StoreContext';
+import { useSubscription } from '@/context/SubscriptionContext';
 import { Button } from '@/components/ui/button';
 import { toast } from '@/hooks/use-toast';
 import { UnitType, SellingUnit, getUnitLabel } from '@/types/store';
