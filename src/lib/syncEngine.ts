@@ -1,11 +1,16 @@
-// Dukan 360 Smart Sync Engine
-// Hybrid offline-first queue with 1-hour delayed sync to Supabase.
-// Strategy: keep all shop data in localStorage as the working DB.
-// On a 1-hour interval (or when internet returns after >=1hr), snapshot
-// the relevant localStorage keys and upsert to public.user_backups.
+// Dukan 360 — Smart Hybrid Sync Engine
+// ---------------------------------------------------------------------------
+// Rules:
+//   • Baki (credit) data        → real-time sync when online, queued offline
+//   • Everything else           → batched, synced ONLY every 8 hours
+//   • Offline                   → all writes queue in localStorage (working DB)
+//   • When network returns      → baki syncs immediately; the rest waits for
+//                                 the 8-hour window to elapse, then auto-syncs
+// ---------------------------------------------------------------------------
 
 import { supabase } from '@/integrations/supabase/client';
 
+// Keys persisted in localStorage that make up a full user backup.
 const STORE_KEYS = [
   'storeInfo',
   'products',
@@ -19,57 +24,74 @@ const STORE_KEYS = [
   'suppliers',
 ] as const;
 
-const LAST_SYNC_KEY = 'sync:lastSyncAt';
-const PENDING_FLAG_KEY = 'sync:pendingSince';
-const PENDING_COUNT_KEY = 'sync:pendingCount';
-const SYNC_INTERVAL_MS = 60 * 60 * 1000; // 1 hour
+// "Baki" keys — these mutations trigger an immediate (real-time) sync when
+// the device is online. Other keys are batched into the 8-hour cycle.
+const BAKI_KEYS = new Set<string>(['customers', 'bakiPaymentRecords']);
 
+const LAST_SYNC_KEY = 'sync:lastSyncAt';
+const PENDING_COUNT_KEY = 'sync:pendingCount';
+const PENDING_BAKI_KEY = 'sync:pendingBaki';
+
+const SYNC_INTERVAL_MS = 8 * 60 * 60 * 1000; // 8 hours
+const BAKI_DEBOUNCE_MS = 1500;               // coalesce rapid baki edits
+const RETRY_BACKOFF_MS = 30 * 1000;          // retry every 30s on failure
+
+export type SyncScope = 'baki' | 'other';
 export type SyncState = 'safe' | 'pending' | 'syncing' | 'error';
 
 interface SyncSnapshot {
   state: SyncState;
   pendingCount: number;
+  pendingBaki: number;
   lastSyncAt: number | null;
+  nextSyncAt: number | null;
   online: boolean;
   errorMessage?: string;
 }
 
 let currentState: SyncState = 'safe';
 let errorMessage: string | undefined;
-let listeners: ((s: SyncSnapshot) => void)[] = [];
-let timer: ReturnType<typeof setTimeout> | null = null;
+let listeners: Array<(s: SyncSnapshot) => void> = [];
+let intervalTimer: ReturnType<typeof setTimeout> | null = null;
+let bakiDebounceTimer: ReturnType<typeof setTimeout> | null = null;
+let retryTimer: ReturnType<typeof setTimeout> | null = null;
 let inFlight = false;
 
-function getNumber(key: string): number | null {
+// ---------- helpers --------------------------------------------------------
+
+function num(key: string): number {
   const v = localStorage.getItem(key);
-  if (!v) return null;
+  if (!v) return 0;
   const n = parseInt(v, 10);
-  return Number.isFinite(n) ? n : null;
+  return Number.isFinite(n) ? n : 0;
 }
 
-export function getPendingCount(): number {
-  return getNumber(PENDING_COUNT_KEY) ?? 0;
-}
-
+export function getPendingCount(): number { return num(PENDING_COUNT_KEY); }
+export function getPendingBaki(): number  { return num(PENDING_BAKI_KEY); }
 export function getLastSyncAt(): number | null {
-  return getNumber(LAST_SYNC_KEY);
+  const v = localStorage.getItem(LAST_SYNC_KEY);
+  return v ? parseInt(v, 10) : null;
+}
+export function getNextSyncAt(): number {
+  const last = getLastSyncAt();
+  return (last ?? Date.now()) + SYNC_INTERVAL_MS;
 }
 
 export function getSnapshot(): SyncSnapshot {
   return {
     state: currentState,
     pendingCount: getPendingCount(),
+    pendingBaki: getPendingBaki(),
     lastSyncAt: getLastSyncAt(),
-    online: navigator.onLine,
+    nextSyncAt: getNextSyncAt(),
+    online: typeof navigator !== 'undefined' ? navigator.onLine : true,
     errorMessage,
   };
 }
 
 function emit() {
   const snap = getSnapshot();
-  listeners.forEach((l) => {
-    try { l(snap); } catch { /* ignore */ }
-  });
+  listeners.forEach((l) => { try { l(snap); } catch { /* noop */ } });
 }
 
 export function subscribe(listener: (s: SyncSnapshot) => void): () => void {
@@ -78,43 +100,54 @@ export function subscribe(listener: (s: SyncSnapshot) => void): () => void {
   return () => { listeners = listeners.filter((l) => l !== listener); };
 }
 
+// ---------- dirty marking --------------------------------------------------
+
 /**
- * Call after any data mutation to mark there is unsynced data.
- * Idempotent and very cheap.
+ * Mark unsynced data. Pass scope='baki' for credit-book mutations so they
+ * are pushed to the cloud immediately (when online). Everything else is
+ * batched into the 8-hour cycle.
  */
-export function markDirty(): void {
-  const prev = getPendingCount();
-  localStorage.setItem(PENDING_COUNT_KEY, String(prev + 1));
-  if (!localStorage.getItem(PENDING_FLAG_KEY)) {
-    localStorage.setItem(PENDING_FLAG_KEY, String(Date.now()));
+export function markDirty(scope: SyncScope = 'other'): void {
+  localStorage.setItem(PENDING_COUNT_KEY, String(getPendingCount() + 1));
+  if (scope === 'baki') {
+    localStorage.setItem(PENDING_BAKI_KEY, String(getPendingBaki() + 1));
+    scheduleBakiFlush();
   }
   if (currentState === 'safe') currentState = 'pending';
   emit();
 }
 
-function buildPayload() {
-  const payload: Record<string, unknown> = {};
+function scheduleBakiFlush() {
+  if (bakiDebounceTimer) clearTimeout(bakiDebounceTimer);
+  bakiDebounceTimer = setTimeout(() => {
+    bakiDebounceTimer = null;
+    if (navigator.onLine) void performSync('baki');
+  }, BAKI_DEBOUNCE_MS);
+}
+
+// ---------- payload + push -------------------------------------------------
+
+function buildPayload(): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
   for (const k of STORE_KEYS) {
     const raw = localStorage.getItem(k);
     if (raw == null) continue;
-    try { payload[k] = JSON.parse(raw); } catch { /* skip */ }
+    try { out[k] = JSON.parse(raw); } catch { /* skip bad slice */ }
   }
-  return payload;
+  return out;
 }
 
 async function performSync(reason: string): Promise<boolean> {
   if (inFlight) return false;
   if (!navigator.onLine) return false;
 
-  const pending = getPendingCount();
-  if (pending === 0) {
-    // nothing to push but refresh timestamp so user sees "just now"
-    return true;
-  }
+  const beforeCount = getPendingCount();
+  const beforeBaki = getPendingBaki();
+  if (beforeCount === 0 && beforeBaki === 0 && reason !== 'manual') return true;
 
   const { data: auth } = await supabase.auth.getUser();
   const userId = auth.user?.id;
-  if (!userId) return false; // not logged in, will retry later
+  if (!userId) return false;
 
   inFlight = true;
   currentState = 'syncing';
@@ -122,79 +155,91 @@ async function performSync(reason: string): Promise<boolean> {
   emit();
 
   try {
-    const snapshotBefore = pending;
     const payload = buildPayload();
-
     const { error } = await supabase
       .from('user_backups')
-      .upsert({ user_id: userId, data: payload as any, updated_at: new Date().toISOString() }, { onConflict: 'user_id' });
-
+      .upsert(
+        { user_id: userId, data: payload as any, updated_at: new Date().toISOString() },
+        { onConflict: 'user_id' },
+      );
     if (error) throw error;
 
-    // success: only clear the pending count that existed before the upload
-    // (new writes during sync should remain pending).
-    const after = getPendingCount();
-    const remaining = Math.max(0, after - snapshotBefore);
-    localStorage.setItem(PENDING_COUNT_KEY, String(remaining));
-    if (remaining === 0) localStorage.removeItem(PENDING_FLAG_KEY);
+    // Only clear the counts that existed before this upload; new writes
+    // during the request remain pending and trigger another cycle.
+    const afterCount = getPendingCount();
+    const afterBaki = getPendingBaki();
+    const remainingCount = Math.max(0, afterCount - beforeCount);
+    const remainingBaki = Math.max(0, afterBaki - beforeBaki);
+    localStorage.setItem(PENDING_COUNT_KEY, String(remainingCount));
+    localStorage.setItem(PENDING_BAKI_KEY, String(remainingBaki));
     localStorage.setItem(LAST_SYNC_KEY, String(Date.now()));
 
-    currentState = remaining > 0 ? 'pending' : 'safe';
+    currentState = remainingCount > 0 ? 'pending' : 'safe';
+    if (retryTimer) { clearTimeout(retryTimer); retryTimer = null; }
     emit();
+    scheduleInterval(); // reset 8-hour timer from "now"
     return true;
   } catch (e: any) {
     console.warn('[sync] failed:', reason, e?.message ?? e);
     currentState = 'error';
     errorMessage = e?.message ?? 'Sync failed';
     emit();
+    // background retry
+    if (retryTimer) clearTimeout(retryTimer);
+    retryTimer = setTimeout(() => { void performSync('retry'); }, RETRY_BACKOFF_MS);
     return false;
   } finally {
     inFlight = false;
   }
 }
 
-function msUntilNextSync(): number {
+// ---------- interval scheduler --------------------------------------------
+
+function msUntilNextInterval(): number {
   const last = getLastSyncAt();
   if (!last) return SYNC_INTERVAL_MS;
-  const elapsed = Date.now() - last;
-  return Math.max(0, SYNC_INTERVAL_MS - elapsed);
+  return Math.max(0, SYNC_INTERVAL_MS - (Date.now() - last));
 }
 
-function schedule() {
-  if (timer) clearTimeout(timer);
-  const delay = msUntilNextSync();
-  timer = setTimeout(async () => {
+function scheduleInterval() {
+  if (intervalTimer) clearTimeout(intervalTimer);
+  const delay = Math.max(5000, msUntilNextInterval());
+  intervalTimer = setTimeout(async () => {
     await performSync('interval');
-    schedule();
-  }, Math.max(5000, delay)); // never tighter than 5s
+    scheduleInterval();
+  }, delay);
 }
+
+// ---------- public lifecycle ----------------------------------------------
 
 let started = false;
 export function startSyncEngine(): void {
   if (started) return;
   started = true;
 
-  // restore state on boot
   currentState = getPendingCount() > 0 ? 'pending' : 'safe';
   emit();
 
   window.addEventListener('online', async () => {
     emit();
-    if (msUntilNextSync() === 0 && getPendingCount() > 0) {
-      await performSync('online-resume');
+    // 1) baki always tries immediately on reconnect
+    if (getPendingBaki() > 0) await performSync('online-baki');
+    // 2) the rest only if the 8-hour window already elapsed
+    if (msUntilNextInterval() === 0 && getPendingCount() > 0) {
+      await performSync('online-interval');
     }
-    schedule();
+    scheduleInterval();
   });
   window.addEventListener('offline', () => {
     emit();
-    if (timer) { clearTimeout(timer); timer = null; }
+    if (intervalTimer) { clearTimeout(intervalTimer); intervalTimer = null; }
   });
 
-  schedule();
+  scheduleInterval();
 }
 
 export async function syncNow(): Promise<boolean> {
   const ok = await performSync('manual');
-  schedule();
+  scheduleInterval();
   return ok;
 }
