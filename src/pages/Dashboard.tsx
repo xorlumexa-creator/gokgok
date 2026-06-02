@@ -96,6 +96,9 @@ export default function Dashboard() {
 
       {/* Dynamic Price Products - below low stock */}
       <DynamicPriceProducts />
+
+      {/* Subscription usage */}
+      <UsageDashboard />
     </div>
   );
 }
