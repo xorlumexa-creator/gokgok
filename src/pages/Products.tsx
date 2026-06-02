@@ -257,11 +257,13 @@ export default function Products() {
       updateProduct(editingId, productData);
       toast({ title: "পণ্য আপডেট হয়েছে ✓" });
     } else {
+      if (!guardAddProduct()) return;
       addProduct(productData);
       toast({ title: "নতুন পণ্য যোগ হয়েছে ✓" });
     }
     resetForm();
   };
+
 
   const handleEdit = (product: typeof products[0]) => {
     setEditingId(product.id);
