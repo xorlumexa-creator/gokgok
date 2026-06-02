@@ -7,6 +7,7 @@ import { useStore } from '@/context/StoreContext';
 import { LowStockAlert } from '@/components/dashboard/LowStockAlert';
 import { DynamicPriceProducts } from '@/components/dashboard/DynamicPriceProducts';
 import { SyncStatusBar } from '@/components/SyncStatusBar';
+import { UsageDashboard } from '@/components/subscription/UsageDashboard';
 import { Button } from '@/components/ui/button';
 
 export default function Dashboard() {
@@ -95,6 +96,9 @@ export default function Dashboard() {
 
       {/* Dynamic Price Products - below low stock */}
       <DynamicPriceProducts />
+
+      {/* Subscription usage */}
+      <UsageDashboard />
     </div>
   );
 }

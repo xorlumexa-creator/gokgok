@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'react';
 import { BookOpen, Search, User, Phone, Plus, X, CheckCircle, AlertTriangle, MessageCircle, Send, Edit3, PhoneCall } from 'lucide-react';
 import { useStore } from '@/context/StoreContext';
+import { useSubscription } from '@/context/SubscriptionContext';
 import { Button } from '@/components/ui/button';
 import { toast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
@@ -19,6 +20,7 @@ export default function CreditBook() {
     getUnpaidCustomers,
     getCustomersDueFor30Days
   } = useStore();
+  const { guardAddCustomer, guardFeature } = useSubscription();
   
   const [searchType, setSearchType] = useState<'name' | 'phone'>('name');
   const [searchTerm, setSearchTerm] = useState('');
@@ -91,8 +93,10 @@ ${storeInfo?.name || 'আমাদের দোকানে'} এ আপনা�
       toast({ title: "গ্রাহকের নাম দিন", variant: "destructive" });
       return;
     }
+    if (!guardAddCustomer()) return;
 
     const dueAmount = Math.max(0, parseFloat(initialDue) || 0);
+
 
     addCustomer({
       name: formData.name.trim(),
@@ -154,6 +158,7 @@ ${storeInfo?.name || 'আমাদের দোকানে'} এ আপনা�
 
   // Send WhatsApp message
   const sendWhatsAppMessage = (customer: typeof customers[0]) => {
+    if (!guardFeature('whatsapp')) return;
     const phone = customer.whatsappNumber || customer.phone;
     if (!phone) {
       toast({ title: "WhatsApp নম্বর নেই", variant: "destructive" });

@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { ShoppingCart, Search, Plus, Minus, CheckCircle, User, X, Calculator, Phone, BookOpen, HelpCircle, AlertTriangle, Info, ChevronDown, Tag, Percent } from 'lucide-react';
 import { PhoneInputWithCode } from '@/components/common/PhoneInputWithCode';
 import { useStore } from '@/context/StoreContext';
+import { useSubscription } from '@/context/SubscriptionContext';
 import { Button } from '@/components/ui/button';
 import { toast } from '@/hooks/use-toast';
 import { CartItem, Product, SellingUnit, getUnitLabel } from '@/types/store';
@@ -67,6 +68,7 @@ export default function Sell() {
     searchCustomersByPhone,
     getExistingCustomersByName,
   } = useStore();
+  const { guardAddCustomer, guardRecordSale, incrementSalesCredit, hasFeature: subHasFeature } = useSubscription();
   
   const [searchTerm, setSearchTerm] = useState('');
   const [cart, setCart] = useState<FlexCartItem[]>([]);
@@ -284,6 +286,7 @@ export default function Sell() {
     let customerDisplayName = '';
 
     if (bakiNewCustomerName.trim()) {
+      if (!guardAddCustomer()) return;
       const newCustomer = addCustomer({
         name: bakiNewCustomerName.trim(),
         phone: bakiNewCustomerPhone.trim(),
@@ -292,6 +295,7 @@ export default function Sell() {
       customerId = newCustomer.id;
       customerDisplayName = newCustomer.displayName;
     } else if (bakiSelectedCustomer) {
+
       const customer = customers.find(c => c.id === bakiSelectedCustomer);
       customerDisplayName = customer?.displayName || '';
     }
@@ -317,12 +321,14 @@ export default function Sell() {
       toast({ title: "কার্ট খালি আছে", variant: "destructive" });
       return;
     }
+    if (!guardRecordSale(cart.length)) return;
 
     let customerId = selectedCustomer;
     let customerName = '';
 
     if (!isPaid) {
       if (newCustomerName.trim()) {
+        if (!guardAddCustomer()) return;
         const newCustomer = addCustomer({
           name: newCustomerName.trim(),
           phone: newCustomerPhone.trim(),
@@ -353,6 +359,9 @@ export default function Sell() {
     }));
 
     addMultipleSales(salesData, customerId || undefined, customerName || undefined, isPaid || partialPaid);
+    incrementSalesCredit(cart.length);
+
+
 
     // Build invoice data for navigation
     const invoiceItems = cart.map(item => ({
@@ -385,7 +394,13 @@ export default function Sell() {
 
     const navData = { invoiceData };
     clearCart();
-    navigate('/invoice', { state: navData });
+    // Invoice/Receipt is a Pro feature. If locked, skip the invoice screen and just return to dashboard.
+    if (subHasFeature('invoice')) {
+      navigate('/invoice', { state: navData });
+    } else {
+      navigate('/dashboard');
+    }
+
   };
 
   const handleSale = () => {

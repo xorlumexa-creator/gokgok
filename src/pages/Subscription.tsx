@@ -1,338 +1,226 @@
-import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Check, Crown, Sparkles, Loader2, CreditCard, Smartphone, Lock, MessageCircle, PhoneCall, ChevronDown, Zap, Receipt } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import { Check, Crown, Sparkles, Zap, TrendingUp, ShieldCheck, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from '@/hooks/use-toast';
-import { countries, Country, getCountryByCode, defaultCountry } from '@/data/countries';
-import type { User } from '@supabase/supabase-js';
 import logoImg from '@/assets/logo.png';
-import { SubscriptionPaymentForm } from '@/components/SubscriptionPaymentForm';
+import { useSubscription, toBn, PlanId, PLAN_BASE_PRICE, PLAN_LABEL, SALES_CREDIT_LIMIT, STORAGE_UNIT } from '@/context/SubscriptionContext';
+import { UsageDashboard } from '@/components/subscription/UsageDashboard';
 
-const MONTH_OPTIONS = [1, 2, 3, 4, 5, 6, 12];
+const PLAN_HIGHLIGHTS: Record<PlanId, { features: string[]; locked?: string[] }> = {
+  basic: {
+    features: [
+      'পণ্য ও স্টক ম্যানেজমেন্ট',
+      'বাকি (Baki) ব্যবস্থাপনা',
+      'ব্যক্তিগত হিসাব',
+      'বিক্রি ও খরচ ট্র্যাকিং',
+    ],
+    locked: ['WhatsApp ফিচার', 'Invoice ও PDF'],
+  },
+  standard: {
+    features: [
+      'Basic-এর সব ফিচার',
+      'WhatsApp baki reminder',
+      'কাস্টমার ও সাপ্লায়ার WhatsApp',
+      'WhatsApp টেমপ্লেট',
+    ],
+    locked: ['Invoice ও PDF'],
+  },
+  pro: {
+    features: [
+      'Standard-এর সব ফিচার',
+      'প্রিন্টযোগ্য Invoice',
+      'PDF ইনভয়েস এক্সপোর্ট',
+      'প্রফেশনাল receipt শেয়ার',
+    ],
+  },
+};
+
+function PlanCard({ id, selected, onSelect, monthlyPrice, isCurrent }: {
+  id: PlanId; selected: boolean; onSelect: () => void; monthlyPrice: number; isCurrent: boolean;
+}) {
+  const Icon = id === 'basic' ? Crown : id === 'standard' ? Sparkles : Zap;
+  return (
+    <button onClick={onSelect}
+      className={`w-full p-5 rounded-2xl border-2 text-left transition-all relative ${selected ? 'border-primary bg-primary/5 shadow-lg' : 'border-border bg-card hover:border-primary/40'}`}>
+      {id === 'pro' && (
+        <div className="absolute top-0 right-0 bg-primary text-primary-foreground px-3 py-1 rounded-bl-xl rounded-tr-2xl text-[11px] font-semibold">🔥 সেরা</div>
+      )}
+      {isCurrent && (
+        <div className="absolute -top-2 left-4 bg-emerald-500 text-white px-2 py-0.5 rounded-full text-[10px] font-semibold">বর্তমান</div>
+      )}
+      <div className="flex items-start gap-3">
+        <div className={`w-11 h-11 rounded-xl flex items-center justify-center shrink-0 ${selected ? 'bg-primary/10' : 'bg-muted'}`}>
+          <Icon className={`w-5 h-5 ${selected ? 'text-primary' : 'text-muted-foreground'}`} />
+        </div>
+        <div className="flex-1 min-w-0">
+          <h3 className="font-bold text-foreground">{PLAN_LABEL[id]}</h3>
+          <p className="text-2xl font-bold text-primary mt-1">৳{toBn(monthlyPrice)}<span className="text-xs font-normal text-muted-foreground">/মাস</span></p>
+          <ul className="mt-3 space-y-1.5">
+            {PLAN_HIGHLIGHTS[id].features.slice(0, 3).map((f, i) => (
+              <li key={i} className="flex items-center gap-2 text-xs text-foreground">
+                <Check className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                <span>{f}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+        <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 ${selected ? 'border-primary bg-primary' : 'border-muted-foreground'}`}>
+          {selected && <Check className="w-3 h-3 text-primary-foreground" />}
+        </div>
+      </div>
+    </button>
+  );
+}
 
 export default function Subscription() {
   const navigate = useNavigate();
-  const [user, setUser] = useState<User | null>(null);
+  const [params] = useSearchParams();
+  const focusUpgrade = params.get('focus') === 'upgrade';
   const [loading, setLoading] = useState(false);
-  const [selectedPlan, setSelectedPlan] = useState<'trial' | 'basic' | 'standard' | 'pro'>('trial');
-  const [userCountry, setUserCountry] = useState<Country>(defaultCountry);
-  const [trialDaysLeft, setTrialDaysLeft] = useState<number | null>(null);
-  const [isExpired, setIsExpired] = useState(false);
-  const [months, setMonths] = useState(1);
+  const { plan, storageLevel, monthlyPrice, setPlan, setStorageLevel, renewPlan } = useSubscription();
+  const [selectedPlan, setSelectedPlan] = useState<PlanId>(plan);
+  const [desiredLevel, setDesiredLevel] = useState<number>(storageLevel);
+
+  useEffect(() => { setSelectedPlan(plan); }, [plan]);
+  useEffect(() => { setDesiredLevel(storageLevel); }, [storageLevel]);
 
   useEffect(() => {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      setUser(session?.user ?? null);
+    supabase.auth.getSession().then(({ data: { session } }) => {
       if (!session?.user) navigate('/auth');
     });
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setUser(session?.user ?? null);
-      if (!session?.user) { navigate('/auth'); }
-      else {
-        const country = session.user.user_metadata?.country;
-        if (country) { const f = getCountryByCode(country); if (f) setUserCountry(f); }
-        checkTrialStatus(session.user.id);
-      }
-    });
-    return () => subscription.unsubscribe();
   }, [navigate]);
 
-  const checkTrialStatus = async (userId: string) => {
-    try {
-      const { data: profile } = await supabase.from('profiles').select('subscription_status, trial_start_date').eq('user_id', userId).single();
-      if (profile?.trial_start_date) {
-        const trialStart = new Date(profile.trial_start_date);
-        const now = new Date();
-        const daysPassed = Math.floor((now.getTime() - trialStart.getTime()) / (1000 * 60 * 60 * 24));
-        const daysLeft = Math.max(0, 14 - daysPassed);
-        setTrialDaysLeft(daysLeft);
-        setIsExpired(daysLeft === 0 && profile.subscription_status !== 'active');
-        if (isExpired) setSelectedPlan('basic');
-      }
-    } catch (error) { console.error('Error checking trial:', error); }
-  };
 
-  const handleStartPlan = async () => {
-    if (!user) { navigate('/auth'); return; }
+  const selectedBasePrice = PLAN_BASE_PRICE[selectedPlan];
+  const selectedMonthly = selectedBasePrice * desiredLevel;
+  const totalProductsAfter = desiredLevel * STORAGE_UNIT;
+  const totalBakiAfter = desiredLevel * STORAGE_UNIT;
+  const extraVsCurrent = Math.max(0, selectedMonthly - monthlyPrice);
+
+  const handleConfirm = async () => {
     setLoading(true);
     try {
-      if (selectedPlan === 'basic' || selectedPlan === 'standard' || selectedPlan === 'pro') {
-        const basePrice = selectedPlan === 'basic' ? userCountry.basicPrice : selectedPlan === 'standard' ? userCountry.standardPrice : userCountry.proPrice;
-        const totalPrice = basePrice * months;
-        const period = months === 1 ? '/মাস' : ` (${months} মাস)`;
-        if (userCountry.code === 'BD') {
-          toast({ title: "বিকাশ পেমেন্ট", description: `৳${totalPrice}${period} বিকাশ করুন: 01XXXXXXXXX (পেমেন্ট সিস্টেম শীঘ্রই আসছে)` });
-        } else {
-          toast({ title: "পেমেন্ট সিস্টেম শীঘ্রই আসছে", description: `${userCountry.currencySymbol}${totalPrice}${period}` });
-        }
-        setLoading(false);
-        return;
-      }
-
-      const { error } = await supabase.from('profiles').update({
-        subscription_status: 'trial',
-        trial_start_date: new Date().toISOString(),
-      }).eq('user_id', user.id);
-      if (error) throw error;
-      toast({ title: "১৪ দিনের ফ্রি ট্রায়াল শুরু হয়েছে! 🎉" });
-      navigate('/');
-    } catch (error: any) { toast({ title: error.message || "সমস্যা হয়েছে", variant: "destructive" }); }
-    finally { setLoading(false); }
+      await setPlan(selectedPlan);
+      await setStorageLevel(desiredLevel);
+      await renewPlan(selectedPlan);
+      toast({ title: 'প্ল্যান সফলভাবে আপডেট হয়েছে ✓', description: `${PLAN_LABEL[selectedPlan]} — ৳${selectedMonthly}/মাস` });
+      setTimeout(() => navigate('/dashboard'), 800);
+    } catch (e: any) {
+      toast({ title: 'সমস্যা হয়েছে', description: e?.message, variant: 'destructive' });
+    } finally { setLoading(false); }
   };
 
-  const basicFeatures = [
-    "১,০০০ পণ্য তালিকা",
-    "১,০০০ বাকি গ্রাহক",
-    "মাসিক ১৮,০০০ ডাটা ইনপুট (সব পেজ মিলিয়ে)",
-    "বাকির লাভ ট্র্যাকিং",
-    "দৈনিক/সাপ্তাহিক/মাসিক রিপোর্ট",
-    "একাধিক ইউনিটে বিক্রি",
-    "ব্যক্তিগত ও দোকানের হিসাব আলাদা",
-    "আগাম অর্ডার ব্যবস্থাপনা",
-    "দাম উঠা-নামা পণ্য ট্র্যাকিং",
-  ];
-
-  const standardExtras = [
-    "WhatsApp রিমাইন্ডার",
-    "সরাসরি কল বাটন",
-    "WhatsApp মেসেজ টেমপ্লেট",
-  ];
-
-  const proExtras = [
-    "ইনভয়েস তৈরি, প্রিন্ট ও WhatsApp এ পাঠান",
-    "PDF এক্সপোর্ট",
-    "WhatsApp রিমাইন্ডার ও কল",
-  ];
-
-  const getPrice = (plan: 'basic' | 'standard' | 'pro') => {
-    const { currencySymbol, currency } = userCountry;
-    const base = plan === 'basic' ? userCountry.basicPrice : plan === 'standard' ? userCountry.standardPrice : userCountry.proPrice;
-    const sym = currency === 'BDT' ? '৳' : currencySymbol;
-    return `${sym}${base * months}`;
-  };
+  const isUpgrade = selectedMonthly > monthlyPrice || selectedPlan !== plan || desiredLevel !== storageLevel;
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-accent via-background to-background flex flex-col items-center justify-center p-6">
-      <div className="w-full max-w-lg">
-        <div className="text-center mb-8">
-          <img src={logoImg} alt="Dukan 360°" className="w-16 h-16 rounded-2xl mx-auto mb-3 shadow-soft object-cover" />
-          <p className="text-sm text-primary font-medium mb-2">Dukan 360°</p>
-          <h1 className="text-2xl font-bold text-foreground">
-            {isExpired ? 'ট্রায়াল শেষ হয়েছে' : 'সাবস্ক্রিপশন বেছে নিন'}
-          </h1>
-          <p className="text-muted-foreground mt-1">
-            {isExpired ? 'চালিয়ে যেতে সাবস্ক্রাইব করুন' : 'আপনার দোকান পরিচালনা করুন স্মার্টভাবে'}
-          </p>
-          {trialDaysLeft !== null && trialDaysLeft > 0 && (
-            <div className="mt-3 inline-block px-4 py-2 bg-primary/10 rounded-full">
-              <span className="text-primary font-medium">⏰ {trialDaysLeft} দিন বাকি</span>
-            </div>
-          )}
-        </div>
-
-        {/* Month Selector */}
-        {(selectedPlan === 'basic' || selectedPlan === 'standard' || selectedPlan === 'pro') && (
-          <div className="mb-4 p-4 card-elevated rounded-2xl">
-            <label className="block text-sm font-medium text-foreground mb-2">কত মাসের জন্য?</label>
-            <div className="relative">
-              <select value={months} onChange={(e) => setMonths(parseInt(e.target.value))}
-                className="w-full py-3 px-4 rounded-xl border border-border bg-background text-foreground appearance-none text-lg font-medium focus:outline-none focus:ring-2 focus:ring-primary">
-                {MONTH_OPTIONS.map(m => (
-                  <option key={m} value={m}>{m === 12 ? '১২ মাস (১ বছর)' : `${m} মাস`}</option>
-                ))}
-              </select>
-              <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground pointer-events-none" />
-            </div>
-          </div>
-        )}
-
-        <div className="space-y-4 mb-6">
-          {/* Free Trial */}
-          {!isExpired && (
-            <button onClick={() => setSelectedPlan('trial')}
-              className={`w-full p-6 rounded-2xl border-2 transition-all text-left relative overflow-hidden ${selectedPlan === 'trial' ? 'border-primary bg-primary/5' : 'border-border bg-card hover:border-primary/50'}`}>
-              <div className="absolute top-0 right-0 bg-profit text-white px-3 py-1 rounded-bl-xl text-xs font-medium">প্রস্তাবিত</div>
-              <div className="flex items-start gap-4">
-                <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${selectedPlan === 'trial' ? 'bg-primary/10' : 'bg-muted'}`}>
-                  <Sparkles className={`w-6 h-6 ${selectedPlan === 'trial' ? 'text-primary' : 'text-muted-foreground'}`} />
-                </div>
-                <div className="flex-1">
-                  <h3 className="text-lg font-bold text-foreground">ফ্রি ট্রায়াল</h3>
-                  <p className="text-muted-foreground text-sm">১৪ দিনের জন্য সব ফিচার ফ্রি</p>
-                  <p className="text-3xl font-bold text-primary mt-2">{userCountry.currencySymbol}০</p>
-                </div>
-                <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center ${selectedPlan === 'trial' ? 'border-primary bg-primary' : 'border-muted-foreground'}`}>
-                  {selectedPlan === 'trial' && <Check className="w-4 h-4 text-primary-foreground" />}
-                </div>
-              </div>
-            </button>
-          )}
-
-          {/* Basic Plan */}
-          <button onClick={() => setSelectedPlan('basic')}
-            className={`w-full p-6 rounded-2xl border-2 transition-all text-left ${selectedPlan === 'basic' ? 'border-primary bg-primary/5' : 'border-border bg-card hover:border-primary/50'}`}>
-            <div className="flex items-start gap-4">
-              <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${selectedPlan === 'basic' ? 'bg-primary/10' : 'bg-muted'}`}>
-                <Crown className={`w-6 h-6 ${selectedPlan === 'basic' ? 'text-primary' : 'text-muted-foreground'}`} />
-              </div>
-              <div className="flex-1">
-                <h3 className="text-lg font-bold text-foreground">বেসিক প্ল্যান</h3>
-                <p className="text-muted-foreground text-sm">মূল ফিচার (WhatsApp ও ইনভয়েস ছাড়া)</p>
-                <p className="text-3xl font-bold text-primary mt-2">
-                  {getPrice('basic')}<span className="text-sm font-normal text-muted-foreground">/{months > 1 ? `${months} মাস` : 'মাস'}</span>
-                </p>
-                <div className="mt-2 flex items-center gap-2 text-xs text-muted-foreground">
-                  <Lock className="w-3 h-3" />
-                  <span>WhatsApp, কল ও ইনভয়েস লক থাকবে</span>
-                </div>
-              </div>
-              <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center ${selectedPlan === 'basic' ? 'border-primary bg-primary' : 'border-muted-foreground'}`}>
-                {selectedPlan === 'basic' && <Check className="w-4 h-4 text-primary-foreground" />}
-              </div>
-            </div>
-          </button>
-
-          {/* Standard Plan */}
-          <button onClick={() => setSelectedPlan('standard')}
-            className={`w-full p-6 rounded-2xl border-2 transition-all text-left ${selectedPlan === 'standard' ? 'border-primary bg-primary/5' : 'border-border bg-card hover:border-primary/50'}`}>
-            <div className="flex items-start gap-4">
-              <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${selectedPlan === 'standard' ? 'bg-primary/10' : 'bg-muted'}`}>
-                <Crown className={`w-6 h-6 ${selectedPlan === 'standard' ? 'text-primary' : 'text-muted-foreground'}`} />
-              </div>
-              <div className="flex-1">
-                <h3 className="text-lg font-bold text-foreground">স্ট্যান্ডার্ড প্ল্যান</h3>
-                <p className="text-muted-foreground text-sm">সব ফিচার + WhatsApp + কল</p>
-                <p className="text-3xl font-bold text-primary mt-2">
-                  {getPrice('standard')}<span className="text-sm font-normal text-muted-foreground">/{months > 1 ? `${months} মাস` : 'মাস'}</span>
-                </p>
-                <div className="mt-2 flex items-center gap-2 text-xs text-profit">
-                  <MessageCircle className="w-3 h-3" />
-                  <span>WhatsApp রিমাইন্ডার + সরাসরি কল</span>
-                </div>
-              </div>
-              <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center ${selectedPlan === 'standard' ? 'border-primary bg-primary' : 'border-muted-foreground'}`}>
-                {selectedPlan === 'standard' && <Check className="w-4 h-4 text-primary-foreground" />}
-              </div>
-            </div>
-          </button>
-
-          {/* Pro Plan */}
-          <button onClick={() => setSelectedPlan('pro')}
-            className={`w-full p-6 rounded-2xl border-2 transition-all text-left relative overflow-hidden ${selectedPlan === 'pro' ? 'border-primary bg-primary/5' : 'border-border bg-card hover:border-primary/50'}`}>
-            <div className="absolute top-0 right-0 bg-primary text-primary-foreground px-3 py-1 rounded-bl-xl text-xs font-medium">🔥 সেরা</div>
-            <div className="flex items-start gap-4">
-              <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${selectedPlan === 'pro' ? 'bg-primary/10' : 'bg-muted'}`}>
-                <Zap className={`w-6 h-6 ${selectedPlan === 'pro' ? 'text-primary' : 'text-muted-foreground'}`} />
-              </div>
-              <div className="flex-1">
-                <h3 className="text-lg font-bold text-foreground">প্রো প্ল্যান</h3>
-                <p className="text-muted-foreground text-sm">সব ফিচার + ইনভয়েস + WhatsApp + কল</p>
-                <p className="text-3xl font-bold text-primary mt-2">
-                  {getPrice('pro')}<span className="text-sm font-normal text-muted-foreground">/{months > 1 ? `${months} মাস` : 'মাস'}</span>
-                </p>
-                <div className="mt-2 flex items-center gap-2 text-xs text-profit">
-                  <Receipt className="w-3 h-3" />
-                  <span>ইনভয়েস + WhatsApp + কল সব আনলক</span>
-                </div>
-              </div>
-              <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center ${selectedPlan === 'pro' ? 'border-primary bg-primary' : 'border-muted-foreground'}`}>
-                {selectedPlan === 'pro' && <Check className="w-4 h-4 text-primary-foreground" />}
-              </div>
-            </div>
-          </button>
-        </div>
-
-        {/* Limits info */}
-        <div className="card-elevated p-4 mb-4 bg-primary/5 rounded-2xl">
-          <p className="text-sm font-medium text-foreground mb-2">📊 প্রতিটি প্ল্যানের ক্যাপাসিটি (একই):</p>
-          <div className="grid grid-cols-3 gap-2 text-center text-xs">
-            <div className="p-2 bg-background rounded-lg">
-              <p className="font-bold text-foreground">১,০০০</p>
-              <p className="text-muted-foreground">বাকি গ্রাহক</p>
-            </div>
-            <div className="p-2 bg-background rounded-lg">
-              <p className="font-bold text-foreground">১,০০০</p>
-              <p className="text-muted-foreground">পণ্য তালিকা</p>
-            </div>
-            <div className="p-2 bg-background rounded-lg">
-              <p className="font-bold text-foreground">১৮,০০০</p>
-              <p className="text-muted-foreground">মাসিক ইনপুট</p>
-            </div>
-          </div>
-          <p className="text-[11px] text-muted-foreground mt-2 text-center leading-relaxed">
-            ১৮,০০০ = বিক্রি + বাকির খাতা + পণ্য + হিসাব খাতা — সব মিলিয়ে মাসিক।
-          </p>
-          <div className="mt-3 p-3 bg-rose-50 dark:bg-rose-950/30 rounded-xl border border-rose-200">
-            <p className="text-[11px] text-rose-700 dark:text-rose-300 text-center leading-relaxed">
-              ⚠️ ১৮,০০০ ক্রেডিট মাসের মাঝে শেষ হলে আবার সাবস্ক্রাইব করতে হবে।<br />
-              মাস শেষেও আবার সাবস্ক্রিপশন প্রয়োজন (ব্যবহার না করলেও)।
-            </p>
+    <div className="min-h-screen bg-gradient-to-b from-accent via-background to-background p-4 md:p-6">
+      <div className="max-w-2xl mx-auto">
+        <div className="flex items-center gap-3 mb-6">
+          <img src={logoImg} alt="Dukan 360°" className="w-12 h-12 rounded-2xl object-cover" />
+          <div>
+            <p className="text-xs text-primary font-semibold">Dukan 360°</p>
+            <h1 className="text-xl font-bold text-foreground">{focusUpgrade ? 'প্ল্যান আপগ্রেড করুন' : 'সাবস্ক্রিপশন'}</h1>
           </div>
         </div>
 
-        {/* Features */}
-        <div className="card-elevated p-6 mb-6">
-          <h4 className="font-semibold text-foreground mb-4">বেসিক ফিচার:</h4>
-          <ul className="space-y-3 mb-4">
-            {basicFeatures.map((f, i) => (
-              <li key={i} className="flex items-center gap-3 text-sm">
-                <div className="w-5 h-5 rounded-full bg-profit/10 flex items-center justify-center flex-shrink-0">
-                  <Check className="w-3 h-3 text-profit" />
-                </div>
-                <span className="text-foreground">{f}</span>
+        {/* Current usage */}
+        <div className="mb-6">
+          <UsageDashboard compact />
+        </div>
+
+        {/* Plan selection */}
+        <h2 className="font-bold text-foreground mb-3">আপনার প্ল্যান বেছে নিন</h2>
+        <div className="grid gap-3 mb-6">
+          {(['basic', 'standard', 'pro'] as PlanId[]).map(p => (
+            <PlanCard key={p} id={p} selected={selectedPlan === p} onSelect={() => setSelectedPlan(p)}
+              monthlyPrice={PLAN_BASE_PRICE[p] * desiredLevel} isCurrent={plan === p && storageLevel === desiredLevel} />
+          ))}
+        </div>
+
+        {/* Storage scaling */}
+        <div className="card-elevated rounded-2xl p-5 mb-6 bg-card">
+          <div className="flex items-start gap-3 mb-4">
+            <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
+              <TrendingUp className="w-5 h-5 text-primary" />
+            </div>
+            <div className="flex-1">
+              <h3 className="font-bold text-foreground">স্টোরেজ সাইজ</h3>
+              <p className="text-xs text-muted-foreground">আপনার দোকানের আকার অনুযায়ী বেছে নিন</p>
+            </div>
+          </div>
+          <div className="space-y-2">
+            {[1, 2, 3].map(lvl => {
+              const extra = (lvl - 1) * selectedBasePrice;
+              const total = lvl * selectedBasePrice;
+              const isSel = desiredLevel === lvl;
+              return (
+                <button key={lvl} onClick={() => setDesiredLevel(lvl)}
+                  className={`w-full p-4 rounded-xl border-2 text-left transition-all ${isSel ? 'border-primary bg-primary/5' : 'border-border bg-background hover:border-primary/40'}`}>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="font-semibold text-foreground">{toBn((lvl * STORAGE_UNIT).toLocaleString())} টি পণ্য + {toBn((lvl * STORAGE_UNIT).toLocaleString())} টি বাকি হিসাব</p>
+                      {lvl === 1 ? (
+                        <p className="text-xs text-muted-foreground mt-1">ভিত্তিমূল্য অন্তর্ভুক্ত</p>
+                      ) : (
+                        <p className="text-xs text-emerald-700 dark:text-emerald-400 mt-1 font-medium">মাত্র ৳{toBn(extra)} অতিরিক্ত/মাস</p>
+                      )}
+                    </div>
+                    <div className="text-right">
+                      <p className="text-lg font-bold text-primary">৳{toBn(total)}<span className="text-[10px] font-normal text-muted-foreground">/মাস</span></p>
+                    </div>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Sales credits info */}
+        <div className="rounded-2xl bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-900 p-4 mb-6 flex items-start gap-3">
+          <ShieldCheck className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
+          <div className="text-sm text-foreground">
+            প্রতিটি প্ল্যানে মাসিক <b>{toBn(SALES_CREDIT_LIMIT.toLocaleString())} টি বিক্রি</b> অন্তর্ভুক্ত। সীমা পূর্ণ হলে আবার নবায়ন করুন।
+          </div>
+        </div>
+
+        {/* Feature list of selected plan */}
+        <div className="card-elevated rounded-2xl p-5 mb-6 bg-card">
+          <h3 className="font-bold text-foreground mb-3">{PLAN_LABEL[selectedPlan]} প্ল্যানে যা পাবেন</h3>
+          <ul className="space-y-2">
+            {PLAN_HIGHLIGHTS[selectedPlan].features.map((f, i) => (
+              <li key={i} className="flex items-center gap-2 text-sm text-foreground">
+                <Check className="w-4 h-4 text-emerald-600" /> {f}
               </li>
             ))}
-          </ul>
-          <h4 className="font-semibold text-foreground mb-3 flex items-center gap-2">
-            <Crown className="w-4 h-4 text-primary" />
-            স্ট্যান্ডার্ড এক্সট্রা:
-          </h4>
-          <ul className="space-y-3 mb-4">
-            {standardExtras.map((f, i) => (
-              <li key={i} className="flex items-center gap-3 text-sm">
-                <div className="w-5 h-5 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
-                  {i === 0 ? <MessageCircle className="w-3 h-3 text-primary" /> : <PhoneCall className="w-3 h-3 text-primary" />}
-                </div>
-                <span className="text-foreground">{f}</span>
-              </li>
-            ))}
-          </ul>
-          <h4 className="font-semibold text-foreground mb-3 flex items-center gap-2">
-            <Zap className="w-4 h-4 text-primary" />
-            প্রো এক্সট্রা:
-          </h4>
-          <ul className="space-y-3">
-            {proExtras.map((f, i) => (
-              <li key={i} className="flex items-center gap-3 text-sm">
-                <div className="w-5 h-5 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
-                  {i === 0 ? <Receipt className="w-3 h-3 text-primary" /> : i === 1 ? <MessageCircle className="w-3 h-3 text-primary" /> : <PhoneCall className="w-3 h-3 text-primary" />}
-                </div>
-                <span className="text-foreground">{f}</span>
+            {PLAN_HIGHLIGHTS[selectedPlan].locked?.map((f, i) => (
+              <li key={`l${i}`} className="flex items-center gap-2 text-sm text-muted-foreground">
+                <span className="w-4 h-4 inline-flex items-center justify-center">🔒</span> {f}
               </li>
             ))}
           </ul>
         </div>
 
-        {/* Payment / Submit */}
-        {(selectedPlan === 'basic' || selectedPlan === 'standard' || selectedPlan === 'pro') && user ? (
-          <SubscriptionPaymentForm
-            userId={user.id}
-            userPhone={user.user_metadata?.phone || ''}
-            plan={selectedPlan}
-            amount={getPrice(selectedPlan)}
-            onDone={() => setTimeout(() => navigate('/dashboard'), 1500)}
-          />
-        ) : (
-          <Button onClick={handleStartPlan} disabled={loading} className="w-full btn-primary py-6 text-lg rounded-xl">
-            {loading && <Loader2 className="w-5 h-5 animate-spin mr-2" />}
-            ফ্রি ট্রায়াল শুরু করুন
-          </Button>
-        )}
-
-        <p className="text-center text-xs text-muted-foreground mt-4">
-          ম্যানুয়াল পেমেন্ট অনুমোদন • অনুমোদন আসা পর্যন্ত ১ দিন ফ্রি অ্যাক্সেস
-        </p>
+        {/* CTA */}
+        <div className="sticky bottom-4 z-10">
+          <div className="card-elevated rounded-2xl p-4 bg-card shadow-xl">
+            <div className="flex items-baseline justify-between mb-3">
+              <div>
+                <p className="text-xs text-muted-foreground">মাসিক মূল্য</p>
+                <p className="text-2xl font-bold text-foreground">৳{toBn(selectedMonthly)}<span className="text-xs font-normal text-muted-foreground">/মাস</span></p>
+              </div>
+              {extraVsCurrent > 0 && (
+                <p className="text-sm font-semibold text-primary">+৳{toBn(extraVsCurrent)} অতিরিক্ত</p>
+              )}
+            </div>
+            <Button onClick={handleConfirm} disabled={loading} className="w-full py-6 text-base rounded-xl">
+              {loading && <Loader2 className="w-4 h-4 animate-spin mr-2" />}
+              {isUpgrade ? 'এখনই আপগ্রেড করুন' : 'প্ল্যান নবায়ন করুন'}
+            </Button>
+            <p className="text-[10px] text-center text-muted-foreground mt-2">৩০ দিনের জন্য সক্রিয় হবে</p>
+          </div>
+        </div>
       </div>
     </div>
   );

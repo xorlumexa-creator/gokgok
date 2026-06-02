@@ -3,6 +3,8 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { ArrowLeft, Printer, MessageCircle, Receipt, MapPin, Phone, FileText } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useStore } from '@/context/StoreContext';
+import { useSubscription } from '@/context/SubscriptionContext';
+import { useEffect } from 'react';
 import { PhoneInputWithCode } from '@/components/common/PhoneInputWithCode';
 
 const INVOICE_STORAGE_KEY = 'dukan360_invoice_settings';
@@ -48,6 +50,14 @@ export default function Invoice() {
   const navigate = useNavigate();
   const location = useLocation();
   const { storeInfo } = useStore();
+  const { hasFeature, openLock } = useSubscription();
+  useEffect(() => {
+    if (!hasFeature('invoice')) {
+      openLock({ type: 'feature_invoice' });
+      navigate('/dashboard', { replace: true });
+    }
+  }, [hasFeature, openLock, navigate]);
+
   const printRef = useRef<HTMLDivElement>(null);
   const savedSettings = useRef(loadSavedSettings());
   const [printMode, setPrintMode] = useState<'thermal' | 'a4'>('thermal');

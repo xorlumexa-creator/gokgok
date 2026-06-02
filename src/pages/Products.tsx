@@ -2,6 +2,7 @@ import { useState, useMemo, useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
 import { Package, Plus, Search, Edit2, Trash2, X, HelpCircle, ChevronDown, ChevronUp, Scale, Hash, Droplets, Info, MapPin, CalendarDays, TrendingUp } from 'lucide-react';
 import { useStore } from '@/context/StoreContext';
+import { useSubscription } from '@/context/SubscriptionContext';
 import { Button } from '@/components/ui/button';
 import { toast } from '@/hooks/use-toast';
 import { UnitType, SellingUnit, getUnitLabel } from '@/types/store';
@@ -83,6 +84,7 @@ const STOCK_TYPE_CONFIG: Record<StockType, {
 
 export default function Products() {
   const { products, addProduct, updateProduct, deleteProduct, getProductSuggestions } = useStore();
+  const { guardAddProduct } = useSubscription();
   const location = useLocation();
   const [searchTerm, setSearchTerm] = useState('');
   const [showAddForm, setShowAddForm] = useState(false);
@@ -255,11 +257,13 @@ export default function Products() {
       updateProduct(editingId, productData);
       toast({ title: "পণ্য আপডেট হয়েছে ✓" });
     } else {
+      if (!guardAddProduct()) return;
       addProduct(productData);
       toast({ title: "নতুন পণ্য যোগ হয়েছে ✓" });
     }
     resetForm();
   };
+
 
   const handleEdit = (product: typeof products[0]) => {
     setEditingId(product.id);

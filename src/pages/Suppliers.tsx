@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'react';
 import { Truck, Plus, Search, Phone, MessageCircle, X, Edit2, Trash2, Package } from 'lucide-react';
 import { useStore } from '@/context/StoreContext';
+import { useSubscription } from '@/context/SubscriptionContext';
 import { Button } from '@/components/ui/button';
 import { toast } from '@/hooks/use-toast';
 import { PhoneInputWithCode } from '@/components/common/PhoneInputWithCode';
@@ -8,6 +9,8 @@ import { validatePhoneWithCountryCode } from '@/types/store';
 
 export default function Suppliers() {
   const { suppliers, products, storeInfo, addSupplier, updateSupplier, deleteSupplier } = useStore();
+  const { guardFeature } = useSubscription();
+
   
   const [searchTerm, setSearchTerm] = useState('');
   const [showAddForm, setShowAddForm] = useState(false);
@@ -123,6 +126,7 @@ ${storeInfo?.name || 'আমাদের দোকান'} থেকে অন�
   };
 
   const openOrderModal = (supplier: typeof suppliers[0]) => {
+    if (!guardFeature('whatsapp')) return;
     setShowOrderModal(supplier.id);
     setOrderProduct('');
     setOrderQuantity('');
@@ -130,9 +134,12 @@ ${storeInfo?.name || 'আমাদের দোকান'} থেকে অন�
     setEditingMessage(false);
   };
 
+
   const handleSendMessage = () => {
+    if (!guardFeature('whatsapp')) return;
     const supplier = suppliers.find(s => s.id === showOrderModal);
     if (!supplier) return;
+
 
     // Format phone number for WhatsApp
     let phone = supplier.phone.replace(/\s+/g, '');
