@@ -101,7 +101,7 @@ function AppRoutes() {
         <Route path="/auth" element={<Auth />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
         <Route path="/change-password" element={<ChangePassword />} />
-        <Route path="/subscription" element={<Subscription />} />
+        <Route path="/subscription" element={<StoreProvider><SubscriptionProvider><Subscription /></SubscriptionProvider></StoreProvider>} />
         <Route path="/setup" element={<StoreProvider><Index /></StoreProvider>} />
 
         <Route element={<ManagerRoute><ManagerLayout /></ManagerRoute>}>
