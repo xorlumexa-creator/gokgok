@@ -395,7 +395,7 @@ export default function Sell() {
     const navData = { invoiceData };
     clearCart();
     // Invoice/Receipt is a Pro feature. If locked, skip the invoice screen and just return to dashboard.
-    if (useSubscriptionRef.hasFeature('invoice')) {
+    if (subHasFeature('invoice')) {
       navigate('/invoice', { state: navData });
     } else {
       navigate('/dashboard');
