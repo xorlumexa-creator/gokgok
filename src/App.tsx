@@ -82,10 +82,16 @@ function ManagerRoute({ children }: { children: React.ReactNode }) {
 function StoreProtectedRoute({ children }: { children: React.ReactNode }) {
   return (
     <StoreProvider>
-      <ProtectedRoute>{children}</ProtectedRoute>
+      <SubscriptionProvider>
+        <ProtectedRoute>
+          {children}
+          <SubscriptionLockModal />
+        </ProtectedRoute>
+      </SubscriptionProvider>
     </StoreProvider>
   );
 }
+
 
 function AppRoutes() {
   return (
