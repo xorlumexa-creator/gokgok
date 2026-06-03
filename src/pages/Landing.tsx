@@ -95,14 +95,14 @@ export default function Landing() {
         <h2 className="text-2xl sm:text-3xl font-bold text-center mb-2">সাশ্রয়ী প্ল্যান</h2>
         <p className="text-center text-muted-foreground mb-2">৩টি প্ল্যানেই একই ক্যাপাসিটি — পার্থক্য শুধু ফিচারে</p>
         <div className="text-center text-xs text-muted-foreground mb-8 max-w-2xl mx-auto leading-relaxed">
-          প্রতিটি প্ল্যানে: <b className="text-foreground">১,০০০ পণ্য তালিকা</b> + <b className="text-foreground">১,০০০ বাকি গ্রাহক</b> + <b className="text-foreground">মাসিক ১৮,০০০ ডাটা ইনপুট</b><br/>
-          <span className="text-rose-600">⚠️ ১৮,০০০ ক্রেডিট মাসের মাঝে শেষ হলে আবার সাবস্ক্রাইব করতে হবে। মাস শেষেও আবার সাবস্ক্রিপশন প্রয়োজন।</span>
+          প্রতিটি প্ল্যানে: <b className="text-foreground">১,০০০ পণ্য</b> + <b className="text-foreground">১,০০০ বাকি গ্রাহক</b> + <b className="text-foreground">মাসিক ১৫,০০০ বিক্রি</b><br/>
+          <span className="text-rose-600">⚠️ সীমা শেষ হলে বা মাস শেষ হলে আবার সাবস্ক্রিপশন প্রয়োজন।</span>
         </div>
         <div className="grid sm:grid-cols-3 gap-4">
           {[
             { name: 'Basic', price: 80, features: ['মূল ফিচার সব', 'বাকির খাতা + পণ্য + হিসাব', 'রিপোর্ট ও বিশ্লেষণ'], highlight: false },
-            { name: 'Standard', price: 140, features: ['Basic-এর সব', 'WhatsApp রিমাইন্ডার', 'সরাসরি কল বাটন'], highlight: true },
-            { name: 'Pro', price: 200, features: ['Standard-এর সব', 'Thermal/A4 ইনভয়েস', 'PDF এক্সপোর্ট + WhatsApp শেয়ার'], highlight: false },
+            { name: 'Standard', price: 120, features: ['Basic-এর সব', 'WhatsApp রিমাইন্ডার', 'সরাসরি কল বাটন'], highlight: true },
+            { name: 'Pro', price: 180, features: ['Standard-এর সব', 'Thermal/A4 ইনভয়েস', 'PDF এক্সপোর্ট + WhatsApp শেয়ার'], highlight: false },
           ].map((p, i) => (
             <div key={i} className={`rounded-2xl p-6 border-2 transition-all ${p.highlight ? 'border-primary bg-primary/5 shadow-elegant scale-[1.02]' : 'border-border bg-card'}`}>
               {p.highlight && <span className="inline-block bg-primary text-primary-foreground text-xs font-bold px-3 py-1 rounded-full mb-2">জনপ্রিয়</span>}
