@@ -22,7 +22,7 @@ export function WelcomeStep({ storeName, onStoreNameChange, onNext }: WelcomeSte
         <p className="text-muted-foreground text-lg">
           প্রথমে আপনার দোকানের নাম লিখুন এবং কয়েকটি পণ্য যোগ করুন।
           <br />
-          <span className="text-primary font-medium">১৫ দিন ফ্রি ট্রায়াল শুরু হবে।</span>
+          <span className="text-primary font-medium">৩ দিন ফ্রি ট্রায়াল শুরু হবে।</span>
         </p>
       </div>
 
