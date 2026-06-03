@@ -71,7 +71,7 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
           const trialStart = new Date(profile.trial_start_date);
           const now = new Date();
           const daysPassed = Math.floor((now.getTime() - trialStart.getTime()) / (1000 * 60 * 60 * 24));
-          setTrialDaysLeft(Math.max(0, 14 - daysPassed));
+          setTrialDaysLeft(Math.max(0, 3 - daysPassed));
         }
       }
     } catch (error) {

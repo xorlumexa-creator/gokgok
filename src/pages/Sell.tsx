@@ -321,7 +321,7 @@ export default function Sell() {
       toast({ title: "কার্ট খালি আছে", variant: "destructive" });
       return;
     }
-    if (!guardRecordSale(cart.length)) return;
+    if (!guardRecordSale(1)) return;
 
     let customerId = selectedCustomer;
     let customerName = '';
@@ -359,7 +359,7 @@ export default function Sell() {
     }));
 
     addMultipleSales(salesData, customerId || undefined, customerName || undefined, isPaid || partialPaid);
-    incrementSalesCredit(cart.length);
+    incrementSalesCredit(1);
 
 
 

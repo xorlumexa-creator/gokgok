@@ -30,7 +30,7 @@ export function CompletionStep({ storeName, productCount, onGoToDashboard }: Com
           </div>
           <div className="flex justify-between items-center py-2">
             <span className="text-muted-foreground">ফ্রি ট্রায়াল</span>
-            <span className="font-semibold text-profit">১৫ দিন বাকি</span>
+            <span className="font-semibold text-profit">৩ দিন বাকি</span>
           </div>
         </div>
       </div>

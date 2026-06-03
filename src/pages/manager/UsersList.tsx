@@ -17,8 +17,8 @@ interface Row {
   temporary_access: boolean;
 }
 
-const TRIAL_DAYS = 5;
-const GRACE_DAYS = 30;
+const TRIAL_DAYS = 3;
+const GRACE_DAYS = 90; // 3 months no-attempt → delete
 
 export default function UsersList() {
   const [rows, setRows] = useState<Row[]>([]);

@@ -47,15 +47,15 @@ export function SubscriptionPaymentForm({ userId, userPhone, plan, amount, onDon
       });
       if (error) throw error;
 
-      // Grant 1-day temporary access
-      const expiry = new Date(); expiry.setDate(expiry.getDate() + 1);
+      // Grant 2-day temporary access while manager reviews
+      const expiry = new Date(); expiry.setDate(expiry.getDate() + 2);
       await supabase.from('profiles').update({
         temporary_access: true,
         temporary_expiry: expiry.toISOString(),
       }).eq('user_id', userId);
 
       setDone(true);
-      toast({ title: 'রিকোয়েস্ট জমা হয়েছে — ১ দিনের ফ্রি অ্যাক্সেস চালু হলো 🎉' });
+      toast({ title: 'রিকোয়েস্ট জমা হয়েছে — ২ দিনের অস্থায়ী অ্যাক্সেস চালু হলো 🎉' });
       onDone?.();
     } catch (e: any) {
       toast({ title: e.message || 'সমস্যা হয়েছে', variant: 'destructive' });

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
-import { CheckCircle2, AlertTriangle, RefreshCw, WifiOff, ShieldCheck } from 'lucide-react';
-import { getSnapshot, subscribe, syncNow } from '@/lib/syncEngine';
+import { AlertTriangle, RefreshCw, WifiOff, ShieldCheck } from 'lucide-react';
+import { getSnapshot, subscribe } from '@/lib/syncEngine';
 
 const BN_DIGITS = ['০','১','২','৩','৪','৫','৬','৭','৮','৯'];
 const toBn = (s: string | number) =>
@@ -87,16 +87,6 @@ export function SyncStatusBar() {
         <b> app storage delete</b> করবেন না। অনলাইনে থাকলে স্বয়ংক্রিয়ভাবে সিঙ্ক হবে ✅
       </div>
 
-      {!isSafe && snap.online && (
-        <button
-          onClick={() => syncNow()}
-          disabled={isSyncing}
-          className="inline-flex items-center gap-1 px-2.5 py-1 rounded bg-amber-600 hover:bg-amber-700 text-white text-xs font-medium disabled:opacity-60"
-        >
-          <RefreshCw className={`w-3 h-3 ${isSyncing ? 'animate-spin' : ''}`} />
-          এখনই সিঙ্ক করুন
-        </button>
-      )}
     </div>
   );
 }
