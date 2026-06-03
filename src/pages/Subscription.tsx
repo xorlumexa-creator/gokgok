@@ -1,12 +1,13 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { Check, Crown, Sparkles, Zap, TrendingUp, ShieldCheck, Loader2 } from 'lucide-react';
+import { Check, Crown, Sparkles, Zap, TrendingUp, ShieldCheck, ArrowLeft } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
-import { toast } from '@/hooks/use-toast';
 import logoImg from '@/assets/logo.png';
 import { useSubscription, toBn, PlanId, PLAN_BASE_PRICE, PLAN_LABEL, SALES_CREDIT_LIMIT, STORAGE_UNIT } from '@/context/SubscriptionContext';
 import { UsageDashboard } from '@/components/subscription/UsageDashboard';
+import { SubscriptionPaymentForm } from '@/components/SubscriptionPaymentForm';
+import { useProfile } from '@/hooks/useProfile';
 
 const PLAN_HIGHLIGHTS: Record<PlanId, { features: string[]; locked?: string[] }> = {
   basic: {
