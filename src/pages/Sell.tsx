@@ -321,7 +321,7 @@ export default function Sell() {
       toast({ title: "কার্ট খালি আছে", variant: "destructive" });
       return;
     }
-    if (!guardRecordSale(cart.length)) return;
+    if (!guardRecordSale(1)) return;
 
     let customerId = selectedCustomer;
     let customerName = '';
