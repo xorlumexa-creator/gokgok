@@ -44,7 +44,7 @@ export default function Landing() {
             ডেমো দেখুন
           </Button>
         </div>
-        <p className="mt-3 text-xs text-muted-foreground">১৪ দিন ফ্রি · কোনো কার্ড লাগবে না</p>
+        <p className="mt-3 text-xs text-muted-foreground">৩ দিন ফ্রি ট্রায়াল · কোনো কার্ড লাগবে না</p>
       </section>
 
       {/* Features */}
