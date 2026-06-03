@@ -359,7 +359,7 @@ export default function Sell() {
     }));
 
     addMultipleSales(salesData, customerId || undefined, customerName || undefined, isPaid || partialPaid);
-    incrementSalesCredit(cart.length);
+    incrementSalesCredit(1);
 
 
 
