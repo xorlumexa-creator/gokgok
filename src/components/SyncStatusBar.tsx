@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
-import { CheckCircle2, AlertTriangle, RefreshCw, WifiOff, ShieldCheck } from 'lucide-react';
-import { getSnapshot, subscribe, syncNow } from '@/lib/syncEngine';
+import { AlertTriangle, RefreshCw, WifiOff, ShieldCheck } from 'lucide-react';
+import { getSnapshot, subscribe } from '@/lib/syncEngine';
 
 const BN_DIGITS = ['০','১','২','৩','৪','৫','৬','৭','৮','৯'];
 const toBn = (s: string | number) =>
