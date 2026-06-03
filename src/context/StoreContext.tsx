@@ -623,7 +623,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     setStoreInfo({
       name: storeName,
       trialStartDate: trialStart,
-      trialDaysLeft: 15,
+      trialDaysLeft: 3,
       isOnboarded: true
     });
 
