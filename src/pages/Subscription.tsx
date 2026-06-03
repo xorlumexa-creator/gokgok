@@ -79,10 +79,12 @@ export default function Subscription() {
   const navigate = useNavigate();
   const [params] = useSearchParams();
   const focusUpgrade = params.get('focus') === 'upgrade';
-  const [loading, setLoading] = useState(false);
-  const { plan, storageLevel, monthlyPrice, setPlan, setStorageLevel, renewPlan } = useSubscription();
+  const { plan, storageLevel, monthlyPrice } = useSubscription();
+  const { profile } = useProfile();
   const [selectedPlan, setSelectedPlan] = useState<PlanId>(plan);
   const [desiredLevel, setDesiredLevel] = useState<number>(storageLevel);
+  const [showPayment, setShowPayment] = useState(false);
+  const [authUser, setAuthUser] = useState<{ id: string; phone: string } | null>(null);
 
   useEffect(() => { setSelectedPlan(plan); }, [plan]);
   useEffect(() => { setDesiredLevel(storageLevel); }, [storageLevel]);
@@ -90,30 +92,42 @@ export default function Subscription() {
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (!session?.user) navigate('/auth');
+      else setAuthUser({ id: session.user.id, phone: profile?.phone || session.user.phone || '' });
     });
-  }, [navigate]);
-
+  }, [navigate, profile?.phone]);
 
   const selectedBasePrice = PLAN_BASE_PRICE[selectedPlan];
   const selectedMonthly = selectedBasePrice * desiredLevel;
-  const totalProductsAfter = desiredLevel * STORAGE_UNIT;
-  const totalBakiAfter = desiredLevel * STORAGE_UNIT;
   const extraVsCurrent = Math.max(0, selectedMonthly - monthlyPrice);
-
-  const handleConfirm = async () => {
-    setLoading(true);
-    try {
-      await setPlan(selectedPlan);
-      await setStorageLevel(desiredLevel);
-      await renewPlan(selectedPlan);
-      toast({ title: 'প্ল্যান সফলভাবে আপডেট হয়েছে ✓', description: `${PLAN_LABEL[selectedPlan]} — ৳${selectedMonthly}/মাস` });
-      setTimeout(() => navigate('/dashboard'), 800);
-    } catch (e: any) {
-      toast({ title: 'সমস্যা হয়েছে', description: e?.message, variant: 'destructive' });
-    } finally { setLoading(false); }
-  };
-
   const isUpgrade = selectedMonthly > monthlyPrice || selectedPlan !== plan || desiredLevel !== storageLevel;
+
+  if (showPayment && authUser) {
+    return (
+      <div className="min-h-screen bg-gradient-to-b from-accent via-background to-background p-4 md:p-6">
+        <div className="max-w-md mx-auto">
+          <button onClick={() => setShowPayment(false)} className="flex items-center gap-1 text-sm text-muted-foreground mb-4">
+            <ArrowLeft className="w-4 h-4" /> ফিরে যান
+          </button>
+          <div className="mb-4">
+            <h1 className="text-xl font-bold text-foreground">পেমেন্ট সম্পন্ন করুন</h1>
+            <p className="text-sm text-muted-foreground mt-1">
+              {PLAN_LABEL[selectedPlan]} — ৳{toBn(selectedMonthly)}/মাস
+            </p>
+          </div>
+          <SubscriptionPaymentForm
+            userId={authUser.id}
+            userPhone={authUser.phone}
+            plan={selectedPlan}
+            amount={`৳${toBn(selectedMonthly)}`}
+            onDone={() => setTimeout(() => navigate('/dashboard'), 1500)}
+          />
+          <p className="text-[11px] text-center text-muted-foreground mt-4">
+            ম্যানেজার অনুমোদনের পর প্ল্যান সক্রিয় হবে। ততক্ষণ পর্যন্ত ২ দিনের ফ্রি অ্যাক্সেস দেওয়া হলো।
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-accent via-background to-background p-4 md:p-6">
@@ -126,12 +140,8 @@ export default function Subscription() {
           </div>
         </div>
 
-        {/* Current usage */}
-        <div className="mb-6">
-          <UsageDashboard compact />
-        </div>
+        <div className="mb-6"><UsageDashboard compact /></div>
 
-        {/* Plan selection */}
         <h2 className="font-bold text-foreground mb-3">আপনার প্ল্যান বেছে নিন</h2>
         <div className="grid gap-3 mb-6">
           {(['basic', 'standard', 'pro'] as PlanId[]).map(p => (
@@ -140,7 +150,6 @@ export default function Subscription() {
           ))}
         </div>
 
-        {/* Storage scaling */}
         <div className="card-elevated rounded-2xl p-5 mb-6 bg-card">
           <div className="flex items-start gap-3 mb-4">
             <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
@@ -178,7 +187,6 @@ export default function Subscription() {
           </div>
         </div>
 
-        {/* Sales credits info */}
         <div className="rounded-2xl bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-900 p-4 mb-6 flex items-start gap-3">
           <ShieldCheck className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
           <div className="text-sm text-foreground">
@@ -186,7 +194,6 @@ export default function Subscription() {
           </div>
         </div>
 
-        {/* Feature list of selected plan */}
         <div className="card-elevated rounded-2xl p-5 mb-6 bg-card">
           <h3 className="font-bold text-foreground mb-3">{PLAN_LABEL[selectedPlan]} প্ল্যানে যা পাবেন</h3>
           <ul className="space-y-2">
@@ -203,7 +210,6 @@ export default function Subscription() {
           </ul>
         </div>
 
-        {/* CTA */}
         <div className="sticky bottom-4 z-10">
           <div className="card-elevated rounded-2xl p-4 bg-card shadow-xl">
             <div className="flex items-baseline justify-between mb-3">
@@ -215,14 +221,14 @@ export default function Subscription() {
                 <p className="text-sm font-semibold text-primary">+৳{toBn(extraVsCurrent)} অতিরিক্ত</p>
               )}
             </div>
-            <Button onClick={handleConfirm} disabled={loading} className="w-full py-6 text-base rounded-xl">
-              {loading && <Loader2 className="w-4 h-4 animate-spin mr-2" />}
-              {isUpgrade ? 'এখনই আপগ্রেড করুন' : 'প্ল্যান নবায়ন করুন'}
+            <Button onClick={() => setShowPayment(true)} className="w-full py-6 text-base rounded-xl">
+              {isUpgrade ? 'পেমেন্ট করে আপগ্রেড করুন' : 'পেমেন্ট করে নবায়ন করুন'}
             </Button>
-            <p className="text-[10px] text-center text-muted-foreground mt-2">৩০ দিনের জন্য সক্রিয় হবে</p>
+            <p className="text-[10px] text-center text-muted-foreground mt-2">ম্যানেজার অনুমোদনের পর ৩০ দিনের জন্য সক্রিয় হবে</p>
           </div>
         </div>
       </div>
     </div>
   );
 }
+
