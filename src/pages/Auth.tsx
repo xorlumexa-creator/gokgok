@@ -26,23 +26,16 @@ export default function Auth() {
   const [name, setName] = useState('');
   const [shopName, setShopName] = useState('');
 
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
 
+  // If a session is already restored when Auth page mounts, bounce away
+  // immediately — no extra profiles query, no second navigate race.
   useEffect(() => {
-    if (!user) return;
-    (async () => {
-      // Wait briefly for trigger; check role
-      if (isManagerPhone(user.user_metadata?.phone || '')) { navigate('/manager'); return; }
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('role, must_change_password')
-        .eq('user_id', user.id)
-        .maybeSingle();
-      if (profile?.must_change_password) { navigate('/change-password'); return; }
-      if (profile?.role === 'manager') { navigate('/manager'); return; }
-      navigate('/dashboard');
-    })();
-  }, [user, navigate]);
+    if (authLoading || !user) return;
+    const phoneMeta = (user.user_metadata?.phone as string) || '';
+    if (isManagerPhone(phoneMeta)) navigate('/manager', { replace: true });
+    else navigate('/dashboard', { replace: true });
+  }, [authLoading, user, navigate]);
 
   const handleLogin = async () => {
     const normalized = normalizePhone(phone, country.dialCode);

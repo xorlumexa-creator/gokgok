@@ -130,26 +130,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   const isOnboarded = storeInfo?.isOnboarded ?? false;
 
-  // Load only the shop name once; full profile data is handled by useProfile cache.
-  useEffect(() => {
-    supabase.auth.getSession().then(async ({ data: { session } }) => {
-      if (!session?.user || storeInfo?.isOnboarded) return;
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('shop_name')
-        .eq('user_id', session.user.id)
-        .maybeSingle();
+  // Note: shop name auto-onboarding is handled by Index.tsx using the cached
+  // profile from useProfile. StoreContext no longer triggers its own session
+  // + profile query, which previously added latency on every navigation.
 
-      if (profile?.shop_name) {
-        setStoreInfo(prev => ({
-          name: profile.shop_name!,
-          trialStartDate: prev?.trialStartDate || new Date(),
-          trialDaysLeft: prev?.trialDaysLeft || 14,
-          isOnboarded: true
-        }));
-      }
-    });
-  }, []);
 
   useEffect(() => {
     if (storeInfo) {
