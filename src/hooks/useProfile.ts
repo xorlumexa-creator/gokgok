@@ -84,6 +84,7 @@ export function useProfile() {
       cachedUserId = null;
       cachedProfile = null;
       cachedLoading = false;
+      try { localStorage.removeItem(PROFILE_CACHE_KEY); } catch { /* ignore */ }
       setProfile(null);
       setLoading(false);
       return null;
