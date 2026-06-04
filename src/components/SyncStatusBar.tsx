@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
-import { AlertTriangle, RefreshCw, WifiOff, ShieldCheck } from 'lucide-react';
-import { getSnapshot, subscribe } from '@/lib/syncEngine';
+import { AlertTriangle, RefreshCw, WifiOff, ShieldCheck, CloudUpload } from 'lucide-react';
+import { getSnapshot, subscribe, syncNow } from '@/lib/syncEngine';
 
 const BN_DIGITS = ['০','১','২','৩','৪','৫','৬','৭','৮','৯'];
 const toBn = (s: string | number) =>
@@ -38,6 +38,7 @@ function ago(ts: number | null): string {
 
 export function SyncStatusBar() {
   const [snap, setSnap] = useState(getSnapshot());
+  const [busy, setBusy] = useState(false);
   const [, force] = useState(0);
 
   useEffect(() => subscribe(setSnap), []);
@@ -46,13 +47,21 @@ export function SyncStatusBar() {
     return () => clearInterval(i);
   }, []);
 
-  const isSafe = snap.pendingCount === 0 && snap.state !== 'error';
-  const isSyncing = snap.state === 'syncing';
-  const nextLabel = `${bnDayLabel(snap.nextSyncAt!)} ${bnClock(snap.nextSyncAt!)}`;
+  const lastSyncAt = Math.max(
+    snap.lastBakiAt ?? 0, snap.lastProductsAt ?? 0, snap.lastHisabAt ?? 0,
+  ) || null;
+  const isSafe = snap.pendingTotal === 0 && snap.state !== 'error';
+  const isSyncing = snap.state === 'syncing' || busy;
+  const nextLabel = `${bnDayLabel(snap.nextBackupAt)} ${bnClock(snap.nextBackupAt)}`;
 
   const tone = isSafe
     ? 'bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-800 text-emerald-900 dark:text-emerald-100'
     : 'bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-800 text-amber-900 dark:text-amber-100';
+
+  const handleBackupNow = async () => {
+    setBusy(true);
+    try { await syncNow(); } finally { setBusy(false); }
+  };
 
   return (
     <div className={`rounded-xl border ${tone} p-3 space-y-2`}>
@@ -69,24 +78,32 @@ export function SyncStatusBar() {
             <div className="text-sm font-semibold">🛡️ আপনার ডেটা নিরাপদ আছে</div>
           ) : (
             <div className="text-sm font-semibold">
-              ⚠️ {toBn(snap.pendingCount)} টি তথ্য এখনও ক্লাউডে সেভ হয়নি
+              ⚠️ {toBn(snap.pendingTotal)} টি তথ্য এখনও ক্লাউডে সেভ হয়নি
             </div>
           )}
           <div className="text-xs opacity-90 mt-0.5">
-            পরবর্তী সিঙ্ক: <span className="font-medium">{nextLabel}</span>
+            পরবর্তী ব্যাকআপ: <span className="font-medium">{nextLabel}</span>
           </div>
           <div className="text-[11px] opacity-75 flex items-center gap-1 mt-0.5">
             {!snap.online && <WifiOff className="w-3 h-3" />}
-            শেষ সিঙ্ক: {ago(snap.lastSyncAt)}{!snap.online && ' • অফলাইন'}
+            শেষ সিঙ্ক: {ago(lastSyncAt)}{!snap.online && ' • অফলাইন'}
           </div>
         </div>
+        <button
+          onClick={handleBackupNow}
+          disabled={isSyncing || !snap.online}
+          className="text-xs flex items-center gap-1 px-2 py-1.5 rounded-md bg-white/60 dark:bg-black/20 border border-current/20 hover:bg-white/80 disabled:opacity-50"
+          title={snap.online ? 'এখনই ব্যাকআপ নিন' : 'ইন্টারনেট নেই'}
+        >
+          <CloudUpload className="w-3.5 h-3.5" />
+          এখনই ব্যাকআপ
+        </button>
       </div>
 
       <div className="text-[11px] leading-relaxed opacity-90 border-t border-current/10 pt-2">
         ডেটা হারানো এড়াতে এর আগে <b>অ্যাপ uninstall</b>, <b>browser data clear</b> বা
         <b> app storage delete</b> করবেন না। অনলাইনে থাকলে স্বয়ংক্রিয়ভাবে সিঙ্ক হবে ✅
       </div>
-
     </div>
   );
 }
