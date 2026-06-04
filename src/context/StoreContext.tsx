@@ -2,6 +2,8 @@ import React, { createContext, useContext, useState, useEffect, useRef, ReactNod
 import { Product, Sale, Customer, StoreInfo, DashboardStats, Expense, PersonalAccountStats, UnitType, PreOrder, PreOrderStatus, BulkSaleRecord, BakiPaymentRecord, CustomEarning, Supplier } from '@/types/store';
 import { supabase } from '@/integrations/supabase/client';
 import { markDirty } from '@/lib/syncEngine';
+import { putAll, setMeta } from '@/lib/idb';
+
 
 interface StoreContextType {
   storeInfo: StoreInfo | null;
