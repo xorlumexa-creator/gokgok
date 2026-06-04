@@ -137,65 +137,83 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   // + profile query, which previously added latency on every navigation.
 
 
+  // Persist to localStorage (instant-restart cache) AND mirror to IndexedDB
+  // (primary store used by the sync engine and large-payload safety).
   useEffect(() => {
     if (storeInfo) {
       localStorage.setItem('storeInfo', JSON.stringify(storeInfo));
+      void setMeta('storeInfo', storeInfo);
     }
   }, [storeInfo]);
 
   useEffect(() => {
     localStorage.setItem('products', JSON.stringify(products));
+    void putAll('products', products as any);
   }, [products]);
 
   useEffect(() => {
     localStorage.setItem('sales', JSON.stringify(sales));
+    void putAll('sales', sales as any);
   }, [sales]);
 
   useEffect(() => {
     localStorage.setItem('customers', JSON.stringify(customers));
+    void putAll('customers', customers as any);
   }, [customers]);
 
   useEffect(() => {
     localStorage.setItem('expenses', JSON.stringify(expenses));
+    void putAll('expenses', expenses as any);
   }, [expenses]);
 
   useEffect(() => {
     localStorage.setItem('preOrders', JSON.stringify(preOrders));
+    void putAll('preOrders', preOrders as any);
   }, [preOrders]);
 
   useEffect(() => {
     localStorage.setItem('bulkSaleRecords', JSON.stringify(bulkSaleRecords));
+    void putAll('bulkSaleRecords', bulkSaleRecords as any);
   }, [bulkSaleRecords]);
 
-  // NEW: Persist baki payment records
   useEffect(() => {
     localStorage.setItem('bakiPaymentRecords', JSON.stringify(bakiPaymentRecords));
+    void putAll('bakiPaymentRecords', bakiPaymentRecords as any);
   }, [bakiPaymentRecords]);
 
-  // NEW: Persist custom earnings
   useEffect(() => {
     localStorage.setItem('customEarnings', JSON.stringify(customEarnings));
+    void putAll('customEarnings', customEarnings as any);
   }, [customEarnings]);
 
-  // Persist suppliers
   useEffect(() => {
     localStorage.setItem('suppliers', JSON.stringify(suppliers));
+    void putAll('suppliers', suppliers as any);
   }, [suppliers]);
 
-  // Mark sync dirty when persisted slices change (skip initial mount).
-  // Baki-related slices (customers, baki payments) use scope='baki' so they
-  // get pushed to the cloud in real time; everything else is batched.
+  // Sync scoping (per master prompt):
+  //   baki     → customers + bakiPaymentRecords (real-time)
+  //   products → product catalog (48h backup)
+  //   hisab    → expenses + customEarnings (Amar Hisab, 48h backup)
+  //   never    → sales, preOrders, bulkSaleRecords, suppliers, storeInfo
   const mountedBakiRef = useRef(false);
   useEffect(() => {
     if (!mountedBakiRef.current) { mountedBakiRef.current = true; return; }
     markDirty('baki');
   }, [customers, bakiPaymentRecords]);
 
-  const mountedOtherRef = useRef(false);
+  const mountedProductsRef = useRef(false);
   useEffect(() => {
-    if (!mountedOtherRef.current) { mountedOtherRef.current = true; return; }
-    markDirty('other');
-  }, [products, sales, expenses, preOrders, bulkSaleRecords, customEarnings, suppliers, storeInfo]);
+    if (!mountedProductsRef.current) { mountedProductsRef.current = true; return; }
+    markDirty('products');
+  }, [products]);
+
+  const mountedHisabRef = useRef(false);
+  useEffect(() => {
+    if (!mountedHisabRef.current) { mountedHisabRef.current = true; return; }
+    markDirty('hisab');
+  }, [expenses, customEarnings]);
+
 
   // Generate unique display name for customers with same name
   const generateCustomerDisplayName = (name: string): string => {
