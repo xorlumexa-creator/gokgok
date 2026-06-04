@@ -61,8 +61,11 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { profile, loading: profLoading } = useProfile();
   const { isOnboarded } = useStore();
 
-  if (loading || profLoading) return <PageLoader />;
+  if (loading) return <PageLoader />;
   if (!user) return <Navigate to="/auth" replace />;
+  // If we have no cached profile yet, wait once. Otherwise render
+  // immediately and let the background revalidation update silently.
+  if (!profile && profLoading) return <PageLoader />;
   if (profile?.must_change_password) return <Navigate to="/change-password" replace />;
   if (profile?.role === 'manager') return <Navigate to="/manager" replace />;
   if (!isOnboarded) return <Navigate to="/setup" replace />;
@@ -72,8 +75,9 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
 function ManagerRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
   const { profile, loading: profLoading } = useProfile();
-  if (loading || profLoading) return <PageLoader />;
+  if (loading) return <PageLoader />;
   if (!user) return <Navigate to="/auth" replace />;
+  if (!profile && profLoading) return <PageLoader />;
   if (profile?.must_change_password) return <Navigate to="/change-password" replace />;
   if (profile?.role !== 'manager') return <Navigate to="/dashboard" replace />;
   return <>{children}</>;
