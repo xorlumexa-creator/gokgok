@@ -1,245 +1,267 @@
-// Dukan 360 — Smart Hybrid Sync Engine
+// Dukan 360 — Offline-first sync engine (v2)
 // ---------------------------------------------------------------------------
-// Rules:
-//   • Baki (credit) data        → real-time sync when online, queued offline
-//   • Everything else           → batched, synced ONLY every 8 hours
-//   • Offline                   → all writes queue in localStorage (working DB)
-//   • When network returns      → baki syncs immediately; the rest waits for
-//                                 the 8-hour window to elapse, then auto-syncs
+// Rules (per master prompt):
+//
+//   scope='baki'      → customers + bakiPaymentRecords
+//                       real-time sync (debounced 1.5s) when online
+//
+//   scope='products'  → products (catalog + stock + expiry)
+//                       backup every 48 hours OR via "Backup Now"
+//
+//   scope='hisab'     → expenses + customEarnings (Amar Hisab)
+//                       backup every 48 hours OR via "Backup Now"
+//
+//   NEVER synced      → sales, bulkSaleRecords, preOrders, suppliers
+//                       (regenerated from local data; no cloud cost)
+//
+// Conflict resolution: newest updated_at wins. We store one row per
+// (user_id, scope) in `user_backups` so the row's own `updated_at` is the
+// timestamp.
 // ---------------------------------------------------------------------------
 
 import { supabase } from '@/integrations/supabase/client';
+import {
+  enqueue, clearQueueByScope, queueCount, queueCountByScope,
+  getAll, getMeta, setMeta, migrateFromLocalStorage,
+} from './idb';
 
-// Keys persisted in localStorage that make up a full user backup.
-const STORE_KEYS = [
-  'storeInfo',
-  'products',
-  'sales',
-  'customers',
-  'expenses',
-  'preOrders',
-  'bulkSaleRecords',
-  'bakiPaymentRecords',
-  'customEarnings',
-  'suppliers',
-] as const;
-
-// "Baki" keys — these mutations trigger an immediate (real-time) sync when
-// the device is online. Other keys are batched into the 8-hour cycle.
-const BAKI_KEYS = new Set<string>(['customers', 'bakiPaymentRecords']);
-
-const LAST_SYNC_KEY = 'sync:lastSyncAt';
-const PENDING_COUNT_KEY = 'sync:pendingCount';
-const PENDING_BAKI_KEY = 'sync:pendingBaki';
-
-const SYNC_INTERVAL_MS = 8 * 60 * 60 * 1000; // 8 hours
-const BAKI_DEBOUNCE_MS = 1500;               // coalesce rapid baki edits
-const RETRY_BACKOFF_MS = 30 * 1000;          // retry every 30s on failure
-
-export type SyncScope = 'baki' | 'other';
+export type SyncScope = 'baki' | 'products' | 'hisab';
 export type SyncState = 'safe' | 'pending' | 'syncing' | 'error';
+
+const BAKI_DEBOUNCE_MS = 1500;
+const BACKUP_INTERVAL_MS = 48 * 60 * 60 * 1000;   // 48 hours
+const RETRY_BACKOFF_MS = 30 * 1000;
+
+const LAST_SYNC_KEY = (s: SyncScope) => `sync:last:${s}`;
 
 interface SyncSnapshot {
   state: SyncState;
-  pendingCount: number;
-  pendingBaki: number;
-  lastSyncAt: number | null;
-  nextSyncAt: number | null;
   online: boolean;
+  pendingBaki: number;
+  pendingProducts: number;
+  pendingHisab: number;
+  pendingTotal: number;
+  lastBakiAt: number | null;
+  lastProductsAt: number | null;
+  lastHisabAt: number | null;
+  nextBackupAt: number;        // earliest of products/hisab
   errorMessage?: string;
 }
 
-let currentState: SyncState = 'safe';
-let errorMessage: string | undefined;
+let snapshot: SyncSnapshot = blankSnapshot();
 let listeners: Array<(s: SyncSnapshot) => void> = [];
-let intervalTimer: ReturnType<typeof setTimeout> | null = null;
-let bakiDebounceTimer: ReturnType<typeof setTimeout> | null = null;
+let bakiTimer: ReturnType<typeof setTimeout> | null = null;
+let backupTimer: ReturnType<typeof setTimeout> | null = null;
 let retryTimer: ReturnType<typeof setTimeout> | null = null;
-let inFlight = false;
+let inFlight = new Set<SyncScope>();
 
-// ---------- helpers --------------------------------------------------------
-
-function num(key: string): number {
-  const v = localStorage.getItem(key);
-  if (!v) return 0;
-  const n = parseInt(v, 10);
-  return Number.isFinite(n) ? n : 0;
-}
-
-export function getPendingCount(): number { return num(PENDING_COUNT_KEY); }
-export function getPendingBaki(): number  { return num(PENDING_BAKI_KEY); }
-export function getLastSyncAt(): number | null {
-  const v = localStorage.getItem(LAST_SYNC_KEY);
-  return v ? parseInt(v, 10) : null;
-}
-export function getNextSyncAt(): number {
-  const last = getLastSyncAt();
-  return (last ?? Date.now()) + SYNC_INTERVAL_MS;
-}
-
-export function getSnapshot(): SyncSnapshot {
+function blankSnapshot(): SyncSnapshot {
   return {
-    state: currentState,
-    pendingCount: getPendingCount(),
-    pendingBaki: getPendingBaki(),
-    lastSyncAt: getLastSyncAt(),
-    nextSyncAt: getNextSyncAt(),
-    online: typeof navigator !== 'undefined' ? navigator.onLine : true,
-    errorMessage,
+    state: 'safe', online: typeof navigator !== 'undefined' ? navigator.onLine : true,
+    pendingBaki: 0, pendingProducts: 0, pendingHisab: 0, pendingTotal: 0,
+    lastBakiAt: null, lastProductsAt: null, lastHisabAt: null,
+    nextBackupAt: Date.now() + BACKUP_INTERVAL_MS,
   };
 }
 
-function emit() {
-  const snap = getSnapshot();
-  listeners.forEach((l) => { try { l(snap); } catch { /* noop */ } });
+export function getSnapshot(): SyncSnapshot { return snapshot; }
+
+export function subscribe(fn: (s: SyncSnapshot) => void): () => void {
+  listeners.push(fn);
+  fn(snapshot);
+  return () => { listeners = listeners.filter(l => l !== fn); };
 }
 
-export function subscribe(listener: (s: SyncSnapshot) => void): () => void {
-  listeners.push(listener);
-  listener(getSnapshot());
-  return () => { listeners = listeners.filter((l) => l !== listener); };
+async function refreshSnapshot(extra: Partial<SyncSnapshot> = {}): Promise<void> {
+  const [b, p, h, lb, lp, lh] = await Promise.all([
+    queueCountByScope('baki'),
+    queueCountByScope('products'),
+    queueCountByScope('hisab'),
+    getMeta<number>(LAST_SYNC_KEY('baki')),
+    getMeta<number>(LAST_SYNC_KEY('products')),
+    getMeta<number>(LAST_SYNC_KEY('hisab')),
+  ]);
+  const total = b + p + h;
+  const nextProducts = (lp ?? 0) + BACKUP_INTERVAL_MS;
+  const nextHisab = (lh ?? 0) + BACKUP_INTERVAL_MS;
+  snapshot = {
+    ...snapshot,
+    pendingBaki: b, pendingProducts: p, pendingHisab: h, pendingTotal: total,
+    lastBakiAt: lb, lastProductsAt: lp, lastHisabAt: lh,
+    nextBackupAt: Math.min(nextProducts, nextHisab),
+    online: navigator.onLine,
+    state: extra.state ?? (inFlight.size > 0 ? 'syncing'
+      : total > 0 ? 'pending'
+      : snapshot.state === 'error' ? 'error' : 'safe'),
+    ...extra,
+  };
+  listeners.forEach(l => { try { l(snapshot); } catch { /* noop */ } });
 }
 
 // ---------- dirty marking --------------------------------------------------
 
-/**
- * Mark unsynced data. Pass scope='baki' for credit-book mutations so they
- * are pushed to the cloud immediately (when online). Everything else is
- * batched into the 8-hour cycle.
- */
-export function markDirty(scope: SyncScope = 'other'): void {
-  localStorage.setItem(PENDING_COUNT_KEY, String(getPendingCount() + 1));
-  if (scope === 'baki') {
-    localStorage.setItem(PENDING_BAKI_KEY, String(getPendingBaki() + 1));
-    scheduleBakiFlush();
-  }
-  if (currentState === 'safe') currentState = 'pending';
-  emit();
+export function markDirty(scope: SyncScope): void {
+  void enqueue(scope).then(() => {
+    void refreshSnapshot();
+    if (scope === 'baki') scheduleBakiFlush();
+  });
 }
 
-function scheduleBakiFlush() {
-  if (bakiDebounceTimer) clearTimeout(bakiDebounceTimer);
-  bakiDebounceTimer = setTimeout(() => {
-    bakiDebounceTimer = null;
-    if (navigator.onLine) void performSync('baki');
+function scheduleBakiFlush(): void {
+  if (bakiTimer) clearTimeout(bakiTimer);
+  bakiTimer = setTimeout(() => {
+    bakiTimer = null;
+    if (navigator.onLine) void performSync('baki', 'debounce');
   }, BAKI_DEBOUNCE_MS);
 }
 
-// ---------- payload + push -------------------------------------------------
+// ---------- payload builders ----------------------------------------------
 
-function buildPayload(): Record<string, unknown> {
-  const out: Record<string, unknown> = {};
-  for (const k of STORE_KEYS) {
-    const raw = localStorage.getItem(k);
-    if (raw == null) continue;
-    try { out[k] = JSON.parse(raw); } catch { /* skip bad slice */ }
+async function buildPayload(scope: SyncScope): Promise<Record<string, unknown>> {
+  if (scope === 'baki') {
+    const [customers, bakiPaymentRecords] = await Promise.all([
+      getAll('customers'), getAll('bakiPaymentRecords'),
+    ]);
+    return { customers, bakiPaymentRecords };
   }
-  return out;
+  if (scope === 'products') {
+    return { products: await getAll('products') };
+  }
+  // hisab
+  const [expenses, customEarnings] = await Promise.all([
+    getAll('expenses'), getAll('customEarnings'),
+  ]);
+  return { expenses, customEarnings };
 }
 
-async function performSync(reason: string): Promise<boolean> {
-  if (inFlight) return false;
+// ---------- push to Supabase ----------------------------------------------
+
+async function performSync(scope: SyncScope, reason: string): Promise<boolean> {
+  if (inFlight.has(scope)) return false;
   if (!navigator.onLine) return false;
 
-  const beforeCount = getPendingCount();
-  const beforeBaki = getPendingBaki();
-  if (beforeCount === 0 && beforeBaki === 0 && reason !== 'manual') return true;
+  const pending = await queueCountByScope(scope);
+  if (pending === 0 && reason !== 'manual') return true;
 
   const { data: auth } = await supabase.auth.getUser();
   const userId = auth.user?.id;
   if (!userId) return false;
 
-  inFlight = true;
-  currentState = 'syncing';
-  errorMessage = undefined;
-  emit();
+  inFlight.add(scope);
+  await refreshSnapshot({ state: 'syncing' });
 
   try {
-    const payload = buildPayload();
+    const payload = await buildPayload(scope);
+
+    // Read existing row so we can merge instead of overwriting other scopes.
+    const { data: existing } = await supabase
+      .from('user_backups')
+      .select('data, updated_at')
+      .eq('user_id', userId)
+      .maybeSingle();
+
+    const merged = { ...(existing?.data as Record<string, unknown> ?? {}), ...payload };
+
+    // Conflict resolution — newest timestamp wins. If server is newer than
+    // our last sync for this scope, prefer server data for this scope.
+    const serverUpdatedAt = existing?.updated_at ? new Date(existing.updated_at).getTime() : 0;
+    const ourLast = (await getMeta<number>(LAST_SYNC_KEY(scope))) ?? 0;
+    if (serverUpdatedAt > ourLast && existing?.data) {
+      for (const k of Object.keys(payload)) {
+        if ((existing.data as any)[k] !== undefined) merged[k] = (existing.data as any)[k];
+      }
+    }
+
     const { error } = await supabase
       .from('user_backups')
       .upsert(
-        { user_id: userId, data: payload as any, updated_at: new Date().toISOString() },
+        { user_id: userId, data: merged as any, updated_at: new Date().toISOString() },
         { onConflict: 'user_id' },
       );
     if (error) throw error;
 
-    // Only clear the counts that existed before this upload; new writes
-    // during the request remain pending and trigger another cycle.
-    const afterCount = getPendingCount();
-    const afterBaki = getPendingBaki();
-    const remainingCount = Math.max(0, afterCount - beforeCount);
-    const remainingBaki = Math.max(0, afterBaki - beforeBaki);
-    localStorage.setItem(PENDING_COUNT_KEY, String(remainingCount));
-    localStorage.setItem(PENDING_BAKI_KEY, String(remainingBaki));
-    localStorage.setItem(LAST_SYNC_KEY, String(Date.now()));
-
-    currentState = remainingCount > 0 ? 'pending' : 'safe';
+    await clearQueueByScope(scope);
+    await setMeta(LAST_SYNC_KEY(scope), Date.now());
     if (retryTimer) { clearTimeout(retryTimer); retryTimer = null; }
-    emit();
-    scheduleInterval(); // reset 8-hour timer from "now"
+    await refreshSnapshot({ errorMessage: undefined });
+    scheduleBackup();
     return true;
   } catch (e: any) {
-    console.warn('[sync] failed:', reason, e?.message ?? e);
-    currentState = 'error';
-    errorMessage = e?.message ?? 'Sync failed';
-    emit();
-    // background retry
+    console.warn('[sync]', scope, 'failed:', reason, e?.message ?? e);
+    await refreshSnapshot({ state: 'error', errorMessage: e?.message ?? 'Sync failed' });
     if (retryTimer) clearTimeout(retryTimer);
-    retryTimer = setTimeout(() => { void performSync('retry'); }, RETRY_BACKOFF_MS);
+    retryTimer = setTimeout(() => { void performSync(scope, 'retry'); }, RETRY_BACKOFF_MS);
     return false;
   } finally {
-    inFlight = false;
+    inFlight.delete(scope);
+    await refreshSnapshot();
   }
 }
 
-// ---------- interval scheduler --------------------------------------------
+// ---------- 48-hour scheduler ---------------------------------------------
 
-function msUntilNextInterval(): number {
-  const last = getLastSyncAt();
-  if (!last) return SYNC_INTERVAL_MS;
-  return Math.max(0, SYNC_INTERVAL_MS - (Date.now() - last));
+async function msUntilNext(scope: SyncScope): Promise<number> {
+  const last = (await getMeta<number>(LAST_SYNC_KEY(scope))) ?? 0;
+  if (!last) return BACKUP_INTERVAL_MS;
+  return Math.max(0, BACKUP_INTERVAL_MS - (Date.now() - last));
 }
 
-function scheduleInterval() {
-  if (intervalTimer) clearTimeout(intervalTimer);
-  const delay = Math.max(5000, msUntilNextInterval());
-  intervalTimer = setTimeout(async () => {
-    await performSync('interval');
-    scheduleInterval();
+async function scheduleBackup(): Promise<void> {
+  if (backupTimer) clearTimeout(backupTimer);
+  const [p, h] = await Promise.all([msUntilNext('products'), msUntilNext('hisab')]);
+  const delay = Math.max(5000, Math.min(p, h));
+  backupTimer = setTimeout(async () => {
+    if (navigator.onLine) {
+      await performSync('products', 'interval');
+      await performSync('hisab', 'interval');
+    }
+    void scheduleBackup();
   }, delay);
 }
 
 // ---------- public lifecycle ----------------------------------------------
 
 let started = false;
-export function startSyncEngine(): void {
+export async function startSyncEngine(): Promise<void> {
   if (started) return;
   started = true;
 
-  currentState = getPendingCount() > 0 ? 'pending' : 'safe';
-  emit();
+  await migrateFromLocalStorage();
+  await refreshSnapshot();
 
   window.addEventListener('online', async () => {
-    emit();
-    // 1) baki always tries immediately on reconnect
-    if (getPendingBaki() > 0) await performSync('online-baki');
-    // 2) the rest only if the 8-hour window already elapsed
-    if (msUntilNextInterval() === 0 && getPendingCount() > 0) {
-      await performSync('online-interval');
-    }
-    scheduleInterval();
+    await refreshSnapshot();
+    if ((await queueCountByScope('baki')) > 0) await performSync('baki', 'online');
+    const [p, h] = await Promise.all([msUntilNext('products'), msUntilNext('hisab')]);
+    if (p === 0 && (await queueCountByScope('products')) > 0) await performSync('products', 'online');
+    if (h === 0 && (await queueCountByScope('hisab')) > 0)    await performSync('hisab', 'online');
+    void scheduleBackup();
   });
   window.addEventListener('offline', () => {
-    emit();
-    if (intervalTimer) { clearTimeout(intervalTimer); intervalTimer = null; }
+    void refreshSnapshot();
+    if (backupTimer) { clearTimeout(backupTimer); backupTimer = null; }
   });
 
-  scheduleInterval();
+  void scheduleBackup();
 }
 
+/** Manual "Backup Now" — pushes baki immediately and forces a 48h backup. */
 export async function syncNow(): Promise<boolean> {
-  const ok = await performSync('manual');
-  scheduleInterval();
-  return ok;
+  const ok1 = await performSync('baki', 'manual');
+  const ok2 = await performSync('products', 'manual');
+  const ok3 = await performSync('hisab', 'manual');
+  return ok1 && ok2 && ok3;
 }
+
+// ---------- legacy compatibility shims ------------------------------------
+// Older code calls these — keep them so the rest of the app keeps working.
+export function getPendingCount(): number { return snapshot.pendingTotal; }
+export function getPendingBaki(): number  { return snapshot.pendingBaki; }
+export function getLastSyncAt(): number | null {
+  return Math.max(
+    snapshot.lastBakiAt ?? 0,
+    snapshot.lastProductsAt ?? 0,
+    snapshot.lastHisabAt ?? 0,
+  ) || null;
+}
+export function getNextSyncAt(): number { return snapshot.nextBackupAt; }
