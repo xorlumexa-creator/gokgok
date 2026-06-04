@@ -20,8 +20,17 @@ export interface AppProfile {
 
 type ProfileListener = (profile: AppProfile | null, loading: boolean) => void;
 
+const PROFILE_CACHE_KEY = 'cache:profile';
+
+function readPersistedProfile(): AppProfile | null {
+  try {
+    const raw = localStorage.getItem(PROFILE_CACHE_KEY);
+    return raw ? (JSON.parse(raw) as AppProfile) : null;
+  } catch { return null; }
+}
+
 let cachedUserId: string | null = null;
-let cachedProfile: AppProfile | null = null;
+let cachedProfile: AppProfile | null = readPersistedProfile();
 let cachedLoading = false;
 let inFlight: Promise<AppProfile | null> | null = null;
 let listeners: ProfileListener[] = [];
@@ -35,7 +44,10 @@ async function loadProfile(userId: string, force = false): Promise<AppProfile | 
   if (!force && cachedUserId === userId && inFlight) return inFlight;
 
   cachedUserId = userId;
-  cachedLoading = true;
+  // Only show loading when we have NOTHING to render. If we already have a
+  // cached profile (from a previous session), revalidate silently in the
+  // background — no spinner, no perceived lag.
+  cachedLoading = !cachedProfile;
   notifyProfileListeners();
 
   inFlight = Promise.resolve(
@@ -47,6 +59,10 @@ async function loadProfile(userId: string, force = false): Promise<AppProfile | 
   )
     .then(({ data }) => {
       cachedProfile = (data as AppProfile | null) ?? null;
+      try {
+        if (cachedProfile) localStorage.setItem(PROFILE_CACHE_KEY, JSON.stringify(cachedProfile));
+        else localStorage.removeItem(PROFILE_CACHE_KEY);
+      } catch { /* ignore */ }
       return cachedProfile;
     })
     .finally(() => {
