@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from './useAuth';
+import { isManagerPhone } from '@/lib/phone';
 
 export interface AppProfile {
   id: string;
@@ -56,7 +57,7 @@ export function primeProfileFromAuth(userId: string, metadata: Record<string, an
     full_name: fullName || cachedProfile?.full_name || null,
     shop_name: shopName || cachedProfile?.shop_name || null,
     phone,
-    role: phone && phone.includes('1682559575') ? 'manager' : (cachedProfile?.role || 'user'),
+    role: phone && isManagerPhone(phone) ? 'manager' : (cachedProfile?.role || 'user'),
     plan: cachedProfile?.plan || null,
     plan_expiry: cachedProfile?.plan_expiry || null,
     subscription_status: cachedProfile?.subscription_status || 'trial',
