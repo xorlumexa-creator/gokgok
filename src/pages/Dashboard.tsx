@@ -4,13 +4,15 @@ import {
   CalendarCheck, Bell, Truck, AlertTriangle
 } from 'lucide-react';
 import { useStore } from '@/context/StoreContext';
+import { useSubscription, toBn } from '@/context/SubscriptionContext';
 import { LowStockAlert } from '@/components/dashboard/LowStockAlert';
 import { DynamicPriceProducts } from '@/components/dashboard/DynamicPriceProducts';
 import { SyncStatusBar } from '@/components/SyncStatusBar';
 import { Button } from '@/components/ui/button';
 
 export default function Dashboard() {
-  const { storeInfo, getUnpaidCustomers } = useStore();
+  const { storeInfo, products, customers, getUnpaidCustomers } = useStore();
+  const { productLimit, bakiLimit, salesCreditUsed, salesCreditLimit } = useSubscription();
   const navigate = useNavigate();
 
   const today = new Date();
@@ -42,6 +44,21 @@ export default function Dashboard() {
           স্বাগতম, {storeInfo?.name || 'আপনার দোকান'}! 👋
         </h1>
         <p className="text-muted-foreground">আজকের ব্যবসার সারসংক্ষেপ দেখুন</p>
+      </div>
+
+      <div className="grid grid-cols-3 gap-2">
+        {[
+          { label: 'পণ্য', value: products.length, limit: productLimit },
+          { label: 'বাকি হিসাব', value: customers.length, limit: bakiLimit },
+          { label: 'মাসিক বিক্রি', value: salesCreditUsed, limit: salesCreditLimit },
+        ].map((item) => (
+          <div key={item.label} className="rounded-xl border border-border bg-card p-3 text-center shadow-sm">
+            <p className="text-[11px] text-muted-foreground leading-tight">{item.label}</p>
+            <p className="mt-1 text-sm font-bold text-foreground whitespace-nowrap">
+              {toBn(item.value.toLocaleString())}/{toBn(item.limit.toLocaleString())}
+            </p>
+          </div>
+        ))}
       </div>
 
       {/* Monthly Baki Reminder */}
