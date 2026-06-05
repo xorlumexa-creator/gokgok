@@ -26,8 +26,7 @@ jobs:
           VITE_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.VITE_SUPABASE_PUBLISHABLE_KEY }}
 
       - name: Install Capacitor
-        run: npm install @capacitor/core@latest @capacitor/cli@latest @capacitor/android@latest
-
+        run: npm install @capacitor/core@latest @capacitor/cli@latest @capacitor/android@latest @capacitor/preferences@latest
       - name: Add Capacitor Android
         run: npx cap add android
 
