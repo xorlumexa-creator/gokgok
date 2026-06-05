@@ -1,13 +1,9 @@
-// Manager-only admin operations: delete users, set manager password, purge expired trials.
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.0';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
-
-const MANAGER_PHONES = ['+8801305969812', '01305969812', '8801305969812'];
-const MANAGER_PASSWORD = 'BAFShaheenCollege2@';
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
@@ -20,30 +16,10 @@ Deno.serve(async (req) => {
   try { body = await req.json(); } catch { /* */ }
   const action = body.action as string;
 
-  // 1) bootstrap_manager_password — public, sets manager pw idempotently
-  if (action === 'bootstrap_manager_password') {
-    const { data: profs } = await admin
-      .from('profiles')
-      .select('user_id, phone')
-      .in('phone', MANAGER_PHONES);
-    if (!profs || profs.length === 0) {
-      return j({ ok: false, error: 'manager profile not found — sign up first with phone 01305969812' }, 404);
-    }
-    const results: any[] = [];
-    for (const p of profs) {
-      const { error } = await admin.auth.admin.updateUserById(p.user_id, { password: MANAGER_PASSWORD });
-      results.push({ user_id: p.user_id, ok: !error, error: error?.message });
-      await admin.from('profiles').update({ role: 'manager', must_change_password: false }).eq('user_id', p.user_id);
-    }
-    return j({ ok: true, results });
-  }
-
-  // 2) purge_expired_trials_cron — public, idempotent purge (safe: only deletes already-expired free trials)
   if (action === 'purge_expired_trials_cron') {
     return await runPurge(admin);
   }
 
-  // The remaining actions require an authenticated manager.
   const authHeader = req.headers.get('Authorization') ?? '';
   const token = authHeader.replace('Bearer ', '');
   const { data: userRes } = await admin.auth.getUser(token);
@@ -56,7 +32,6 @@ Deno.serve(async (req) => {
     const target = body.user_id as string;
     if (!target) return j({ ok: false, error: 'user_id required' }, 400);
     if (target === callerId) return j({ ok: false, error: 'cannot delete yourself' }, 400);
-    // Wipe app data
     await admin.from('subscription_requests').delete().eq('user_id', target);
     await admin.from('password_reset_requests').delete().eq('user_id', target);
     await admin.from('daily_usage').delete().eq('user_id', target);
