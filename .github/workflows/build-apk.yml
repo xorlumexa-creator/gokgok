@@ -26,7 +26,7 @@ jobs:
           VITE_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.VITE_SUPABASE_PUBLISHABLE_KEY }}
 
       - name: Install Capacitor
-        run: npm install @capacitor/core@latest @capacitor/cli@latest @capacitor/android@latest @capacitor/preferences@latest
+        run: npm install @capacitor/core@latest @capacitor/cli@latest @capacitor/android@latest
 
       - name: Add Capacitor Android
         run: npx cap add android
@@ -36,17 +36,23 @@ jobs:
 
       - name: Add App Icon
         run: |
-          npm install -g sharp-cli
-          mkdir -p android/app/src/main/res/mipmap-mdpi
-          mkdir -p android/app/src/main/res/mipmap-hdpi
-          mkdir -p android/app/src/main/res/mipmap-xhdpi
-          mkdir -p android/app/src/main/res/mipmap-xxhdpi
-          mkdir -p android/app/src/main/res/mipmap-xxxhdpi
-          npx sharp-cli --input public/logo.png --output android/app/src/main/res/mipmap-mdpi/ic_launcher.png resize 48 48
-          npx sharp-cli --input public/logo.png --output android/app/src/main/res/mipmap-hdpi/ic_launcher.png resize 72 72
-          npx sharp-cli --input public/logo.png --output android/app/src/main/res/mipmap-xhdpi/ic_launcher.png resize 96 96
-          npx sharp-cli --input public/logo.png --output android/app/src/main/res/mipmap-xxhdpi/ic_launcher.png resize 144 144
-          npx sharp-cli --input public/logo.png --output android/app/src/main/res/mipmap-xxxhdpi/ic_launcher.png resize 192 192
+          pip install Pillow --break-system-packages
+          python3 -c "
+          from PIL import Image
+          import os
+          img = Image.open('public/logo.png')
+          configs = [
+            ('android/app/src/main/res/mipmap-mdpi/ic_launcher.png', 48),
+            ('android/app/src/main/res/mipmap-hdpi/ic_launcher.png', 72),
+            ('android/app/src/main/res/mipmap-xhdpi/ic_launcher.png', 96),
+            ('android/app/src/main/res/mipmap-xxhdpi/ic_launcher.png', 144),
+            ('android/app/src/main/res/mipmap-xxxhdpi/ic_launcher.png', 192),
+          ]
+          for path, size in configs:
+            os.makedirs(os.path.dirname(path), exist_ok=True)
+            img.resize((size, size), Image.LANCZOS).save(path)
+            print(f'Created {path}')
+          "
 
       - name: Setup Java
         uses: actions/setup-java@v4
