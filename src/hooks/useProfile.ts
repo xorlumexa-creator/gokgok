@@ -82,11 +82,13 @@ async function loadProfile(userId: string, force = false): Promise<AppProfile | 
   if (!force && cachedUserId === userId && cachedProfile) return cachedProfile;
   if (!force && cachedUserId === userId && inFlight) return inFlight;
 
+  const hasProfileForUser = cachedProfile?.user_id === userId;
+  if (!hasProfileForUser) cachedProfile = null;
   cachedUserId = userId;
   // Only show loading when we have NOTHING to render. If we already have a
   // cached profile (from a previous session), revalidate silently in the
   // background — no spinner, no perceived lag.
-  cachedLoading = !cachedProfile;
+  cachedLoading = !hasProfileForUser;
   notifyProfileListeners();
 
   inFlight = Promise.resolve(
@@ -147,6 +149,10 @@ export function useProfile() {
       setProfile(null);
       setLoading(false);
     } else {
+      if (cachedProfile?.user_id !== user.id) {
+        setProfile(null);
+        setLoading(true);
+      }
       loadProfile(user.id).then(setProfile).finally(() => setLoading(false));
     }
 
