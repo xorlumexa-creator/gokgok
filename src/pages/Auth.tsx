@@ -4,7 +4,8 @@ import { Lock, Eye, EyeOff, Loader2, User, Phone, Store, ArrowLeft } from 'lucid
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from '@/hooks/use-toast';
-import { useAuth } from '@/hooks/useAuth';
+import { primeAuthSession, useAuth } from '@/hooks/useAuth';
+import { primeProfileFromAuth } from '@/hooks/useProfile';
 import { PhoneInput } from '@/components/auth/PhoneInput';
 import { Country, defaultCountry } from '@/data/countries';
 import { normalizePhone, phoneToEmail, isManagerPhone } from '@/lib/phone';
@@ -47,7 +48,7 @@ export default function Auth() {
     }
     setLoading(true);
     try {
-      const { error } = await supabase.auth.signInWithPassword({
+      const { data, error } = await supabase.auth.signInWithPassword({
         email: phoneToEmail(normalized),
         password,
       });
@@ -56,6 +57,8 @@ export default function Auth() {
         return;
       }
       const normalizedForRoute = normalized;
+      primeAuthSession(data.session ?? null);
+      if (data.user) primeProfileFromAuth(data.user.id, { ...data.user.user_metadata, phone: normalized });
       if (isManagerPhone(normalizedForRoute)) navigate('/manager', { replace: true });
       else navigate('/dashboard', { replace: true });
       toast({ title: 'সফলভাবে লগইন হয়েছে ✓' });
@@ -94,9 +97,15 @@ export default function Auth() {
         }
         return;
       }
-      if (!data.session) {
-        await supabase.auth.signInWithPassword({ email: phoneToEmail(normalized), password });
+      let session = data.session;
+      let user = data.user;
+      if (!session) {
+        const signedIn = await supabase.auth.signInWithPassword({ email: phoneToEmail(normalized), password });
+        session = signedIn.data.session;
+        user = signedIn.data.user;
       }
+      primeAuthSession(session ?? null);
+      if (user) primeProfileFromAuth(user.id, { full_name: name.trim(), shop_name: shopName.trim(), phone: normalized });
       navigate(isManagerPhone(normalized) ? '/manager' : '/dashboard', { replace: true });
       if (isManagerPhone(normalized)) {
         toast({ title: 'ম্যানেজার একাউন্ট তৈরি হয়েছে ✓' });
