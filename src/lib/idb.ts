@@ -28,10 +28,10 @@ export type StoreName = typeof STORES[number];
 
 let dbPromise: Promise<IDBPDatabase> | null = null;
 
-const idle =
+const idle: (cb: IdleRequestCallback, options?: IdleRequestOptions) => number =
   typeof window !== 'undefined' && 'requestIdleCallback' in window
     ? window.requestIdleCallback.bind(window)
-    : (cb: IdleRequestCallback) => window.setTimeout(() => cb({ didTimeout: false, timeRemaining: () => 0 } as IdleDeadline), 1);
+    : (cb) => window.setTimeout(() => cb({ didTimeout: false, timeRemaining: () => 0 } as IdleDeadline), 1);
 
 export function scheduleMirror(task: () => void): void {
   if (typeof window === 'undefined') {
