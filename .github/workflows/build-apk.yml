@@ -41,7 +41,9 @@ jobs:
           java-version: '17'
 
       - name: Build APK
-        run: cd android && ./gradlew assembleDebug
+        run: cd android && ./gradlew --no-daemon assembleDebug
+        env:
+          GRADLE_OPTS: "-Dorg.gradle.jvmargs=-Xmx2048m"
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
