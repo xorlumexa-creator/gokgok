@@ -1,3 +1,23 @@
+html, body {
+  overscroll-behavior-y: none;
+  overflow-x: hidden;
+}
+
+* {
+  -webkit-tap-highlight-color: transparent;
+  -webkit-overflow-scrolling: touch;
+}
+
+body {
+  overscroll-behavior: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
 * {
   -webkit-tap-highlight-color: transparent;
   -webkit-overflow-scrolling: touch;
