@@ -17,11 +17,15 @@ export default defineConfig(({ mode }) => ({
     mode === "development" && componentTagger(),
     VitePWA({
       registerType: "autoUpdate",
+      injectRegister: null,
+      cleanupOutdatedCaches: true,
       devOptions: {
         enabled: false,
       },
       includeAssets: ["logo.png"],
       workbox: {
+        skipWaiting: true,
+        clientsClaim: true,
         navigateFallbackDenylist: [/^\/~oauth/],
         globPatterns: ["**/*.{js,css,html,ico,png,svg,woff2,json}"],
         runtimeCaching: [
