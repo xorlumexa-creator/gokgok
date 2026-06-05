@@ -41,7 +41,10 @@ jobs:
           java-version: '21'
 
       - name: Build APK
-        run: cd android && ./gradlew --no-daemon assembleDebug
+        run: |
+          cd android
+          sed -i 's/gradle-8.2.1-all/gradle-8.7-all/g' gradle/wrapper/gradle-wrapper.properties
+          ./gradlew --no-daemon assembleDebug
         env:
           GRADLE_OPTS: "-Dorg.gradle.jvmargs=-Xmx2048m"
 
