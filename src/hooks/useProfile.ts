@@ -49,22 +49,24 @@ export function primeProfileFromAuth(userId: string, metadata: Record<string, an
   const phone = typeof metadata.phone === 'string' ? metadata.phone : null;
   if (!shopName && cachedProfile?.user_id === userId) return cachedProfile;
 
+  const previous = cachedProfile?.user_id === userId ? cachedProfile : null;
+
   cachedUserId = userId;
   cachedProfile = {
-    ...(cachedProfile?.user_id === userId ? cachedProfile : {} as AppProfile),
-    id: cachedProfile?.user_id === userId ? cachedProfile.id : userId,
+    ...(previous ?? {} as AppProfile),
+    id: previous?.id || userId,
     user_id: userId,
-    full_name: fullName || cachedProfile?.full_name || null,
-    shop_name: shopName || cachedProfile?.shop_name || null,
+    full_name: fullName || previous?.full_name || null,
+    shop_name: shopName || previous?.shop_name || null,
     phone,
-    role: phone && isManagerPhone(phone) ? 'manager' : (cachedProfile?.role || 'user'),
-    plan: cachedProfile?.plan || null,
-    plan_expiry: cachedProfile?.plan_expiry || null,
-    subscription_status: cachedProfile?.subscription_status || 'trial',
-    trial_start_date: cachedProfile?.trial_start_date || new Date().toISOString(),
-    temporary_access: cachedProfile?.temporary_access || false,
-    temporary_expiry: cachedProfile?.temporary_expiry || null,
-    must_change_password: cachedProfile?.must_change_password || false,
+    role: phone && isManagerPhone(phone) ? 'manager' : (previous?.role || 'user'),
+    plan: previous?.plan || null,
+    plan_expiry: previous?.plan_expiry || null,
+    subscription_status: previous?.subscription_status || 'trial',
+    trial_start_date: previous?.trial_start_date || new Date().toISOString(),
+    temporary_access: previous?.temporary_access || false,
+    temporary_expiry: previous?.temporary_expiry || null,
+    must_change_password: previous?.must_change_password || false,
   };
   cachedLoading = false;
   persistProfile(cachedProfile);
