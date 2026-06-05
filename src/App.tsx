@@ -68,7 +68,7 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
   if (!profile && profLoading) return <PageLoader />;
   if (profile?.must_change_password) return <Navigate to="/change-password" replace />;
   if (profile?.role === 'manager') return <Navigate to="/manager" replace />;
-  if (!isOnboarded) return <Navigate to="/setup" replace />;
+  if (!isOnboarded && !profile?.shop_name) return <Navigate to="/setup" replace />;
   return <>{children}</>;
 }
 
