@@ -21,7 +21,7 @@ export const PLAN_FEATURES = {
   invoice: ['pro'] as PlanId[],
 };
 
-export const SALES_CREDIT_LIMIT = 15000;
+export const SALES_CREDIT_LIMIT = 12000;
 export const STORAGE_UNIT = 1000; // products & baki holders per level
 
 export type LockReason =
