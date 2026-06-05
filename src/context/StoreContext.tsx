@@ -2,7 +2,7 @@ import React, { createContext, useContext, useState, useEffect, useRef, ReactNod
 import { Product, Sale, Customer, StoreInfo, DashboardStats, Expense, PersonalAccountStats, UnitType, PreOrder, PreOrderStatus, BulkSaleRecord, BakiPaymentRecord, CustomEarning, Supplier } from '@/types/store';
 import { supabase } from '@/integrations/supabase/client';
 import { markDirty } from '@/lib/syncEngine';
-import { putAll, setMeta } from '@/lib/idb';
+import { putAll, scheduleMirror, setMeta } from '@/lib/idb';
 
 
 interface StoreContextType {
@@ -142,53 +142,53 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (storeInfo) {
       localStorage.setItem('storeInfo', JSON.stringify(storeInfo));
-      void setMeta('storeInfo', storeInfo);
+      scheduleMirror(() => void setMeta('storeInfo', storeInfo));
     }
   }, [storeInfo]);
 
   useEffect(() => {
     localStorage.setItem('products', JSON.stringify(products));
-    void putAll('products', products as any);
+    scheduleMirror(() => void putAll('products', products as any));
   }, [products]);
 
   useEffect(() => {
     localStorage.setItem('sales', JSON.stringify(sales));
-    void putAll('sales', sales as any);
+    scheduleMirror(() => void putAll('sales', sales as any));
   }, [sales]);
 
   useEffect(() => {
     localStorage.setItem('customers', JSON.stringify(customers));
-    void putAll('customers', customers as any);
+    scheduleMirror(() => void putAll('customers', customers as any));
   }, [customers]);
 
   useEffect(() => {
     localStorage.setItem('expenses', JSON.stringify(expenses));
-    void putAll('expenses', expenses as any);
+    scheduleMirror(() => void putAll('expenses', expenses as any));
   }, [expenses]);
 
   useEffect(() => {
     localStorage.setItem('preOrders', JSON.stringify(preOrders));
-    void putAll('preOrders', preOrders as any);
+    scheduleMirror(() => void putAll('preOrders', preOrders as any));
   }, [preOrders]);
 
   useEffect(() => {
     localStorage.setItem('bulkSaleRecords', JSON.stringify(bulkSaleRecords));
-    void putAll('bulkSaleRecords', bulkSaleRecords as any);
+    scheduleMirror(() => void putAll('bulkSaleRecords', bulkSaleRecords as any));
   }, [bulkSaleRecords]);
 
   useEffect(() => {
     localStorage.setItem('bakiPaymentRecords', JSON.stringify(bakiPaymentRecords));
-    void putAll('bakiPaymentRecords', bakiPaymentRecords as any);
+    scheduleMirror(() => void putAll('bakiPaymentRecords', bakiPaymentRecords as any));
   }, [bakiPaymentRecords]);
 
   useEffect(() => {
     localStorage.setItem('customEarnings', JSON.stringify(customEarnings));
-    void putAll('customEarnings', customEarnings as any);
+    scheduleMirror(() => void putAll('customEarnings', customEarnings as any));
   }, [customEarnings]);
 
   useEffect(() => {
     localStorage.setItem('suppliers', JSON.stringify(suppliers));
-    void putAll('suppliers', suppliers as any);
+    scheduleMirror(() => void putAll('suppliers', suppliers as any));
   }, [suppliers]);
 
   // Sync scoping (per master prompt):

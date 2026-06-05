@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from './useAuth';
+import { isManagerPhone } from '@/lib/phone';
 
 export interface AppProfile {
   id: string;
@@ -35,6 +36,44 @@ let cachedLoading = false;
 let inFlight: Promise<AppProfile | null> | null = null;
 let listeners: ProfileListener[] = [];
 
+function persistProfile(profile: AppProfile | null) {
+  try {
+    if (profile) localStorage.setItem(PROFILE_CACHE_KEY, JSON.stringify(profile));
+    else localStorage.removeItem(PROFILE_CACHE_KEY);
+  } catch { /* ignore */ }
+}
+
+export function primeProfileFromAuth(userId: string, metadata: Record<string, any> = {}) {
+  const shopName = typeof metadata.shop_name === 'string' ? metadata.shop_name.trim() : '';
+  const fullName = typeof metadata.full_name === 'string' ? metadata.full_name.trim() : '';
+  const phone = typeof metadata.phone === 'string' ? metadata.phone : null;
+  if (!shopName && cachedProfile?.user_id === userId) return cachedProfile;
+
+  const previous = cachedProfile?.user_id === userId ? cachedProfile : null;
+
+  cachedUserId = userId;
+  cachedProfile = {
+    ...(previous ?? {} as AppProfile),
+    id: previous?.id || userId,
+    user_id: userId,
+    full_name: fullName || previous?.full_name || null,
+    shop_name: shopName || previous?.shop_name || null,
+    phone,
+    role: phone && isManagerPhone(phone) ? 'manager' : (previous?.role || 'user'),
+    plan: previous?.plan || null,
+    plan_expiry: previous?.plan_expiry || null,
+    subscription_status: previous?.subscription_status || 'trial',
+    trial_start_date: previous?.trial_start_date || new Date().toISOString(),
+    temporary_access: previous?.temporary_access || false,
+    temporary_expiry: previous?.temporary_expiry || null,
+    must_change_password: previous?.must_change_password || false,
+  };
+  cachedLoading = false;
+  persistProfile(cachedProfile);
+  notifyProfileListeners();
+  return cachedProfile;
+}
+
 function notifyProfileListeners() {
   listeners.forEach(listener => listener(cachedProfile, cachedLoading));
 }
@@ -43,11 +82,13 @@ async function loadProfile(userId: string, force = false): Promise<AppProfile | 
   if (!force && cachedUserId === userId && cachedProfile) return cachedProfile;
   if (!force && cachedUserId === userId && inFlight) return inFlight;
 
+  const hasProfileForUser = cachedProfile?.user_id === userId;
+  if (!hasProfileForUser) cachedProfile = null;
   cachedUserId = userId;
   // Only show loading when we have NOTHING to render. If we already have a
   // cached profile (from a previous session), revalidate silently in the
   // background — no spinner, no perceived lag.
-  cachedLoading = !cachedProfile;
+  cachedLoading = !hasProfileForUser;
   notifyProfileListeners();
 
   inFlight = Promise.resolve(
@@ -59,10 +100,7 @@ async function loadProfile(userId: string, force = false): Promise<AppProfile | 
   )
     .then(({ data }) => {
       cachedProfile = (data as AppProfile | null) ?? null;
-      try {
-        if (cachedProfile) localStorage.setItem(PROFILE_CACHE_KEY, JSON.stringify(cachedProfile));
-        else localStorage.removeItem(PROFILE_CACHE_KEY);
-      } catch { /* ignore */ }
+      persistProfile(cachedProfile);
       return cachedProfile;
     })
     .finally(() => {
@@ -111,6 +149,10 @@ export function useProfile() {
       setProfile(null);
       setLoading(false);
     } else {
+      if (cachedProfile?.user_id !== user.id) {
+        setProfile(null);
+        setLoading(true);
+      }
       loadProfile(user.id).then(setProfile).finally(() => setLoading(false));
     }
 

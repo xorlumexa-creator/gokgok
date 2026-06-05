@@ -95,7 +95,7 @@ export default function Landing() {
         <h2 className="text-2xl sm:text-3xl font-bold text-center mb-2">সাশ্রয়ী প্ল্যান</h2>
         <p className="text-center text-muted-foreground mb-2">৩টি প্ল্যানেই একই ক্যাপাসিটি — পার্থক্য শুধু ফিচারে</p>
         <div className="text-center text-xs text-muted-foreground mb-8 max-w-2xl mx-auto leading-relaxed">
-          প্রতিটি প্ল্যানে: <b className="text-foreground">১,০০০ পণ্য</b> + <b className="text-foreground">১,০০০ বাকি গ্রাহক</b> + <b className="text-foreground">মাসিক ১৫,০০০ বিক্রি</b><br/>
+          প্রতিটি প্ল্যানে: <b className="text-foreground">১,০০০ পণ্য</b> + <b className="text-foreground">১,০০০ বাকি গ্রাহক</b> + <b className="text-foreground">মাসিক ১২,০০০ বিক্রি</b><br/>
           <span className="text-rose-600">⚠️ সীমা শেষ হলে বা মাস শেষ হলে আবার সাবস্ক্রিপশন প্রয়োজন।</span>
         </div>
         <div className="grid sm:grid-cols-3 gap-4">

@@ -15,22 +15,25 @@ function notify() {
   listeners.forEach(listener => listener(cachedSession, cachedUser, cachedLoading));
 }
 
+export function primeAuthSession(session: Session | null) {
+  cachedSession = session;
+  cachedUser = session?.user ?? null;
+  cachedLoading = false;
+  notify();
+}
+
 function initAuthOnce() {
   if (initialized) return;
   initialized = true;
 
   initPromise = supabase.auth.getSession().then(({ data: { session } }) => {
-    cachedSession = session;
-    cachedUser = session?.user ?? null;
-    cachedLoading = false;
-    notify();
+    primeAuthSession(session);
+  }).catch(() => {
+    primeAuthSession(null);
   });
 
   supabase.auth.onAuthStateChange((_event, session) => {
-    cachedSession = session;
-    cachedUser = session?.user ?? null;
-    cachedLoading = false;
-    notify();
+    primeAuthSession(session);
   });
 }
 
