@@ -154,8 +154,14 @@ function AppRoutes() {
 
 const App = () => {
   useEffect(() => {
-    const t = window.setTimeout(() => startSyncEngine(), 3000);
-    return () => window.clearTimeout(t);
+    if (navigator.onLine) {
+      const t = window.setTimeout(() => startSyncEngine(), 3000);
+      return () => window.clearTimeout(t);
+    } else {
+      const handleOnline = () => startSyncEngine();
+      window.addEventListener('online', handleOnline);
+      return () => window.removeEventListener('online', handleOnline);
+    }
   }, []);
 
   return (
