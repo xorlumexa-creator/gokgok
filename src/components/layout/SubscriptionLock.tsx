@@ -44,7 +44,7 @@ export function SubscriptionLock({ children }: { children: React.ReactNode }) {
   if (ALWAYS_ALLOWED.includes(location.pathname)) return <>{children}</>;
 
   const reason = salesExceeded
-    ? 'এই মাসের ১৫,০০০ বিক্রির সীমা পূর্ণ হয়েছে। ব্যবসা চালিয়ে যেতে প্ল্যান নবায়ন করুন।'
+    ? 'এই মাসের ১২,০০০ বিক্রির সীমা পূর্ণ হয়েছে। ব্যবসা চালিয়ে যেতে প্ল্যান নবায়ন করুন।'
     : 'আপনার ট্রায়াল/সাবস্ক্রিপশন শেষ। সাবস্ক্রিপশন নিন।';
 
   return (
