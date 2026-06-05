@@ -18,7 +18,6 @@ export default defineConfig(({ mode }) => ({
     VitePWA({
       registerType: "autoUpdate",
       injectRegister: null,
-      cleanupOutdatedCaches: true,
       devOptions: {
         enabled: false,
       },
