@@ -59,7 +59,17 @@ function PageLoader() {
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
   const { profile, loading: profLoading } = useProfile();
-  const { isOnboarded } = useStore();
+  const { isOnboarded, setStoreInfo } = useStore();
+
+  useEffect(() => {
+    if (!user || isOnboarded || !profile?.shop_name) return;
+    setStoreInfo({
+      name: profile.shop_name,
+      trialStartDate: new Date(profile.trial_start_date || Date.now()),
+      trialDaysLeft: 3,
+      isOnboarded: true,
+    });
+  }, [user, isOnboarded, profile?.shop_name, profile?.trial_start_date, setStoreInfo]);
 
   if (loading) return <PageLoader />;
   if (!user) return <Navigate to="/auth" replace />;
