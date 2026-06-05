@@ -32,7 +32,19 @@ jobs:
 
       - name: Sync Capacitor
         run: npx cap sync android
-
+        - name: Add App Icon
+        run: |
+          npm install -g sharp-cli
+          mkdir -p android/app/src/main/res/mipmap-mdpi
+          mkdir -p android/app/src/main/res/mipmap-hdpi
+          mkdir -p android/app/src/main/res/mipmap-xhdpi
+          mkdir -p android/app/src/main/res/mipmap-xxhdpi
+          mkdir -p android/app/src/main/res/mipmap-xxxhdpi
+          npx sharp-cli --input public/logo.png --output android/app/src/main/res/mipmap-mdpi/ic_launcher.png resize 48 48
+          npx sharp-cli --input public/logo.png --output android/app/src/main/res/mipmap-hdpi/ic_launcher.png resize 72 72
+          npx sharp-cli --input public/logo.png --output android/app/src/main/res/mipmap-xhdpi/ic_launcher.png resize 96 96
+          npx sharp-cli --input public/logo.png --output android/app/src/main/res/mipmap-xxhdpi/ic_launcher.png resize 144 144
+          npx sharp-cli --input public/logo.png --output android/app/src/main/res/mipmap-xxxhdpi/ic_launcher.png resize 192 192
       - name: Setup Java
         uses: actions/setup-java@v3
         with:
