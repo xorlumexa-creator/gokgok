@@ -16,7 +16,7 @@ export function normalizePhone(phone: string, dialCode: string = '+880'): string
 
 export function phoneToEmail(normalized: string): string {
   const digits = normalized.replace(/\D/g, '');
-  return `${digits}@dukan360.app`;
+  return `${digits}@gmail.com`;
 }
 
 export function isManagerPhone(normalized: string): boolean {
