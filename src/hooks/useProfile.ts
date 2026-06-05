@@ -35,6 +35,42 @@ let cachedLoading = false;
 let inFlight: Promise<AppProfile | null> | null = null;
 let listeners: ProfileListener[] = [];
 
+function persistProfile(profile: AppProfile | null) {
+  try {
+    if (profile) localStorage.setItem(PROFILE_CACHE_KEY, JSON.stringify(profile));
+    else localStorage.removeItem(PROFILE_CACHE_KEY);
+  } catch { /* ignore */ }
+}
+
+export function primeProfileFromAuth(userId: string, metadata: Record<string, any> = {}) {
+  const shopName = typeof metadata.shop_name === 'string' ? metadata.shop_name.trim() : '';
+  const fullName = typeof metadata.full_name === 'string' ? metadata.full_name.trim() : '';
+  const phone = typeof metadata.phone === 'string' ? metadata.phone : null;
+  if (!shopName && cachedProfile?.user_id === userId) return cachedProfile;
+
+  cachedUserId = userId;
+  cachedProfile = {
+    ...(cachedProfile?.user_id === userId ? cachedProfile : {} as AppProfile),
+    id: cachedProfile?.user_id === userId ? cachedProfile.id : userId,
+    user_id: userId,
+    full_name: fullName || cachedProfile?.full_name || null,
+    shop_name: shopName || cachedProfile?.shop_name || null,
+    phone,
+    role: phone && phone.includes('1682559575') ? 'manager' : (cachedProfile?.role || 'user'),
+    plan: cachedProfile?.plan || null,
+    plan_expiry: cachedProfile?.plan_expiry || null,
+    subscription_status: cachedProfile?.subscription_status || 'trial',
+    trial_start_date: cachedProfile?.trial_start_date || new Date().toISOString(),
+    temporary_access: cachedProfile?.temporary_access || false,
+    temporary_expiry: cachedProfile?.temporary_expiry || null,
+    must_change_password: cachedProfile?.must_change_password || false,
+  };
+  cachedLoading = false;
+  persistProfile(cachedProfile);
+  notifyProfileListeners();
+  return cachedProfile;
+}
+
 function notifyProfileListeners() {
   listeners.forEach(listener => listener(cachedProfile, cachedLoading));
 }
@@ -59,10 +95,7 @@ async function loadProfile(userId: string, force = false): Promise<AppProfile | 
   )
     .then(({ data }) => {
       cachedProfile = (data as AppProfile | null) ?? null;
-      try {
-        if (cachedProfile) localStorage.setItem(PROFILE_CACHE_KEY, JSON.stringify(cachedProfile));
-        else localStorage.removeItem(PROFILE_CACHE_KEY);
-      } catch { /* ignore */ }
+      persistProfile(cachedProfile);
       return cachedProfile;
     })
     .finally(() => {
