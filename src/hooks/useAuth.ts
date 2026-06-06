@@ -4,9 +4,24 @@ import type { User, Session } from '@supabase/supabase-js';
 
 type AuthListener = (session: Session | null, user: User | null, loading: boolean) => void;
 
-let cachedSession: Session | null = null;
-let cachedUser: User | null = null;
-let cachedLoading = true;
+// Synchronously peek at Supabase's persisted session in localStorage so we
+// never show a spinner when there's already a saved login. Critical for
+// offline / Capacitor WebView startup.
+function readPersistedSession(): Session | null {
+  try {
+    const raw = localStorage.getItem('dukan360-auth');
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    const session = parsed?.currentSession ?? parsed?.session ?? parsed;
+    if (session && session.access_token && session.user) return session as Session;
+    return null;
+  } catch { return null; }
+}
+
+const persisted = readPersistedSession();
+let cachedSession: Session | null = persisted;
+let cachedUser: User | null = persisted?.user ?? null;
+let cachedLoading = !persisted;
 let initialized = false;
 let initPromise: Promise<void> | null = null;
 let listeners: AuthListener[] = [];
@@ -26,13 +41,19 @@ function initAuthOnce() {
   if (initialized) return;
   initialized = true;
 
+  // Background revalidation — never blocks UI when we already have a session.
   initPromise = supabase.auth.getSession().then(({ data: { session } }) => {
-    primeAuthSession(session);
+    if (session) primeAuthSession(session);
+    else { cachedLoading = false; notify(); }
   }).catch(() => {
-    primeAuthSession(null);
+    cachedLoading = false;
+    notify();
   });
 
   supabase.auth.onAuthStateChange((_event, session) => {
+    // Ignore null sessions caused by transient offline token-refresh failures
+    // when we already have a cached session — prevents auto-logout offline.
+    if (!session && cachedSession && !navigator.onLine) return;
     primeAuthSession(session);
   });
 }
