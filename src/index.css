@@ -1,15 +1,14 @@
 html, body {
-  overscroll-behavior-y: none;
+  overscroll-behavior: none;
+  overscroll-behavior-y: contain;
   overflow-x: hidden;
+  /* Disable pull-to-refresh on Android WebView / Capacitor */
+  touch-action: pan-x pan-y;
 }
 
 * {
   -webkit-tap-highlight-color: transparent;
   -webkit-overflow-scrolling: touch;
-}
-
-body {
-  overscroll-behavior: none;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -17,15 +16,6 @@ body {
     animation-duration: 0.01ms !important;
     transition-duration: 0.01ms !important;
   }
-}
-* {
-  -webkit-tap-highlight-color: transparent;
-  -webkit-overflow-scrolling: touch;
-}
-
-body {
-  overscroll-behavior: none;
-  overflow-x: hidden;
 }
 @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+Bengali:wght@400;500;600;700&display=swap&text=আ-হ০-৯');
 
