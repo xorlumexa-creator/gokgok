@@ -61,7 +61,7 @@ function PageLoader() {
 }
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
-  const { user, loading } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const { profile, loading: profLoading } = useProfile();
   const { isOnboarded, setStoreInfo } = useStore();
 
@@ -75,25 +75,32 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
     });
   }, [user, isOnboarded, profile?.shop_name, profile?.trial_start_date, setStoreInfo]);
 
-  if (loading) return <PageLoader />;
+  // FIX: Only block on authLoading — the one true loading state.
+  // Don't block on profLoading if we already have a cached profile.
+  if (authLoading) return <PageLoader />;
   if (!user) return <Navigate to="/auth" replace />;
+
+  // FIX: Only show profile loader if we have NO cached profile at all.
+  // If localStorage has a profile, render immediately and revalidate in background.
   if (!profile && profLoading && !localStorage.getItem('cache:profile')) return <PageLoader />;
+
   if (profile?.must_change_password) return <Navigate to="/change-password" replace />;
   if (profile?.role === 'manager') return <Navigate to="/manager" replace />;
-  // Only redirect to /setup when the server profile is fully loaded AND
-  // genuinely missing a shop_name. Never base routing on the local
-  // `isOnboarded` flag (it starts false and would cause a flash-redirect loop).
+
+  // Only redirect to /setup when profile is fully loaded AND genuinely missing shop_name.
   if (profile && !profLoading && !profile.shop_name && !localStorage.getItem('storeInfo')) {
     return <Navigate to="/setup" replace />;
   }
+
   return <>{children}</>;
 }
 
 function ManagerRoute({ children }: { children: React.ReactNode }) {
-  const { user, loading } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const { profile, loading: profLoading } = useProfile();
 
-  if (loading) return <PageLoader />;
+  // FIX: Same pattern — only block on authLoading
+  if (authLoading) return <PageLoader />;
   if (!user) return <Navigate to="/auth" replace />;
   if (!profile && profLoading && !localStorage.getItem('cache:profile')) return <PageLoader />;
   if (profile?.must_change_password) return <Navigate to="/change-password" replace />;
@@ -184,3 +191,4 @@ const App = () => {
 };
 
 export default App;
+  
