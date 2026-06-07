@@ -80,7 +80,12 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
   if (!profile && profLoading && !localStorage.getItem('cache:profile')) return <PageLoader />;
   if (profile?.must_change_password) return <Navigate to="/change-password" replace />;
   if (profile?.role === 'manager') return <Navigate to="/manager" replace />;
-  if (!isOnboarded && !profile?.shop_name) return <Navigate to="/setup" replace />;
+  // Only redirect to /setup when the server profile is fully loaded AND
+  // genuinely missing a shop_name. Never base routing on the local
+  // `isOnboarded` flag (it starts false and would cause a flash-redirect loop).
+  if (profile && !profLoading && !profile.shop_name && !localStorage.getItem('storeInfo')) {
+    return <Navigate to="/setup" replace />;
+  }
   return <>{children}</>;
 }
 

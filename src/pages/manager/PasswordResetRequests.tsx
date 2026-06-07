@@ -21,20 +21,34 @@ export default function PasswordResetRequests() {
 
   const load = async () => {
     setLoading(true);
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('password_reset_requests')
       .select('*')
       .order('created_at', { ascending: false });
+    if (error) {
+      console.error('[manager/passwords] load error', error);
+      toast({ title: 'লোড করতে সমস্যা', description: error.message, variant: 'destructive' });
+      setRows([]);
+      setLoading(false);
+      return;
+    }
     if (data && data.length) {
       const ids = [...new Set(data.map(r => r.user_id).filter(Boolean) as string[])];
-      const { data: profs } = await supabase.from('profiles').select('user_id, shop_name').in('user_id', ids);
-      const map = new Map((profs || []).map(p => [p.user_id, p.shop_name]));
-      setRows(data.map(r => ({ ...r, shop_name: r.user_id ? map.get(r.user_id) : null })) as any);
+      let map = new Map<string, string | null>();
+      if (ids.length) {
+        const { data: profs } = await supabase.from('profiles').select('user_id, shop_name').in('user_id', ids);
+        map = new Map((profs || []).map(p => [p.user_id, p.shop_name]));
+      }
+      setRows(data.map(r => ({ ...r, shop_name: r.user_id ? map.get(r.user_id) ?? null : null })) as any);
     } else setRows([]);
     setLoading(false);
   };
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => {
+    load();
+    const t = window.setInterval(load, 15000);
+    return () => window.clearInterval(t);
+  }, []);
 
   const sendWhatsApp = async (r: Row) => {
     setBusy(r.id);
