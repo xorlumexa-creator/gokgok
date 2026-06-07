@@ -34,24 +34,61 @@ jobs:
       - name: Sync Capacitor
         run: npx cap sync android
 
-      - name: Add App Icon
+      - name: Add App Icons and Splash Screen
         run: |
           pip install Pillow --break-system-packages
           python3 -c "
-          from PIL import Image
+          from PIL import Image, ImageDraw
           import os
-          img = Image.open('public/logo.png')
-          configs = [
+
+          img = Image.open('public/logo.png').convert('RGBA')
+
+          # All icon sizes needed by Android
+          icon_configs = [
             ('android/app/src/main/res/mipmap-mdpi/ic_launcher.png', 48),
             ('android/app/src/main/res/mipmap-hdpi/ic_launcher.png', 72),
             ('android/app/src/main/res/mipmap-xhdpi/ic_launcher.png', 96),
             ('android/app/src/main/res/mipmap-xxhdpi/ic_launcher.png', 144),
             ('android/app/src/main/res/mipmap-xxxhdpi/ic_launcher.png', 192),
+            # FIX: round icons also required by Android launcher
+            ('android/app/src/main/res/mipmap-mdpi/ic_launcher_round.png', 48),
+            ('android/app/src/main/res/mipmap-hdpi/ic_launcher_round.png', 72),
+            ('android/app/src/main/res/mipmap-xhdpi/ic_launcher_round.png', 96),
+            ('android/app/src/main/res/mipmap-xxhdpi/ic_launcher_round.png', 144),
+            ('android/app/src/main/res/mipmap-xxxhdpi/ic_launcher_round.png', 192),
+            # FIX: foreground layer for adaptive icons
+            ('android/app/src/main/res/mipmap-mdpi/ic_launcher_foreground.png', 48),
+            ('android/app/src/main/res/mipmap-hdpi/ic_launcher_foreground.png', 72),
+            ('android/app/src/main/res/mipmap-xhdpi/ic_launcher_foreground.png', 96),
+            ('android/app/src/main/res/mipmap-xxhdpi/ic_launcher_foreground.png', 144),
+            ('android/app/src/main/res/mipmap-xxxhdpi/ic_launcher_foreground.png', 192),
           ]
-          for path, size in configs:
+
+          for path, size in icon_configs:
             os.makedirs(os.path.dirname(path), exist_ok=True)
-            img.resize((size, size), Image.LANCZOS).save(path)
+            resized = img.resize((size, size), Image.LANCZOS)
+            # Convert RGBA to RGB with white background for non-transparent formats
+            background = Image.new('RGBA', resized.size, (255, 255, 255, 255))
+            background.paste(resized, mask=resized.split()[3])
+            background.convert('RGB').save(path)
             print(f'Created {path}')
+
+          # FIX: Splash screen logo — centered on teal background
+          splash_sizes = [
+            ('android/app/src/main/res/drawable/splash.png', 1080, 1920),
+            ('android/app/src/main/res/drawable-land/splash.png', 1920, 1080),
+          ]
+          logo = Image.open('public/logo.png').convert('RGBA')
+          for path, w, h in splash_sizes:
+            os.makedirs(os.path.dirname(path), exist_ok=True)
+            splash = Image.new('RGBA', (w, h), (13, 148, 136, 255))  # teal #0d9488
+            logo_size = min(w, h) // 3
+            logo_resized = logo.resize((logo_size, logo_size), Image.LANCZOS)
+            x = (w - logo_size) // 2
+            y = (h - logo_size) // 2
+            splash.paste(logo_resized, (x, y), mask=logo_resized.split()[3])
+            splash.convert('RGB').save(path)
+            print(f'Created splash {path}')
           "
 
       - name: Setup Java
@@ -73,3 +110,4 @@ jobs:
         with:
           name: dukan360-debug
           path: android/app/build/outputs/apk/debug/app-debug.apk
+          
