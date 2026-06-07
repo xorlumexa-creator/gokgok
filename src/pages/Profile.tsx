@@ -111,27 +111,21 @@ export default function Profile() {
     }
   };
 
-
   if (loadingProfile) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
+      // FIX 3: Use flex justify-center instead of min-h-screen
+      // min-h-screen inside MainLayout's h-screen breaks scroll
+      <div className="flex items-center justify-center py-20">
         <Loader2 className="w-8 h-8 animate-spin text-primary" />
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-background">
-      <div className="sticky top-0 z-30 bg-background/95 backdrop-blur border-b border-border">
-        <div className="flex items-center gap-3 px-4 py-3">
-          <button onClick={() => navigate(-1)} className="p-2 -ml-2 text-muted-foreground hover:text-foreground hover:bg-muted rounded-lg transition-colors">
-            <ArrowLeft className="w-5 h-5" />
-          </button>
-          <h1 className="text-xl font-bold text-foreground">প্রোফাইল সেটিংস</h1>
-        </div>
-      </div>
-
-      <div className="max-w-lg mx-auto p-4 space-y-4">
+    // FIX 3: Removed min-h-screen and bg-background — MainLayout already provides these
+    // min-h-screen inside a h-screen flex container prevents scrolling
+    <div className="pb-6">
+      <div className="max-w-lg mx-auto space-y-4">
         {/* Profile Info */}
         <div className="card-elevated p-5 space-y-4">
           <h2 className="font-semibold text-foreground flex items-center gap-2">
@@ -193,8 +187,8 @@ export default function Profile() {
             </div>
           )}
         </div>
-
       </div>
     </div>
   );
-}
+                    }
+            
