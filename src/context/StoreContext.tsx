@@ -130,7 +130,13 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     return saved ? JSON.parse(saved) : [];
   });
 
-  const isOnboarded = storeInfo?.isOnboarded ?? false;
+  // Treat the user as onboarded whenever there is ANY persisted store data
+  // locally. Prevents a flash-redirect to /setup on cold start before the
+  // Supabase profile has loaded.
+  const isOnboarded =
+    storeInfo?.isOnboarded === true ||
+    !!storeInfo?.name ||
+    !!localStorage.getItem('storeInfo');
 
   // Note: shop name auto-onboarding is handled by Index.tsx using the cached
   // profile from useProfile. StoreContext no longer triggers its own session
