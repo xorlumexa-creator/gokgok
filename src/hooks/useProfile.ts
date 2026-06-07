@@ -32,6 +32,8 @@ function readPersistedProfile(): AppProfile | null {
 
 let cachedUserId: string | null = null;
 let cachedProfile: AppProfile | null = readPersistedProfile();
+// FIX: cachedLoading starts false always — we have persisted data or we don't.
+// Never start as true; let the effect decide if a fetch is needed.
 let cachedLoading = false;
 let inFlight: Promise<AppProfile | null> | null = null;
 let listeners: ProfileListener[] = [];
@@ -85,9 +87,9 @@ async function loadProfile(userId: string, force = false): Promise<AppProfile | 
   const hasProfileForUser = cachedProfile?.user_id === userId;
   if (!hasProfileForUser) cachedProfile = null;
   cachedUserId = userId;
-  // Only show loading when we have NOTHING to render. If we already have a
-  // cached profile (from a previous session), revalidate silently in the
-  // background — no spinner, no perceived lag.
+
+  // FIX: Only show loading spinner when we have NOTHING cached for this user.
+  // If we have a cached profile, revalidate silently — no spinner, no glitch.
   cachedLoading = !hasProfileForUser;
   notifyProfileListeners();
 
@@ -115,7 +117,10 @@ async function loadProfile(userId: string, force = false): Promise<AppProfile | 
 export function useProfile() {
   const { user, loading: authLoading } = useAuth();
   const [profile, setProfile] = useState<AppProfile | null>(cachedProfile);
-  const [loading, setLoading] = useState(cachedLoading || authLoading);
+  // FIX: Don't include authLoading in initial loading state.
+  // Auth loading is handled separately in ProtectedRoute.
+  // Mixing them caused double-loading flicker.
+  const [loading, setLoading] = useState(cachedLoading);
 
   const refresh = async (force = true) => {
     if (!user) {
@@ -136,19 +141,23 @@ export function useProfile() {
   useEffect(() => {
     const listener: ProfileListener = (nextProfile, nextLoading) => {
       setProfile(nextProfile);
-      setLoading(nextLoading || authLoading);
+      // FIX: Don't merge authLoading here — it causes extra re-renders
+      setLoading(nextLoading);
     };
     listeners.push(listener);
 
     if (authLoading) {
-      setLoading(true);
+      // Auth not ready yet — don't fetch profile, just wait
+      setLoading(false); // FIX: Don't show spinner while auth loads; ProtectedRoute handles that
     } else if (!user) {
+      // Logged out — clear everything
       cachedUserId = null;
       cachedProfile = null;
       cachedLoading = false;
       setProfile(null);
       setLoading(false);
     } else {
+      // Logged in — load profile (silently if cached)
       if (cachedProfile?.user_id !== user.id) {
         setProfile(null);
         setLoading(true);
@@ -159,5 +168,7 @@ export function useProfile() {
     return () => { listeners = listeners.filter(item => item !== listener); };
   }, [user?.id, authLoading]);
 
-  return { profile, loading: loading || authLoading, refresh };
+  // FIX: Return just `loading` not `loading || authLoading`
+  // ProtectedRoute already handles the authLoading case separately
+  return { profile, loading, refresh };
 }
