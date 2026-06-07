@@ -1,11 +1,10 @@
-import { useState, useEffect } from 'react';
-import { NavLink, useLocation, useNavigate } from 'react-router-dom';
-import { 
-  LayoutDashboard, 
-  ShoppingCart, 
-  Package, 
-  Calculator, 
-  BookOpen, 
+import { useLocation, NavLink, useNavigate } from 'react-router-dom';
+import {
+  LayoutDashboard,
+  ShoppingCart,
+  Package,
+  Calculator,
+  BookOpen,
   Bell,
   X,
   User,
@@ -18,7 +17,9 @@ import {
 } from 'lucide-react';
 import { useStore } from '@/context/StoreContext';
 import { useAuth } from '@/hooks/useAuth';
-import { supabase } from '@/integrations/supabase/client';
+// FIX 1: Removed supabase import — no longer making direct DB calls here
+// FIX 1: Use useProfile instead — profile is already loaded and cached
+import { useProfile } from '@/hooks/useProfile';
 import logoImg from '@/assets/logo.png';
 
 interface SidebarProps {
@@ -44,40 +45,18 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
   const location = useLocation();
   const navigate = useNavigate();
   const { storeInfo } = useStore();
-  const { user, signOut } = useAuth();
-  const [trialDaysLeft, setTrialDaysLeft] = useState<number | null>(null);
-  const [subscriptionStatus, setSubscriptionStatus] = useState<string>('trial');
+  const { signOut } = useAuth();
+  // FIX 1: Get profile from hook — already cached, zero extra network calls
+  const { profile } = useProfile();
 
-  useEffect(() => {
-    if (user) {
-      checkSubscription();
-    }
-  }, [user]);
-
-  const checkSubscription = async () => {
-    if (!user) return;
-    
-    try {
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('subscription_status, trial_start_date')
-        .eq('user_id', user.id)
-        .single();
-
-      if (profile) {
-        setSubscriptionStatus(profile.subscription_status);
-        
-        if (profile.trial_start_date && profile.subscription_status === 'trial') {
-          const trialStart = new Date(profile.trial_start_date);
-          const now = new Date();
-          const daysPassed = Math.floor((now.getTime() - trialStart.getTime()) / (1000 * 60 * 60 * 24));
-          setTrialDaysLeft(Math.max(0, 3 - daysPassed));
-        }
-      }
-    } catch (error) {
-      console.error('Error checking subscription:', error);
-    }
-  };
+  // FIX 1: Compute trial info from cached profile — no Supabase call needed
+  const subscriptionStatus = profile?.subscription_status ?? 'trial';
+  let trialDaysLeft: number | null = null;
+  if (profile?.trial_start_date && subscriptionStatus === 'trial') {
+    const trialStart = new Date(profile.trial_start_date);
+    const daysPassed = Math.floor((Date.now() - trialStart.getTime()) / (1000 * 60 * 60 * 24));
+    trialDaysLeft = Math.max(0, 3 - daysPassed);
+  }
 
   const handleLogout = async () => {
     await signOut();
@@ -87,7 +66,7 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
   return (
     <>
       {isOpen && (
-        <div 
+        <div
           className="fixed inset-0 bg-foreground/20 backdrop-blur-sm z-40 lg:hidden"
           onClick={onClose}
         />
@@ -109,7 +88,7 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
                   <p className="text-xs text-muted-foreground">{storeInfo?.name || 'আমার দোকান'}</p>
                 </div>
               </div>
-              <button 
+              <button
                 onClick={onClose}
                 className="lg:hidden p-2 text-muted-foreground hover:text-foreground"
               >
@@ -122,8 +101,8 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
             <button
               onClick={() => navigate('/subscription')}
               className={`mx-4 mt-4 p-3 rounded-xl transition-all ${
-                trialDaysLeft <= 3 
-                  ? 'bg-due/10 border border-due text-due' 
+                trialDaysLeft <= 3
+                  ? 'bg-due/10 border border-due text-due'
                   : 'bg-primary/10 border border-primary/30 text-primary'
               }`}
             >
@@ -131,7 +110,7 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
                 <Crown className="w-5 h-5" />
                 <div className="text-left">
                   <p className="font-medium text-sm">
-                    {trialDaysLeft > 0 
+                    {trialDaysLeft > 0
                       ? `🎁 ফ্রি ট্রায়াল: ${trialDaysLeft} দিন বাকি`
                       : '⚠️ ট্রায়াল শেষ!'
                     }
@@ -184,4 +163,4 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
       </aside>
     </>
   );
-}
+                    }
