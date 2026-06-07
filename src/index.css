@@ -2,8 +2,8 @@ html, body {
   overscroll-behavior: none;
   overscroll-behavior-y: contain;
   overflow-x: hidden;
-  /* Disable pull-to-refresh on Android WebView / Capacitor */
-  touch-action: pan-x pan-y;
+  /* FIX: was `pan-x pan-y` which BLOCKS vertical momentum scrolling on Android */
+  touch-action: manipulation;
 }
 
 * {
@@ -224,22 +224,12 @@ html, body {
   }
 
   @keyframes fadeIn {
-    from {
-      opacity: 0;
-    }
-    to {
-      opacity: 1;
-    }
+    from { opacity: 0; }
+    to { opacity: 1; }
   }
 
   @keyframes slideUp {
-    from {
-      opacity: 0;
-      transform: translateY(10px);
-    }
-    to {
-      opacity: 1;
-      transform: translateY(0);
-    }
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
   }
 }
