@@ -44,7 +44,11 @@ export default function PasswordResetRequests() {
     setLoading(false);
   };
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => {
+    load();
+    const t = window.setInterval(load, 15000);
+    return () => window.clearInterval(t);
+  }, []);
 
   const sendWhatsApp = async (r: Row) => {
     setBusy(r.id);
