@@ -6,6 +6,12 @@ const config: CapacitorConfig = {
   webDir: 'dist',
   android: {
     allowMixedContent: true,
+    // FIX: Enable scroll and touch in Android WebView
+    overrideUserAgent: undefined,
+    backgroundColor: '#ffffff',
+  },
+  ios: {
+    scrollEnabled: true,
   },
   plugins: {
     SplashScreen: {
