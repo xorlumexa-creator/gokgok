@@ -1,24 +1,32 @@
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { useStore } from '@/context/StoreContext';
 import { supabase } from '@/integrations/supabase/client';
 
 const Index = () => {
-  const [mounted, setMounted] = useState(false);
+  // Removed `mounted` state — it added an extra render cycle causing a spinner flash
   const { user, loading } = useAuth();
   const { isOnboarded, completeOnboarding } = useStore();
   const navigate = useNavigate();
 
-  useEffect(() => { setMounted(true); }, []);
-
   useEffect(() => {
-    if (!mounted || loading) return;
-    if (!user) { navigate('/auth', { replace: true }); return; }
+    // Wait for auth to resolve
+    if (loading) return;
 
-    // Auto-onboard silently: never show shop-name prompt.
-    if (isOnboarded) { navigate('/dashboard', { replace: true }); return; }
+    // Not logged in → go to auth
+    if (!user) {
+      navigate('/auth', { replace: true });
+      return;
+    }
 
+    // Already onboarded → go straight to dashboard (no spinner needed)
+    if (isOnboarded) {
+      navigate('/dashboard', { replace: true });
+      return;
+    }
+
+    // New user: silently fetch shop name and complete onboarding
     (async () => {
       let name = 'আমার দোকান';
       try {
@@ -28,11 +36,14 @@ const Index = () => {
           .eq('user_id', user.id)
           .maybeSingle();
         if (data?.shop_name?.trim()) name = data.shop_name.trim();
-      } catch (e) { console.warn('profile lookup failed', e); }
+      } catch (e) {
+        console.warn('profile lookup failed', e);
+      }
       completeOnboarding(name, []);
       navigate('/dashboard', { replace: true });
     })();
-  }, [mounted, loading, user, isOnboarded, navigate, completeOnboarding]);
+  }, [loading, user, isOnboarded, navigate, completeOnboarding]);
+  // Removed `mounted` from deps — no longer needed
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-background">
