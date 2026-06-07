@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { LayoutDashboard, CreditCard, KeyRound, Users, BarChart3, LogOut } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -17,22 +18,36 @@ export default function ManagerLayout() {
   const navigate = useNavigate();
   const { profile, loading } = useProfile();
 
+  // FIX 2: Move navigation into useEffect — calling navigate() during render
+  // is an illegal side effect that causes React warnings and UI flicker
+  useEffect(() => {
+    if (!loading && profile && profile.role !== 'manager') {
+      navigate('/dashboard', { replace: true });
+    }
+  }, [loading, profile, navigate]);
+
   const signOut = async () => {
     await supabase.auth.signOut();
     navigate('/auth');
   };
 
   if (loading) {
-    return <div className="min-h-screen flex items-center justify-center">লোড হচ্ছে...</div>;
-  }
-  if (!profile || profile.role !== 'manager') {
-    navigate('/dashboard');
-    return null;
+    // FIX 2: Use flex py instead of min-h-screen — cleaner loading state
+    return (
+      <div className="flex items-center justify-center py-20">
+        লোড হচ্ছে...
+      </div>
+    );
   }
 
+  // FIX 2: Return null while redirect is in progress (useEffect handles nav)
+  if (!profile || profile.role !== 'manager') return null;
+
   return (
-    <div className="min-h-screen flex bg-muted/30">
-      <aside className="w-60 bg-card border-r border-border p-4 flex flex-col">
+    // FIX 2: Use h-screen + overflow-hidden same pattern as MainLayout
+    // Old min-h-screen caused same scroll blocking issue
+    <div className="h-screen flex bg-muted/30 overflow-hidden">
+      <aside className="w-60 bg-card border-r border-border p-4 flex flex-col shrink-0">
         <div className="flex items-center gap-2 mb-6 px-2">
           <img src={logoImg} alt="" className="w-9 h-9 rounded-lg" />
           <div>
@@ -40,7 +55,7 @@ export default function ManagerLayout() {
             <p className="text-xs text-primary">ম্যানেজার প্যানেল</p>
           </div>
         </div>
-        <nav className="space-y-1 flex-1">
+        <nav className="space-y-1 flex-1 overflow-y-auto">
           {items.map(it => (
             <NavLink
               key={it.to}
@@ -61,7 +76,8 @@ export default function ManagerLayout() {
           <LogOut className="w-4 h-4 mr-2" /> লগ আউট
         </Button>
       </aside>
-      <main className="flex-1 p-6 overflow-auto"><Outlet /></main>
+      {/* FIX 2: overflow-y-auto on main so manager pages scroll properly */}
+      <main className="flex-1 p-6 overflow-y-auto"><Outlet /></main>
     </div>
   );
 }
