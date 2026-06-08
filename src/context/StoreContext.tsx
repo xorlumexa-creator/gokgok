@@ -400,7 +400,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       todayCashProfit: todayCashSales.reduce((sum, s) => sum + s.profit, 0),
       todayCreditSales: todayCreditSales.reduce((sum, s) => sum + s.totalPrice, 0),
       todayCreditProfit: todayCreditSales.reduce((sum, s) => sum + s.profit, 0),
-      totalDue: customers.reduce((sum, c) => sum + c.totalDue, 0),
+      totalDue: customers.reduce((sum, c) =const getPersonalAccountStats = (): PersonalAccountStats => {
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+    const thisWeekStart = new Date(today); thisWeekStart.setDate(today.getDate() - today.getDay());
+ 
+      > sum + c.totalDue, 0),
       totalBakiProfit: customers.reduce((sum, c) => sum + c.pendingProfit, 0),
       lowStockProducts: products.filter(p => p.stock <= 5).length,
       totalProducts: products.length,
@@ -410,4 +414,51 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const getPersonalAccountStats = (): PersonalAccountStats => {
     const today = new Date(); today.setHours(0, 0, 0, 0);
     const thisWeekStart = new Date(today); thisWeekStart.setDate(today.getDate() - today.getDay());
- 
+      const thisMonthStart = new Date(today.getFullYear(), today.getMonth(), 1);
+    const cashSales = sales.filter(s => s.isPaid);
+    const totalCashProfit = cashSales.reduce((sum, s) => sum + s.profit, 0);
+    const todayCashProfit = cashSales.filter(s => new Date(s.createdAt) >= today).reduce((sum, s) => sum + s.profit, 0);
+    const weekCashProfit = cashSales.filter(s => new Date(s.createdAt) >= thisWeekStart).reduce((sum, s) => sum + s.profit, 0);
+    const monthCashProfit = cashSales.filter(s => new Date(s.createdAt) >= thisMonthStart).reduce((sum, s) => sum + s.profit, 0);
+    const totalBakiProfit = bakiPaymentRecords.reduce((sum, r) => sum + r.profitEarned, 0);
+    const todayBakiProfit = bakiPaymentRecords.filter(r => new Date(r.createdAt) >= today).reduce((sum, r) => sum + r.profitEarned, 0);
+    const weekBakiProfit = bakiPaymentRecords.filter(r => new Date(r.createdAt) >= thisWeekStart).reduce((sum, r) => sum + r.profitEarned, 0);
+    const monthBakiProfit = bakiPaymentRecords.filter(r => new Date(r.createdAt) >= thisMonthStart).reduce((sum, r) => sum + r.profitEarned, 0);
+    const totalCustomEarnings = customEarnings.reduce((sum, e) => sum + e.amount, 0);
+    const totalEarnings = totalCashProfit + totalBakiProfit + totalCustomEarnings;
+    const totalExpenses = expenses.reduce((sum, e) => sum + e.amount, 0);
+    return {
+      totalCashProfit, totalBakiProfit, totalCustomEarnings, totalEarnings,
+      totalExpenses, netEarning: totalEarnings - totalExpenses,
+      todayCashProfit, weekCashProfit, monthCashProfit,
+      todayBakiProfit, weekBakiProfit, monthBakiProfit
+    };
+  };
+
+  return (
+    <StoreContext.Provider value={{
+      storeInfo, products, sales, customers, expenses, preOrders,
+      bulkSaleRecords, bakiPaymentRecords, customEarnings, suppliers, isOnboarded,
+      setStoreInfo, addProduct, updateProduct, deleteProduct,
+      addSale, addMultipleSales, addCustomer, updateCustomer,
+      updateCustomerDue, payCustomerDue, completeOnboarding,
+      getDashboardStats, getPersonalAccountStats,
+      addExpense, addCustomEarning, getProductSuggestions,
+      generateCustomerDisplayName, getExistingCustomersByName,
+      searchCustomersByPhone, searchCustomersByName,
+      getUnpaidCustomers, getCustomersDueFor30Days,
+      addPreOrder, updatePreOrderStatus, markPreOrderAsSold,
+      getWeeklyBulkSales, getTodaysSalesSerial,
+      addSupplier, updateSupplier, deleteSupplier,
+    }}>
+      {children}
+    </StoreContext.Provider>
+  );
+}
+
+export function useStore() {
+  const context = useContext(StoreContext);
+  if (context === undefined) throw new Error('useStore must be used within a StoreProvider');
+  return context;
+}
+
