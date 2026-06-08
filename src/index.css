@@ -1,8 +1,15 @@
+/* FIX: @import MUST be first before any other rules */
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+Bengali:wght@400;500;600;700&display=swap&text=আ-হ০-৯');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
 html, body {
   overscroll-behavior: none;
   overscroll-behavior-y: contain;
   overflow-x: hidden;
-  /* FIX: was `pan-x pan-y` which BLOCKS vertical momentum scrolling on Android */
+  /* FIX: manipulation allows tap/scroll without blocking gestures */
   touch-action: manipulation;
 }
 
@@ -17,63 +24,38 @@ html, body {
     transition-duration: 0.01ms !important;
   }
 }
-@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+Bengali:wght@400;500;600;700&display=swap&text=আ-হ০-৯');
-
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
-
-/* Shopkeeper Stock Management App - Bangladesh */
-/* Design System: Clean, trustworthy, accessible */
 
 @layer base {
   :root {
-    /* Core colors - Warm teal theme */
     --background: 0 0% 98%;
     --foreground: 220 20% 15%;
-
     --card: 0 0% 100%;
     --card-foreground: 220 20% 15%;
-
     --popover: 0 0% 100%;
     --popover-foreground: 220 20% 15%;
-
-    /* Primary - Teal/Emerald for trust & money */
     --primary: 168 76% 36%;
     --primary-foreground: 0 0% 100%;
-
-    /* Secondary - Soft gray-blue */
     --secondary: 210 20% 96%;
     --secondary-foreground: 220 20% 25%;
-
     --muted: 210 15% 94%;
     --muted-foreground: 220 10% 45%;
-
     --accent: 168 60% 94%;
     --accent-foreground: 168 76% 30%;
-
     --destructive: 0 72% 51%;
     --destructive-foreground: 0 0% 100%;
-
-    /* Semantic colors */
     --success: 142 72% 40%;
     --success-foreground: 0 0% 100%;
     --warning: 38 92% 50%;
     --warning-foreground: 0 0% 100%;
     --profit: 142 72% 40%;
     --due: 0 72% 51%;
-
     --border: 220 13% 91%;
     --input: 220 13% 91%;
     --ring: 168 76% 36%;
-
     --radius: 0.75rem;
-
-    /* Custom shadows */
     --shadow-soft: 0 2px 8px -2px hsl(220 20% 15% / 0.08), 0 4px 16px -4px hsl(220 20% 15% / 0.12);
     --shadow-card: 0 1px 3px hsl(220 20% 15% / 0.05), 0 4px 12px -2px hsl(220 20% 15% / 0.08);
     --shadow-button: 0 2px 4px -1px hsl(168 76% 36% / 0.2);
-
     --sidebar-background: 0 0% 100%;
     --sidebar-foreground: 220 20% 15%;
     --sidebar-primary: 168 76% 36%;
@@ -87,37 +69,27 @@ html, body {
   .dark {
     --background: 220 20% 10%;
     --foreground: 210 20% 96%;
-
     --card: 220 20% 13%;
     --card-foreground: 210 20% 96%;
-
     --popover: 220 20% 13%;
     --popover-foreground: 210 20% 96%;
-
     --primary: 168 65% 45%;
     --primary-foreground: 0 0% 100%;
-
     --secondary: 220 15% 20%;
     --secondary-foreground: 210 20% 90%;
-
     --muted: 220 15% 18%;
     --muted-foreground: 220 10% 60%;
-
     --accent: 168 40% 20%;
     --accent-foreground: 168 65% 70%;
-
     --destructive: 0 62% 45%;
     --destructive-foreground: 0 0% 100%;
-
     --success: 142 60% 45%;
     --warning: 38 80% 50%;
     --profit: 142 60% 50%;
     --due: 0 62% 50%;
-
     --border: 220 15% 22%;
     --input: 220 15% 22%;
     --ring: 168 65% 45%;
-
     --sidebar-background: 220 20% 12%;
     --sidebar-foreground: 210 20% 96%;
     --sidebar-primary: 168 65% 45%;
@@ -130,106 +102,36 @@ html, body {
 }
 
 @layer base {
-  * {
-    @apply border-border;
-  }
-
+  * { @apply border-border; }
   body {
     @apply bg-background text-foreground font-sans antialiased;
     font-family: 'Noto Sans Bengali', system-ui, sans-serif;
   }
-
-  h1, h2, h3, h4, h5, h6 {
-    @apply font-semibold tracking-tight;
-  }
+  h1, h2, h3, h4, h5, h6 { @apply font-semibold tracking-tight; }
 }
 
 @layer components {
-  .card-elevated {
-    @apply bg-card rounded-xl border border-border;
-    box-shadow: var(--shadow-card);
-  }
-
-  .btn-primary {
-    @apply bg-primary text-primary-foreground hover:opacity-90 transition-all duration-200;
-    box-shadow: var(--shadow-button);
-  }
-
-  .btn-primary:hover {
-    transform: translateY(-1px);
-  }
-
-  .stat-card {
-    @apply p-4 rounded-xl bg-card border border-border transition-all duration-200;
-    box-shadow: var(--shadow-soft);
-  }
-
-  .stat-card:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 4px 20px -4px hsl(220 20% 15% / 0.15);
-  }
-
-  .input-field {
-    @apply w-full px-4 py-3 rounded-lg border border-input bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent transition-all duration-200;
-  }
-
-  .nav-item {
-    @apply flex items-center gap-3 px-4 py-3 rounded-lg text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-all duration-200;
-  }
-
-  .nav-item.active {
-    @apply bg-primary text-primary-foreground;
-  }
-
-  .profit-badge {
-    @apply inline-flex items-center px-2 py-1 rounded-md text-sm font-medium;
-    background-color: hsl(var(--profit) / 0.1);
-    color: hsl(var(--profit));
-  }
-
-  .due-badge {
-    @apply inline-flex items-center px-2 py-1 rounded-md text-sm font-medium;
-    background-color: hsl(var(--due) / 0.1);
-    color: hsl(var(--due));
-  }
-
-  .trial-banner {
-    @apply bg-gradient-to-r from-primary/10 to-accent px-4 py-2 text-center text-sm font-medium;
-  }
+  .card-elevated { @apply bg-card rounded-xl border border-border; box-shadow: var(--shadow-card); }
+  .btn-primary { @apply bg-primary text-primary-foreground hover:opacity-90 transition-all duration-200; box-shadow: var(--shadow-button); }
+  .btn-primary:hover { transform: translateY(-1px); }
+  .stat-card { @apply p-4 rounded-xl bg-card border border-border transition-all duration-200; box-shadow: var(--shadow-soft); }
+  .stat-card:hover { transform: translateY(-2px); box-shadow: 0 4px 20px -4px hsl(220 20% 15% / 0.15); }
+  .input-field { @apply w-full px-4 py-3 rounded-lg border border-input bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent transition-all duration-200; }
+  .nav-item { @apply flex items-center gap-3 px-4 py-3 rounded-lg text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-all duration-200; }
+  .nav-item.active { @apply bg-primary text-primary-foreground; }
+  .profit-badge { @apply inline-flex items-center px-2 py-1 rounded-md text-sm font-medium; background-color: hsl(var(--profit) / 0.1); color: hsl(var(--profit)); }
+  .due-badge { @apply inline-flex items-center px-2 py-1 rounded-md text-sm font-medium; background-color: hsl(var(--due) / 0.1); color: hsl(var(--due)); }
+  .trial-banner { @apply bg-gradient-to-r from-primary/10 to-accent px-4 py-2 text-center text-sm font-medium; }
 }
 
 @layer utilities {
-  .text-profit {
-    color: hsl(var(--profit));
-  }
+  .text-profit { color: hsl(var(--profit)); }
+  .text-due { color: hsl(var(--due)); }
+  .bg-profit { background-color: hsl(var(--profit)); }
+  .bg-due { background-color: hsl(var(--due)); }
+  .animate-fade-in { animation: fadeIn 0.3s ease-out; }
+  .animate-slide-up { animation: slideUp 0.4s ease-out; }
 
-  .text-due {
-    color: hsl(var(--due));
-  }
-
-  .bg-profit {
-    background-color: hsl(var(--profit));
-  }
-
-  .bg-due {
-    background-color: hsl(var(--due));
-  }
-
-  .animate-fade-in {
-    animation: fadeIn 0.3s ease-out;
-  }
-
-  .animate-slide-up {
-    animation: slideUp 0.4s ease-out;
-  }
-
-  @keyframes fadeIn {
-    from { opacity: 0; }
-    to { opacity: 1; }
-  }
-
-  @keyframes slideUp {
-    from { opacity: 0; transform: translateY(10px); }
-    to { opacity: 1; transform: translateY(0); }
-  }
+  @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+  @keyframes slideUp { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
 }
