@@ -400,11 +400,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       todayCashProfit: todayCashSales.reduce((sum, s) => sum + s.profit, 0),
       todayCreditSales: todayCreditSales.reduce((sum, s) => sum + s.totalPrice, 0),
       todayCreditProfit: todayCreditSales.reduce((sum, s) => sum + s.profit, 0),
-      totalDue: customers.reduce((sum, c) =const getPersonalAccountStats = (): PersonalAccountStats => {
-    const today = new Date(); today.setHours(0, 0, 0, 0);
-    const thisWeekStart = new Date(today); thisWeekStart.setDate(today.getDate() - today.getDay());
- 
-      > sum + c.totalDue, 0),
+      totalDue: customers.reduce((sum, c) => sum + c.totalDue, 0),
       totalBakiProfit: customers.reduce((sum, c) => sum + c.pendingProfit, 0),
       lowStockProducts: products.filter(p => p.stock <= 5).length,
       totalProducts: products.length,
@@ -414,7 +410,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const getPersonalAccountStats = (): PersonalAccountStats => {
     const today = new Date(); today.setHours(0, 0, 0, 0);
     const thisWeekStart = new Date(today); thisWeekStart.setDate(today.getDate() - today.getDay());
-      const thisMonthStart = new Date(today.getFullYear(), today.getMonth(), 1);
+    const thisMonthStart = new Date(today.getFullYear(), today.getMonth(), 1);
     const cashSales = sales.filter(s => s.isPaid);
     const totalCashProfit = cashSales.reduce((sum, s) => sum + s.profit, 0);
     const todayCashProfit = cashSales.filter(s => new Date(s.createdAt) >= today).reduce((sum, s) => sum + s.profit, 0);
