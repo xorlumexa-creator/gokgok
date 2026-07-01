@@ -75,7 +75,7 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
       <aside className={`
         fixed top-0 left-0 h-full w-72 bg-sidebar border-r border-sidebar-border z-50
         transform transition-transform duration-300 ease-in-out
-        lg:translate-x-0 lg:static
+        lg:translate-x-0 lg:sticky lg:top-0 lg:h-screen
         ${isOpen ? 'translate-x-0' : '-translate-x-full'}
       `}>
         <div className="flex flex-col h-full">
