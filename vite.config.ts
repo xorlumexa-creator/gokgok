@@ -25,8 +25,10 @@ export default defineConfig(({ mode }) => ({
       workbox: {
         skipWaiting: true,
         clientsClaim: true,
+        cleanupOutdatedCaches: true,
+        navigateFallback: "/index.html",
         navigateFallbackDenylist: [/^\/~oauth/],
-        globPatterns: ["**/*.{js,css,html,ico,png,svg,woff2,json}"],
+        globPatterns: ["**/*.{js,css,html,ico,png,svg,woff2,json,webmanifest}"],
         runtimeCaching: [
           // HTML navigations: always try the network first so users get the
           // freshest deploy, but fall back to cache when offline.
