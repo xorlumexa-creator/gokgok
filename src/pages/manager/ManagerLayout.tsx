@@ -44,10 +44,8 @@ export default function ManagerLayout() {
   if (!profile || profile.role !== 'manager') return null;
 
   return (
-    // FIX 2: Use h-screen + overflow-hidden same pattern as MainLayout
-    // Old min-h-screen caused same scroll blocking issue
-    <div className="h-screen flex bg-muted/30 overflow-hidden">
-      <aside className="w-60 bg-card border-r border-border p-4 flex flex-col shrink-0">
+    <div className="min-h-screen flex bg-muted/30">
+      <aside className="w-60 bg-card border-r border-border p-4 flex flex-col shrink-0 sticky top-0 h-screen">
         <div className="flex items-center gap-2 mb-6 px-2">
           <img src={logoImg} alt="" className="w-9 h-9 rounded-lg" />
           <div>
@@ -76,8 +74,7 @@ export default function ManagerLayout() {
           <LogOut className="w-4 h-4 mr-2" /> লগ আউট
         </Button>
       </aside>
-      {/* FIX 2: overflow-y-auto on main so manager pages scroll properly */}
-      <main className="flex-1 p-6 overflow-y-auto"><Outlet /></main>
+      <main className="flex-1 min-w-0 p-6 pb-10"><Outlet /></main>
     </div>
   );
 }
