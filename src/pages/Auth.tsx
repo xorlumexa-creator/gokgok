@@ -130,11 +130,11 @@ export default function Auth() {
   const isLogin = mode === 'login';
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-accent via-background to-background flex flex-col items-center justify-center p-6">
-      <div className="w-full max-w-md">
+    <main className="auth-scroll-page bg-gradient-to-b from-accent via-background to-background px-4 py-6 sm:px-6 sm:py-10">
+      <div className="w-full max-w-md mx-auto">
         {Logo}
 
-        <div className="card-elevated p-6 animate-fade-in">
+        <div className="card-elevated p-5 sm:p-6">
           <div className="flex gap-2 mb-6">
             <button onClick={() => setMode('login')} className={`flex-1 py-3 rounded-xl font-medium transition-all ${isLogin ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'}`}>লগইন</button>
             <button onClick={() => setMode('signup')} className={`flex-1 py-3 rounded-xl font-medium transition-all ${!isLogin ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'}`}>নিবন্ধন</button>
@@ -215,6 +215,6 @@ export default function Auth() {
           <ArrowLeft className="w-3 h-3" /> হোমে ফিরে যান
         </button>
       </div>
-    </div>
+    </main>
   );
 }
