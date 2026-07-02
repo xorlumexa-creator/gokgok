@@ -16,9 +16,9 @@ export default function Landing() {
   const goAuth = () => navigate('/auth');
 
   return (
-    <div className="min-h-screen bg-background text-foreground">
+    <main className="landing-scroll-page bg-background text-foreground">
       {/* Header */}
-      <header className="sticky top-0 z-30 bg-background/85 backdrop-blur border-b border-border">
+      <header className="sticky top-0 z-30 bg-background border-b border-border shadow-sm">
         <div className="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <img src={logoImg} alt="Dukan 360°" className="w-9 h-9 rounded-lg object-cover" />
@@ -136,6 +136,6 @@ export default function Landing() {
       <footer className="px-4 py-6 border-t border-border text-center text-sm text-muted-foreground">
         © {new Date().getFullYear()} Dukan 360°
       </footer>
-    </div>
+    </main>
   );
 }
