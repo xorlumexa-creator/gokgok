@@ -12,6 +12,7 @@ import { InstallPrompt } from "@/components/InstallPrompt";
 import { useAuth } from "@/hooks/useAuth";
 import { useProfile } from "@/hooks/useProfile";
 import { startSyncEngine } from "@/lib/syncEngine";
+import { OfflineBanner } from "@/components/OfflineBanner";
 
 const Index = lazy(() => import("./pages/Index"));
 const Landing = lazy(() => import("./pages/Landing"));
