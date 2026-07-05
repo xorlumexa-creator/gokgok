@@ -5,6 +5,12 @@ function isBlockedContext(): boolean {
   if (new URLSearchParams(window.location.search).get('sw') === 'off') return true;
   try { if (window.self !== window.top) return true; } catch { return true; }
 
+  // Block service worker entirely inside the Capacitor native app.
+  // Capacitor bundles all assets locally — no SW needed, and registering
+  // one can hang or cause reload loops in the Android WebView, especially
+  // when offline.
+  if ((window as any).Capacitor?.isNativePlatform?.()) return true;
+
   const host = window.location.hostname;
   return host.startsWith('id-preview--')
     || host.startsWith('preview--')
