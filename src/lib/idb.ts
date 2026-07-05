@@ -41,24 +41,58 @@ export function scheduleMirror(task: () => void): void {
   idle(() => task(), { timeout: 1500 });
 }
 
+function openFreshDB(): Promise<IDBPDatabase> {
+  return openDB(DB_NAME, DB_VERSION, {
+    upgrade(db) {
+      for (const name of STORES) {
+        if (db.objectStoreNames.contains(name)) continue;
+        if (name === 'meta') {
+          db.createObjectStore(name, { keyPath: 'key' });
+        } else if (name === 'syncQueue') {
+          const s = db.createObjectStore(name, { keyPath: 'id', autoIncrement: true });
+          s.createIndex('by_scope', 'scope');
+        } else {
+          const s = db.createObjectStore(name, { keyPath: 'id' });
+          s.createIndex('by_createdAt', 'createdAt');
+        }
+      }
+    },
+    // Fires when a stale connection (e.g. left over from a wiped/cleared
+    // storage state) is preventing this upgrade from proceeding. Without
+    // this handler the openDB() promise hangs forever — which is exactly
+    // what caused the endless spinner after clearing Chrome/app data.
+    blocked() {
+      console.warn('[idb] open blocked by a stale connection — closing and retrying');
+      dbPromise = null;
+    },
+    // Fires if the connection we just opened gets forcibly closed later
+    // (e.g. another tab/process upgrades the DB). Reset so the next
+    // getDB() call re-opens cleanly instead of reusing a dead connection.
+    terminated() {
+      console.warn('[idb] connection terminated unexpectedly — will reopen on next access');
+      dbPromise = null;
+    },
+  });
+}
+
 export function getDB(): Promise<IDBPDatabase> {
   if (!dbPromise) {
-    dbPromise = openDB(DB_NAME, DB_VERSION, {
-      upgrade(db) {
-        for (const name of STORES) {
-          if (db.objectStoreNames.contains(name)) continue;
-          if (name === 'meta') {
-            db.createObjectStore(name, { keyPath: 'key' });
-          } else if (name === 'syncQueue') {
-            const s = db.createObjectStore(name, { keyPath: 'id', autoIncrement: true });
-            s.createIndex('by_scope', 'scope');
-          } else {
-            const s = db.createObjectStore(name, { keyPath: 'id' });
-            s.createIndex('by_createdAt', 'createdAt');
-          }
-        }
-      },
-    });
+    dbPromise = openFreshDB();
+
+    // Safety net: if open() itself still hangs for some other reason
+    // (e.g. a second blocked event with no recovery), don't let callers
+    // wait forever — clear the cached promise after a timeout so the
+    // next call gets a fresh attempt instead of hanging alongside it.
+    const guard = window.setTimeout(() => {
+      dbPromise = null;
+    }, 4000);
+
+    dbPromise
+      .then(() => window.clearTimeout(guard))
+      .catch(() => {
+        window.clearTimeout(guard);
+        dbPromise = null;
+      });
   }
   return dbPromise;
 }
