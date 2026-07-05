@@ -12,6 +12,7 @@ import { InstallPrompt } from "@/components/InstallPrompt";
 import { useAuth } from "@/hooks/useAuth";
 import { useProfile } from "@/hooks/useProfile";
 import { startSyncEngine } from "@/lib/syncEngine";
+import { isOnline, subscribeOnlineStatus } from "@/lib/connectivity";
 import { OfflineBanner } from "@/components/OfflineBanner";
 
 const Index = lazy(() => import("./pages/Index"));
@@ -167,13 +168,14 @@ function AppRoutes() {
 
 const App = () => {
   useEffect(() => {
-    if (navigator.onLine) {
+    if (isOnline()) {
       const t = window.setTimeout(() => startSyncEngine(), 3000);
       return () => window.clearTimeout(t);
     } else {
-      const handleOnline = () => startSyncEngine();
-      window.addEventListener('online', handleOnline);
-      return () => window.removeEventListener('online', handleOnline);
+      const unsubscribe = subscribeOnlineStatus((online) => {
+        if (online) startSyncEngine();
+      });
+      return unsubscribe;
     }
   }, []);
 
@@ -193,4 +195,4 @@ const App = () => {
 };
 
 export default App;
-  
+
