@@ -202,4 +202,5 @@ export async function migrateFromLocalStorage(): Promise<void> {
   } catch (e) {
     console.warn('[idb] migration failed', e);
   }
-}
+    }
+      
