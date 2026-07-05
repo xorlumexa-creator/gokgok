@@ -20,6 +20,7 @@
 // ---------------------------------------------------------------------------
 
 import { supabase } from '@/integrations/supabase/client';
+import { isOnline } from '@/lib/connectivity';
 import {
   enqueue, clearQueueByScope, queueCount, queueCountByScope,
   getAll, getMeta, setMeta, migrateFromLocalStorage,
@@ -57,7 +58,7 @@ let inFlight = new Set<SyncScope>();
 
 function blankSnapshot(): SyncSnapshot {
   return {
-    state: 'safe', online: typeof navigator !== 'undefined' ? navigator.onLine : true,
+    state: 'safe', online: isOnline(),
     pendingBaki: 0, pendingProducts: 0, pendingHisab: 0, pendingTotal: 0,
     lastBakiAt: null, lastProductsAt: null, lastHisabAt: null,
     nextBackupAt: Date.now() + BACKUP_INTERVAL_MS,
@@ -89,7 +90,7 @@ async function refreshSnapshot(extra: Partial<SyncSnapshot> = {}): Promise<void>
     pendingBaki: b, pendingProducts: p, pendingHisab: h, pendingTotal: total,
     lastBakiAt: lb, lastProductsAt: lp, lastHisabAt: lh,
     nextBackupAt: Math.min(nextProducts, nextHisab),
-    online: navigator.onLine,
+    online: isOnline(),
     state: extra.state ?? (inFlight.size > 0 ? 'syncing'
       : total > 0 ? 'pending'
       : snapshot.state === 'error' ? 'error' : 'safe'),
@@ -111,7 +112,7 @@ function scheduleBakiFlush(): void {
   if (bakiTimer) clearTimeout(bakiTimer);
   bakiTimer = setTimeout(() => {
     bakiTimer = null;
-    if (navigator.onLine) void performSync('baki', 'debounce');
+    if (isOnline()) void performSync('baki', 'debounce');
   }, BAKI_DEBOUNCE_MS);
 }
 
@@ -138,7 +139,7 @@ async function buildPayload(scope: SyncScope): Promise<Record<string, unknown>> 
 
 async function performSync(scope: SyncScope, reason: string): Promise<boolean> {
   if (inFlight.has(scope)) return false;
-  if (!navigator.onLine) return false;
+  if (!isOnline()) return false;
 
   const pending = await queueCountByScope(scope);
   if (pending === 0 && reason !== 'manual') return true;
@@ -211,7 +212,7 @@ async function scheduleBackup(): Promise<void> {
   const [p, h] = await Promise.all([msUntilNext('products'), msUntilNext('hisab')]);
   const delay = Math.max(5000, Math.min(p, h));
   backupTimer = setTimeout(async () => {
-    if (navigator.onLine) {
+    if (isOnline()) {
       await performSync('products', 'interval');
       await performSync('hisab', 'interval');
     }
@@ -265,3 +266,4 @@ export function getLastSyncAt(): number | null {
   ) || null;
 }
 export function getNextSyncAt(): number { return snapshot.nextBackupAt; }
+                         
