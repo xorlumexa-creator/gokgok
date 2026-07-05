@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import { isOnline } from '@/lib/connectivity';
 import type { User, Session } from '@supabase/supabase-js';
 
 type AuthListener = (session: Session | null, user: User | null, loading: boolean) => void;
@@ -53,7 +54,7 @@ function initAuthOnce() {
   supabase.auth.onAuthStateChange((_event, session) => {
     // Ignore null sessions caused by transient offline token-refresh failures
     // when we already have a cached session — prevents auto-logout offline.
-    if (!session && cachedSession && !navigator.onLine) return;
+    if (!session && cachedSession && !isOnline()) return;
     primeAuthSession(session);
   });
 }
@@ -85,4 +86,4 @@ export function useAuth() {
   };
 
   return { user, session, loading, signOut };
-}
+  }
