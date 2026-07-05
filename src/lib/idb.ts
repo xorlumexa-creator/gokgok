@@ -76,25 +76,51 @@ function openFreshDB(): Promise<IDBPDatabase> {
 }
 
 export function getDB(): Promise<IDBPDatabase> {
-  if (!dbPromise) {
-    dbPromise = openFreshDB();
+  if (dbPromise) return dbPromise;
 
-    // Safety net: if open() itself still hangs for some other reason
-    // (e.g. a second blocked event with no recovery), don't let callers
-    // wait forever — clear the cached promise after a timeout so the
-    // next call gets a fresh attempt instead of hanging alongside it.
-    const guard = window.setTimeout(() => {
+  let settled = false;
+  const realOpen = openFreshDB();
+
+  const guarded = new Promise<IDBPDatabase>((resolve, reject) => {
+    // This timeout REJECTS the exact promise every current caller is
+    // awaiting — not just the module-level cache. The earlier version only
+    // reset `dbPromise` for *future* callers, which left anyone already
+    // awaiting this specific attempt hanging forever. Each blocked/failed
+    // open then leaked one more permanently-stuck promise, which is why
+    // repeated offline attempts made things progressively worse instead of
+    // failing the same way each time.
+    const timer = window.setTimeout(() => {
+      if (settled) return;
+      settled = true;
       dbPromise = null;
+      reject(new Error('[idb] open timed out (likely blocked by a stale connection)'));
     }, 4000);
 
-    dbPromise
-      .then(() => window.clearTimeout(guard))
-      .catch(() => {
-        window.clearTimeout(guard);
+    realOpen
+      .then((db) => {
+        if (settled) {
+          // We already timed out and rejected everyone waiting on this
+          // attempt. The real open eventually succeeded anyway — close it
+          // instead of leaving an orphaned connection that could block the
+          // *next* open attempt too.
+          try { db.close(); } catch { /* noop */ }
+          return;
+        }
+        settled = true;
+        window.clearTimeout(timer);
+        resolve(db);
+      })
+      .catch((err) => {
+        if (settled) return;
+        settled = true;
+        window.clearTimeout(timer);
         dbPromise = null;
+        reject(err);
       });
-  }
-  return dbPromise;
+  });
+
+  dbPromise = guarded;
+  return guarded;
 }
 
 // ---------- generic helpers ------------------------------------------------
@@ -202,5 +228,4 @@ export async function migrateFromLocalStorage(): Promise<void> {
   } catch (e) {
     console.warn('[idb] migration failed', e);
   }
-    }
-      
+}
