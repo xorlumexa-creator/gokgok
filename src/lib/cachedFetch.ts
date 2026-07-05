@@ -8,6 +8,8 @@
  *   );
  */
 
+import { isOnline } from '@/lib/connectivity';
+
 const PREFIX = 'sbcache:';
 
 export function readCache<T = unknown>(key: string): T | null {
@@ -36,7 +38,7 @@ export async function cachedFetch<T = unknown>(
   key: string,
   fetcher: () => Promise<{ data: T | null; error: unknown }>
 ): Promise<{ data: T | null; error: unknown; fromCache: boolean }> {
-  const offline = typeof navigator !== 'undefined' && !navigator.onLine;
+  const offline = !isOnline();
 
   if (offline) {
     const cached = readCache<T>(key);
