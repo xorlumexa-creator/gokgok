@@ -46,7 +46,13 @@ export async function runScheduledChecks(force = false): Promise<void> {
   const last = Number(localStorage.getItem(LAST_CHECK_KEY) || 0);
   if (!force && Date.now() - last < 6 * 60 * 60 * 1000) return; // throttle 6h
 
-  const products: ProductRow[] = await getAll('products');
+  let products: ProductRow[];
+  try {
+    products = await getAll('products');
+  } catch (e) {
+    console.warn('[notifications] skipped — could not read products', e);
+    return;
+  }
 
   // Low stock
   for (const p of products) {
