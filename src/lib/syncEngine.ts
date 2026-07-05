@@ -20,7 +20,7 @@
 // ---------------------------------------------------------------------------
 
 import { supabase } from '@/integrations/supabase/client';
-import { isOnline } from '@/lib/connectivity';
+import { isOnline, subscribeOnlineStatus } from '@/lib/connectivity';
 import {
   enqueue, clearQueueByScope, queueCount, queueCountByScope,
   getAll, getMeta, setMeta, migrateFromLocalStorage,
@@ -230,17 +230,18 @@ export async function startSyncEngine(): Promise<void> {
   await migrateFromLocalStorage();
   await refreshSnapshot();
 
-  window.addEventListener('online', async () => {
-    await refreshSnapshot();
-    if ((await queueCountByScope('baki')) > 0) await performSync('baki', 'online');
-    const [p, h] = await Promise.all([msUntilNext('products'), msUntilNext('hisab')]);
-    if (p === 0 && (await queueCountByScope('products')) > 0) await performSync('products', 'online');
-    if (h === 0 && (await queueCountByScope('hisab')) > 0)    await performSync('hisab', 'online');
-    void scheduleBackup();
-  });
-  window.addEventListener('offline', () => {
-    void refreshSnapshot();
-    if (backupTimer) { clearTimeout(backupTimer); backupTimer = null; }
+  subscribeOnlineStatus(async (online) => {
+    if (online) {
+      await refreshSnapshot();
+      if ((await queueCountByScope('baki')) > 0) await performSync('baki', 'online');
+      const [p, h] = await Promise.all([msUntilNext('products'), msUntilNext('hisab')]);
+      if (p === 0 && (await queueCountByScope('products')) > 0) await performSync('products', 'online');
+      if (h === 0 && (await queueCountByScope('hisab')) > 0)    await performSync('hisab', 'online');
+      void scheduleBackup();
+    } else {
+      void refreshSnapshot();
+      if (backupTimer) { clearTimeout(backupTimer); backupTimer = null; }
+    }
   });
 
   void scheduleBackup();
@@ -266,4 +267,3 @@ export function getLastSyncAt(): number | null {
   ) || null;
 }
 export function getNextSyncAt(): number { return snapshot.nextBackupAt; }
-                         
