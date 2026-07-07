@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
-import { isOnline } from '@/lib/connectivity';
 import type { User, Session } from '@supabase/supabase-js';
+import { isOnline } from '@/lib/connectivity';
+import { withTimeout } from '@/lib/asyncTimeout';
 
 type AuthListener = (session: Session | null, user: User | null, loading: boolean) => void;
 
@@ -43,7 +44,7 @@ function initAuthOnce() {
   initialized = true;
 
   // Background revalidation — never blocks UI when we already have a session.
-  initPromise = supabase.auth.getSession().then(({ data: { session } }) => {
+  initPromise = withTimeout(supabase.auth.getSession(), 4000, 'auth.getSession').then(({ data: { session } }) => {
     if (session) primeAuthSession(session);
     else { cachedLoading = false; notify(); }
   }).catch(() => {
@@ -82,8 +83,18 @@ export function useAuth() {
   }, []);
 
   const signOut = async () => {
-    await supabase.auth.signOut();
+    // Push any pending baki / products / hisab to the cloud BEFORE clearing
+    // the session so no in-flight edits are lost after logout.
+    try {
+      const { flushBeforeSignOut } = await import('@/lib/syncEngine');
+      await withTimeout(flushBeforeSignOut(), 4000, 'flushBeforeSignOut');
+    } catch { /* offline or engine not started — local data stays safe */ }
+    try {
+      await withTimeout(supabase.auth.signOut(), 4000, 'auth.signOut');
+    } finally {
+      primeAuthSession(null);
+    }
   };
 
   return { user, session, loading, signOut };
-  }
+}
