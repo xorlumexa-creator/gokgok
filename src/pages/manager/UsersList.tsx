@@ -3,6 +3,7 @@ import { Search, Loader2, Trash2, AlertTriangle } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { toast } from '@/hooks/use-toast';
+import { withTimeout } from '@/lib/asyncTimeout';
 
 interface Row {
   user_id: string;
@@ -29,12 +30,19 @@ export default function UsersList() {
 
   const load = async () => {
     setLoading(true);
-    const { data } = await supabase
-      .from('profiles')
-      .select('user_id, full_name, shop_name, phone, plan, subscription_status, role, created_at, trial_start_date, temporary_access')
-      .order('created_at', { ascending: false });
-    setRows((data as any) || []);
-    setLoading(false);
+    try {
+      const { data, error } = await withTimeout(supabase
+        .from('profiles')
+        .select('user_id, full_name, shop_name, phone, plan, subscription_status, role, created_at, trial_start_date, temporary_access')
+        .order('created_at', { ascending: false }), 6000, 'manager.users.load');
+      if (error) throw error;
+      setRows((data as any) || []);
+    } catch (e: any) {
+      toast({ title: e.message || 'লোড করতে সমস্যা', variant: 'destructive' });
+      setRows([]);
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => { load(); }, []);
@@ -68,9 +76,9 @@ export default function UsersList() {
     if (!confirm(`আপনি কি নিশ্চিত? ${r.shop_name || r.phone || ''} এর সব ডাটা চিরতরে মুছে যাবে।`)) return;
     setBusy(r.user_id);
     try {
-      const { data, error } = await supabase.functions.invoke('manager-admin', {
+      const { data, error } = await withTimeout(supabase.functions.invoke('manager-admin', {
         body: { action: 'delete_user', user_id: r.user_id },
-      });
+      }), 8000, 'manager.users.delete');
       if (error || !data?.ok) throw new Error(data?.error || error?.message || 'failed');
       toast({ title: 'অ্যাকাউন্ট মুছে ফেলা হয়েছে ✓' });
       setRows(prev => prev.filter(p => p.user_id !== r.user_id));
@@ -81,9 +89,9 @@ export default function UsersList() {
 
   const purgeExpired = async () => {
     if (!confirm('৩৫ দিনের বেশি পুরনো ফ্রি ট্রায়াল অ্যাকাউন্ট সব মুছে ফেলা হবে?')) return;
-    const { data, error } = await supabase.functions.invoke('manager-admin', {
+    const { data, error } = await withTimeout(supabase.functions.invoke('manager-admin', {
       body: { action: 'purge_expired_trials' },
-    });
+    }), 10000, 'manager.users.purge');
     if (error || !data?.ok) { toast({ title: error?.message || 'সমস্যা', variant: 'destructive' }); return; }
     toast({ title: `${data.deleted} টি অ্যাকাউন্ট মুছে ফেলা হয়েছে` });
     load();
@@ -179,4 +187,4 @@ export default function UsersList() {
       )}
     </div>
   );
-}
+  }
