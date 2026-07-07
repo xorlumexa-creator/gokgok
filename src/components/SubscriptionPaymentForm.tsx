@@ -3,6 +3,7 @@ import { Upload, Loader2, CheckCircle2, Smartphone } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from '@/hooks/use-toast';
+import { withTimeout } from '@/lib/asyncTimeout';
 
 const PAYMENT_NUMBER = '01305969812';
 
@@ -31,12 +32,12 @@ export function SubscriptionPaymentForm({ userId, userPhone, plan, amount, onDon
       let screenshot_url: string | null = null;
       if (file) {
         const path = `${userId}/${Date.now()}-${file.name}`;
-        const { error: upErr } = await supabase.storage.from('payment-screenshots').upload(path, file, { upsert: false });
+        const { error: upErr } = await withTimeout(supabase.storage.from('payment-screenshots').upload(path, file, { upsert: false }), 8000, 'payment.upload');
         if (upErr) throw upErr;
         const { data } = supabase.storage.from('payment-screenshots').getPublicUrl(path);
         screenshot_url = data.publicUrl;
       }
-      const { error } = await supabase.from('subscription_requests').insert({
+      const { error } = await withTimeout(supabase.from('subscription_requests').insert({
         user_id: userId,
         user_phone: userPhone,
         plan_type: plan,
@@ -44,15 +45,15 @@ export function SubscriptionPaymentForm({ userId, userPhone, plan, amount, onDon
         screenshot_url,
         payment_method: method,
         status: 'pending',
-      });
+      }), 6000, 'payment.request');
       if (error) throw error;
 
       // Grant 2-day temporary access while manager reviews
       const expiry = new Date(); expiry.setDate(expiry.getDate() + 2);
-      await supabase.from('profiles').update({
+      await withTimeout(supabase.from('profiles').update({
         temporary_access: true,
         temporary_expiry: expiry.toISOString(),
-      }).eq('user_id', userId);
+      }).eq('user_id', userId), 6000, 'payment.tempAccess');
 
       setDone(true);
       toast({ title: 'রিকোয়েস্ট জমা হয়েছে — ২ দিনের অস্থায়ী অ্যাক্সেস চালু হলো 🎉' });
