@@ -6,6 +6,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { toast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
 import logoImg from '@/assets/logo.png';
+import { withTimeout } from '@/lib/asyncTimeout';
 
 export default function ChangePassword() {
   const navigate = useNavigate();
@@ -20,9 +21,9 @@ export default function ChangePassword() {
   // Manager password is fixed and may only be changed via the Lovable editor.
   useEffect(() => {
     if (!user) return;
-    supabase.from('profiles').select('role').eq('user_id', user.id).maybeSingle().then(({ data }) => {
+    withTimeout(supabase.from('profiles').select('role').eq('user_id', user.id).maybeSingle(), 5000, 'changePassword.role').then(({ data }) => {
       if (data?.role === 'manager') setIsManager(true);
-    });
+    }).catch((e) => console.warn('[change-password] role lookup failed:', e));
   }, [user?.id]);
 
   const submit = async () => {
@@ -35,9 +36,9 @@ export default function ChangePassword() {
     if (!user) { navigate('/auth'); return; }
     setLoading(true);
     try {
-      const { error } = await supabase.auth.updateUser({ password: pw });
+      const { error } = await withTimeout(supabase.auth.updateUser({ password: pw }), 5000, 'changePassword.updateUser');
       if (error) throw error;
-      await supabase.from('profiles').update({ must_change_password: false }).eq('user_id', user.id);
+      await withTimeout(supabase.from('profiles').update({ must_change_password: false }).eq('user_id', user.id), 5000, 'changePassword.profile');
       toast({ title: 'পাসওয়ার্ড পরিবর্তন হয়েছে ✓' });
       navigate('/dashboard');
     } catch (e: any) {
