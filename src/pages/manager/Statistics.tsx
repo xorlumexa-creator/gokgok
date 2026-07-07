@@ -1,23 +1,28 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import { withTimeout } from '@/lib/asyncTimeout';
 
 export default function Statistics() {
   const [data, setData] = useState({ basic: 0, standard: 0, pro: 0, trial: 0, signupsLast7: 0 });
 
   useEffect(() => {
     (async () => {
-      const { data: profs } = await supabase.from('profiles').select('plan, subscription_status, created_at');
-      const list = profs || [];
-      const counts = { basic: 0, standard: 0, pro: 0, trial: 0, signupsLast7: 0 };
-      const weekAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
-      list.forEach((p: any) => {
-        if (p.plan === 'basic') counts.basic++;
-        else if (p.plan === 'standard') counts.standard++;
-        else if (p.plan === 'pro') counts.pro++;
-        else counts.trial++;
-        if (new Date(p.created_at).getTime() > weekAgo) counts.signupsLast7++;
-      });
-      setData(counts);
+      try {
+        const { data: profs } = await withTimeout(supabase.from('profiles').select('plan, subscription_status, created_at'), 6000, 'manager.statistics.load');
+        const list = profs || [];
+        const counts = { basic: 0, standard: 0, pro: 0, trial: 0, signupsLast7: 0 };
+        const weekAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
+        list.forEach((p: any) => {
+          if (p.plan === 'basic') counts.basic++;
+          else if (p.plan === 'standard') counts.standard++;
+          else if (p.plan === 'pro') counts.pro++;
+          else counts.trial++;
+          if (new Date(p.created_at).getTime() > weekAgo) counts.signupsLast7++;
+        });
+        setData(counts);
+      } catch (e) {
+        console.warn('[manager/statistics] load failed:', e);
+      }
     })();
   }, []);
 
