@@ -423,4 +423,119 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     setPreOrders(prev => [...prev, { ...preOrder, id: generateId(), createdAt: new Date() }]);
   };
 
-  const updatePreOrderStatus = (id: string,
+  const updatePreOrderStatus = (id: string, status: PreOrderStatus) => {
+    setPreOrders(prev => prev.map(o => o.id === id ? { ...o, status } : o));
+  };
+
+  const markPreOrderAsSold = (id: string) => {
+    const order = preOrders.find(o => o.id === id);
+    if (!order || order.status !== 'pending') return;
+    const salesList: Omit<Sale, 'id' | 'createdAt'>[] = order.items.map(item => {
+      const product = products.find(p => p.id === item.productId);
+      const quantityInBase = item.quantityInBaseUnit || item.quantity;
+      const profit = product ? product.profit * quantityInBase : (item.profit || 0);
+      return { productId: item.productId, productName: item.productName, quantity: item.quantity, quantityInBaseUnit: quantityInBase, unitType: item.unitType, unitName: item.unitName, totalPrice: item.price, profit, customerId: undefined, customerName: order.customerName, isPaid: true };
+    });
+    salesList.forEach(sale => { setSales(prev => [...prev, { ...sale, id: generateId(), createdAt: new Date() }]); });
+    const totalProfit = salesList.reduce((sum, s) => sum + s.profit, 0);
+    const serialNumber = getTodaysSalesSerial();
+    setBulkSaleRecords(prev => [...prev, { id: generateId(), serialNumber, productNames: salesList.map(s => s.productName), totalPrice: order.totalPrice, totalProfit, createdAt: new Date() }]);
+    updatePreOrderStatus(id, 'delivered');
+  };
+
+  const addSupplier = (supplier: Omit<Supplier, 'id' | 'createdAt'>) => {
+    setSuppliers(prev => [...prev, { ...supplier, id: generateId(), createdAt: new Date() }]);
+  };
+
+  const updateSupplier = (id: string, supplierUpdate: Partial<Supplier>) => {
+    setSuppliers(prev => prev.map(s => s.id === id ? { ...s, ...supplierUpdate } : s));
+  };
+
+  const deleteSupplier = (id: string) => setSuppliers(prev => prev.filter(s => s.id !== id));
+
+  const getProductSuggestions = (query: string): Product[] => {
+    if (!query.trim()) return [];
+    const lowerQuery = query.toLowerCase();
+    return products.filter(p => p.name.toLowerCase().includes(lowerQuery));
+  };
+
+  const completeOnboarding = async (storeName: string, initialProducts: Omit<Product, 'id' | 'createdAt'>[]) => {
+    const trialStart = new Date();
+    setStoreInfoState({ name: storeName, trialStartDate: trialStart, trialDaysLeft: 3, isOnboarded: true });
+    try {
+      const { data: { user } } = await withTimeout(supabase.auth.getUser(), 4000, 'store.completeOnboarding.getUser');
+      if (user) await withTimeout(supabase.from('profiles').update({ shop_name: storeName }).eq('user_id', user.id), 5000, 'store.completeOnboarding.profile');
+    } catch (e) { console.error('Failed to save shop name to profile:', e); }
+    initialProducts.forEach(product => { if (product.name.trim()) addProduct(product); });
+  };
+
+  const getDashboardStats = (): DashboardStats => {
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+    const todaySalesData = sales.filter(s => new Date(s.createdAt) >= today);
+    const todayCashSales = todaySalesData.filter(s => s.isPaid);
+    const todayCreditSales = todaySalesData.filter(s => !s.isPaid);
+    return {
+      todaySales: todaySalesData.reduce((sum, s) => sum + s.totalPrice, 0),
+      todayProfit: todaySalesData.reduce((sum, s) => sum + s.profit, 0),
+      todayCashSales: todayCashSales.reduce((sum, s) => sum + s.totalPrice, 0),
+      todayCashProfit: todayCashSales.reduce((sum, s) => sum + s.profit, 0),
+      todayCreditSales: todayCreditSales.reduce((sum, s) => sum + s.totalPrice, 0),
+      todayCreditProfit: todayCreditSales.reduce((sum, s) => sum + s.profit, 0),
+      totalDue: customers.reduce((sum, c) => sum + c.totalDue, 0),
+      totalBakiProfit: customers.reduce((sum, c) => sum + c.pendingProfit, 0),
+      lowStockProducts: products.filter(p => p.stock <= 5).length,
+      totalProducts: products.length,
+    };
+  };
+
+  const getPersonalAccountStats = (): PersonalAccountStats => {
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+    const thisWeekStart = new Date(today); thisWeekStart.setDate(today.getDate() - today.getDay());
+    const thisMonthStart = new Date(today.getFullYear(), today.getMonth(), 1);
+    const cashSales = sales.filter(s => s.isPaid);
+    const totalCashProfit = cashSales.reduce((sum, s) => sum + s.profit, 0);
+    const todayCashProfit = cashSales.filter(s => new Date(s.createdAt) >= today).reduce((sum, s) => sum + s.profit, 0);
+    const weekCashProfit = cashSales.filter(s => new Date(s.createdAt) >= thisWeekStart).reduce((sum, s) => sum + s.profit, 0);
+    const monthCashProfit = cashSales.filter(s => new Date(s.createdAt) >= thisMonthStart).reduce((sum, s) => sum + s.profit, 0);
+    const totalBakiProfit = bakiPaymentRecords.reduce((sum, r) => sum + r.profitEarned, 0);
+    const todayBakiProfit = bakiPaymentRecords.filter(r => new Date(r.createdAt) >= today).reduce((sum, r) => sum + r.profitEarned, 0);
+    const weekBakiProfit = bakiPaymentRecords.filter(r => new Date(r.createdAt) >= thisWeekStart).reduce((sum, r) => sum + r.profitEarned, 0);
+    const monthBakiProfit = bakiPaymentRecords.filter(r => new Date(r.createdAt) >= thisMonthStart).reduce((sum, r) => sum + r.profitEarned, 0);
+    const totalCustomEarnings = customEarnings.reduce((sum, e) => sum + e.amount, 0);
+    const totalEarnings = totalCashProfit + totalBakiProfit + totalCustomEarnings;
+    const totalExpenses = expenses.reduce((sum, e) => sum + e.amount, 0);
+    return {
+      totalCashProfit, totalBakiProfit, totalCustomEarnings, totalEarnings,
+      totalExpenses, netEarning: totalEarnings - totalExpenses,
+      todayCashProfit, weekCashProfit, monthCashProfit,
+      todayBakiProfit, weekBakiProfit, monthBakiProfit
+    };
+  };
+
+  return (
+    <StoreContext.Provider value={{
+      storeInfo, products, sales, customers, expenses, preOrders,
+      bulkSaleRecords, bakiPaymentRecords, customEarnings, suppliers, isOnboarded,
+      setStoreInfo, addProduct, updateProduct, deleteProduct,
+      addSale, addMultipleSales, addCustomer, updateCustomer,
+      updateCustomerDue, payCustomerDue, completeOnboarding,
+      getDashboardStats, getPersonalAccountStats,
+      addExpense, addCustomEarning, getProductSuggestions,
+      generateCustomerDisplayName, getExistingCustomersByName,
+      searchCustomersByPhone, searchCustomersByName,
+      getUnpaidCustomers, getCustomersDueFor30Days,
+      addPreOrder, updatePreOrderStatus, markPreOrderAsSold,
+      getWeeklyBulkSales, getTodaysSalesSerial,
+      addSupplier, updateSupplier, deleteSupplier,
+    }}>
+      {children}
+    </StoreContext.Provider>
+  );
+}
+
+export function useStore() {
+  const context = useContext(StoreContext);
+  if (context === undefined) throw new Error('useStore must be used within a StoreProvider');
+  return context;
+}
+
