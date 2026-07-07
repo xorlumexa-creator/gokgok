@@ -8,6 +8,8 @@ import { useSubscription, toBn, PlanId, PLAN_BASE_PRICE, PLAN_LABEL, SALES_CREDI
 import { UsageDashboard } from '@/components/subscription/UsageDashboard';
 import { SubscriptionPaymentForm } from '@/components/SubscriptionPaymentForm';
 import { useProfile } from '@/hooks/useProfile';
+import { withTimeout } from '@/lib/asyncTimeout';
+import { isOnline } from '@/lib/connectivity';
 
 const PLAN_HIGHLIGHTS: Record<PlanId, { features: string[]; locked?: string[] }> = {
   basic: {
@@ -90,9 +92,12 @@ export default function Subscription() {
   useEffect(() => { setDesiredLevel(storageLevel); }, [storageLevel]);
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    withTimeout(supabase.auth.getSession(), 4000, 'subscription.page.getSession').then(({ data: { session } }) => {
       if (!session?.user) navigate('/auth');
       else setAuthUser({ id: session.user.id, phone: profile?.phone || session.user.phone || '' });
+    }).catch(() => {
+      if (!isOnline()) return;
+      navigate('/auth');
     });
   }, [navigate, profile?.phone]);
 
