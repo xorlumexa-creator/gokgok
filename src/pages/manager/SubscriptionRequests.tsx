@@ -3,6 +3,7 @@ import { Check, X, ExternalLink, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from '@/hooks/use-toast';
+import { withTimeout } from '@/lib/asyncTimeout';
 
 interface ReqRow {
   id: string;
@@ -24,19 +25,26 @@ export default function SubscriptionRequests() {
 
   const load = async () => {
     setLoading(true);
-    const { data } = await supabase
-      .from('subscription_requests')
-      .select('*')
-      .order('created_at', { ascending: false });
-    if (data && data.length) {
-      const ids = [...new Set(data.map(r => r.user_id))];
-      const { data: profs } = await supabase.from('profiles').select('user_id, shop_name').in('user_id', ids);
-      const map = new Map((profs || []).map(p => [p.user_id, p.shop_name]));
-      setRows(data.map(r => ({ ...r, shop_name: map.get(r.user_id) || null })) as any);
-    } else {
+    try {
+      const { data, error } = await withTimeout(supabase
+        .from('subscription_requests')
+        .select('*')
+        .order('created_at', { ascending: false }), 6000, 'manager.subscriptions.load');
+      if (error) throw error;
+      if (data && data.length) {
+        const ids = [...new Set(data.map(r => r.user_id))];
+        const { data: profs } = await withTimeout(supabase.from('profiles').select('user_id, shop_name').in('user_id', ids), 6000, 'manager.subscriptions.profiles');
+        const map = new Map((profs || []).map(p => [p.user_id, p.shop_name]));
+        setRows(data.map(r => ({ ...r, shop_name: map.get(r.user_id) || null })) as any);
+      } else {
+        setRows([]);
+      }
+    } catch (e: any) {
+      toast({ title: e.message || 'লোড করতে সমস্যা', variant: 'destructive' });
       setRows([]);
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   useEffect(() => { load(); }, []);
@@ -45,15 +53,15 @@ export default function SubscriptionRequests() {
     setBusy(r.id);
     try {
       const expiry = new Date(); expiry.setDate(expiry.getDate() + 30);
-      await supabase.from('profiles').update({
+      await withTimeout(supabase.from('profiles').update({
         subscription_status: 'active',
         plan: r.plan_type,
         plan_expiry: expiry.toISOString(),
         temporary_access: false,
-      }).eq('user_id', r.user_id);
-      await supabase.from('subscription_requests').update({
+      }).eq('user_id', r.user_id), 6000, 'manager.subscriptions.approveProfile');
+      await withTimeout(supabase.from('subscription_requests').update({
         status: 'approved', resolved_at: new Date().toISOString(),
-      }).eq('id', r.id);
+      }).eq('id', r.id), 6000, 'manager.subscriptions.approveRequest');
       toast({ title: 'অনুমোদন করা হয়েছে ✓' });
       load();
     } catch (e: any) {
@@ -64,9 +72,9 @@ export default function SubscriptionRequests() {
   const reject = async (r: ReqRow) => {
     setBusy(r.id);
     try {
-      await supabase.from('subscription_requests').update({
+      await withTimeout(supabase.from('subscription_requests').update({
         status: 'rejected', resolved_at: new Date().toISOString(),
-      }).eq('id', r.id);
+      }).eq('id', r.id), 6000, 'manager.subscriptions.reject');
       toast({ title: 'প্রত্যাখ্যান করা হয়েছে' });
       load();
     } catch (e: any) {
@@ -118,4 +126,5 @@ export default function SubscriptionRequests() {
       )}
     </div>
   );
-}
+    }
+                                                    
