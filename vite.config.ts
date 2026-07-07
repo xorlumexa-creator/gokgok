@@ -16,18 +16,22 @@ export default defineConfig(({ mode }) => ({
     react(),
     mode === "development" && componentTagger(),
     VitePWA({
+      strategies: "generateSW",
       registerType: "autoUpdate",
       injectRegister: null,
+      filename: "sw.js",
+      manifestFilename: "manifest.webmanifest",
       devOptions: {
         enabled: false,
       },
-      includeAssets: ["logo.png"],
+      includeAssets: ["favicon.png", "apple-touch-icon.png", "logo.png", "icons/*.png"],
       workbox: {
         skipWaiting: true,
         clientsClaim: true,
         cleanupOutdatedCaches: true,
         navigateFallback: "/index.html",
         navigateFallbackDenylist: [/^\/~oauth/],
+        maximumFileSizeToCacheInBytes: 5 * 1024 * 1024,
         globPatterns: ["**/*.{js,css,html,ico,png,svg,woff2,json,webmanifest}"],
         runtimeCaching: [
           // HTML navigations: always try the network first so users get the
@@ -69,11 +73,13 @@ export default defineConfig(({ mode }) => ({
             },
           },
           {
-            urlPattern: /\.(?:js|css)$/i,
-            handler: "StaleWhileRevalidate",
+            urlPattern: ({ url, sameOrigin }) =>
+              sameOrigin && url.pathname.startsWith('/assets/') && /\.(?:js|css)$/i.test(url.pathname),
+            handler: "CacheFirst",
             options: {
-              cacheName: "static-resources",
-              expiration: { maxEntries: 60, maxAgeSeconds: 60 * 60 * 24 * 7 },
+              cacheName: "app-shell-assets",
+              expiration: { maxEntries: 120, maxAgeSeconds: 60 * 60 * 24 * 30 },
+              cacheableResponse: { statuses: [0, 200] },
             },
           },
         ],
@@ -130,3 +136,4 @@ export default defineConfig(({ mode }) => ({
     },
   },
 }));
+              
