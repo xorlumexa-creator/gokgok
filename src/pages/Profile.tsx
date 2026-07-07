@@ -8,6 +8,8 @@ import { useStore } from '@/context/StoreContext';
 import { toast } from '@/hooks/use-toast';
 import { LocationPicker } from '@/components/auth/LocationPicker';
 import { PhoneInputWithCode } from '@/components/common/PhoneInputWithCode';
+import { LoadingEscape } from '@/components/StartupFailsafe';
+import { withTimeout } from '@/lib/asyncTimeout';
 
 export default function Profile() {
   const navigate = useNavigate();
@@ -30,16 +32,18 @@ export default function Profile() {
 
   useEffect(() => {
     if (user) loadProfile();
+    else setLoadingProfile(false);
   }, [user]);
 
   const loadProfile = async () => {
     if (!user) return;
     try {
-      const { data: profile } = await supabase
+      const { data: profile, error } = await withTimeout(supabase
         .from('profiles')
         .select('*')
         .eq('user_id', user.id)
-        .single();
+        .single(), 5000, 'profile.page.load');
+      if (error) throw error;
 
       if (profile) {
         setFullName(profile.full_name || user.user_metadata?.full_name || '');
@@ -58,7 +62,7 @@ export default function Profile() {
     if (!user) return;
     setLoading(true);
     try {
-      const { error } = await supabase
+      const { error } = await withTimeout(supabase
         .from('profiles')
         .update({
           full_name: fullName.trim(),
@@ -66,7 +70,7 @@ export default function Profile() {
           phone: whatsappNumber.trim(),
           address: address.trim(),
         })
-        .eq('user_id', user.id);
+        .eq('user_id', user.id), 5000, 'profile.page.save');
       if (error) throw error;
 
       if (storeInfo) {
@@ -78,7 +82,7 @@ export default function Profile() {
         });
       }
 
-      await supabase.auth.updateUser({ data: { full_name: fullName.trim() } });
+      await withTimeout(supabase.auth.updateUser({ data: { full_name: fullName.trim() } }), 5000, 'profile.auth.update');
       toast({ title: "প্রোফাইল আপডেট হয়েছে ✓" });
     } catch (error: any) {
       toast({ title: error.message || "সমস্যা হয়েছে", variant: "destructive" });
@@ -98,7 +102,7 @@ export default function Profile() {
     }
     setPasswordLoading(true);
     try {
-      const { error } = await supabase.auth.updateUser({ password: newPassword });
+      const { error } = await withTimeout(supabase.auth.updateUser({ password: newPassword }), 5000, 'profile.password.update');
       if (error) throw error;
       toast({ title: "পাসওয়ার্ড পরিবর্তন হয়েছে ✓" });
       setNewPassword('');
@@ -117,6 +121,7 @@ export default function Profile() {
       // min-h-screen inside MainLayout's h-screen breaks scroll
       <div className="flex items-center justify-center py-20">
         <Loader2 className="w-8 h-8 animate-spin text-primary" />
+        <LoadingEscape compact />
       </div>
     );
   }
@@ -191,4 +196,4 @@ export default function Profile() {
     </div>
   );
                     }
-            
+
