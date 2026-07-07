@@ -2,7 +2,7 @@ import { lazy, Suspense, useEffect } from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryCache, QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { StoreProvider, useStore } from "@/context/StoreContext";
 import { SubscriptionProvider } from "@/context/SubscriptionContext";
@@ -14,6 +14,7 @@ import { useProfile } from "@/hooks/useProfile";
 import { startSyncEngine } from "@/lib/syncEngine";
 import { isOnline, subscribeOnlineStatus } from "@/lib/connectivity";
 import { OfflineBanner } from "@/components/OfflineBanner";
+import { LoadingEscape, RouteErrorBoundary, StartupFailsafeProvider, useStartupFailsafe } from "@/components/StartupFailsafe";
 
 const Index = lazy(() => import("./pages/Index"));
 const Landing = lazy(() => import("./pages/Landing"));
@@ -44,20 +45,35 @@ const ManagerUsers = lazy(() => import("./pages/manager/UsersList"));
 const ManagerStats = lazy(() => import("./pages/manager/Statistics"));
 
 const queryClient = new QueryClient({
+  queryCache: new QueryCache({
+    onError: (error) => {
+      console.warn('[query] background request failed:', error);
+    },
+  }),
   defaultOptions: {
     queries: {
       staleTime: 1000 * 60 * 5,
       gcTime: 1000 * 60 * 30,
-      retry: 1,
+      retry: false,
+      retryDelay: 1000,
       refetchOnWindowFocus: false,
+      networkMode: 'always',
+      throwOnError: false,
+    },
+    mutations: {
+      retry: false,
+      retryDelay: 1000,
+      networkMode: 'always',
+      throwOnError: false,
     },
   },
 });
 
 function PageLoader() {
   return (
-    <div className="min-h-screen flex items-center justify-center">
+    <div className="min-h-screen flex flex-col items-center justify-center px-6">
       <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
+      <LoadingEscape />
     </div>
   );
 }
@@ -66,6 +82,7 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, loading: authLoading } = useAuth();
   const { profile, loading: profLoading } = useProfile();
   const { isOnboarded, setStoreInfo } = useStore();
+  const { forceRender } = useStartupFailsafe();
 
   useEffect(() => {
     if (!user || isOnboarded || !profile?.shop_name) return;
@@ -79,18 +96,18 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
 
   // FIX: Only block on authLoading — the one true loading state.
   // Don't block on profLoading if we already have a cached profile.
-  if (authLoading) return <PageLoader />;
+  if (authLoading && !forceRender) return <PageLoader />;
   if (!user) return <Navigate to="/auth" replace />;
 
   // FIX: Only show profile loader if we have NO cached profile at all.
   // If localStorage has a profile, render immediately and revalidate in background.
-  if (!profile && profLoading && !localStorage.getItem('cache:profile')) return <PageLoader />;
+  if (!profile && profLoading && !localStorage.getItem('cache:profile') && !forceRender) return <PageLoader />;
 
   if (profile?.must_change_password) return <Navigate to="/change-password" replace />;
   if (profile?.role === 'manager') return <Navigate to="/manager" replace />;
 
   // Only redirect to /setup when profile is fully loaded AND genuinely missing shop_name.
-  if (profile && !profLoading && !profile.shop_name && !localStorage.getItem('storeInfo')) {
+  if (profile && !profLoading && !profile.shop_name && !localStorage.getItem('storeInfo') && !forceRender) {
     return <Navigate to="/setup" replace />;
   }
 
@@ -100,11 +117,12 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
 function ManagerRoute({ children }: { children: React.ReactNode }) {
   const { user, loading: authLoading } = useAuth();
   const { profile, loading: profLoading } = useProfile();
+  const { forceRender } = useStartupFailsafe();
 
   // FIX: Same pattern — only block on authLoading
-  if (authLoading) return <PageLoader />;
+  if (authLoading && !forceRender) return <PageLoader />;
   if (!user) return <Navigate to="/auth" replace />;
-  if (!profile && profLoading && !localStorage.getItem('cache:profile')) return <PageLoader />;
+  if (!profile && profLoading && !localStorage.getItem('cache:profile') && !forceRender) return <PageLoader />;
   if (profile?.must_change_password) return <Navigate to="/change-password" replace />;
   if (profile?.role !== 'manager') return <Navigate to="/dashboard" replace />;
   return <>{children}</>;
@@ -125,8 +143,9 @@ function StoreProtectedRoute({ children }: { children: React.ReactNode }) {
 
 function AppRoutes() {
   return (
-    <Suspense fallback={<PageLoader />}>
-      <Routes>
+    <RouteErrorBoundary>
+      <Suspense fallback={<PageLoader />}>
+        <Routes>
         <Route path="/" element={<Landing />} />
         <Route path="/auth" element={<Auth />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
@@ -161,8 +180,9 @@ function AppRoutes() {
 
         <Route path="/reset-password" element={<Navigate to="/forgot-password" replace />} />
         <Route path="*" element={<NotFound />} />
-      </Routes>
-    </Suspense>
+        </Routes>
+      </Suspense>
+    </RouteErrorBoundary>
   );
 }
 
@@ -180,17 +200,19 @@ const App = () => {
   }, []);
 
   return (
-    <QueryClientProvider client={queryClient}>
-      <TooltipProvider>
-        <InstallPrompt />
-        <OfflineBanner />
-        <Toaster />
-        <Sonner />
-        <BrowserRouter>
-          <AppRoutes />
-        </BrowserRouter>
-      </TooltipProvider>
-    </QueryClientProvider>
+    <StartupFailsafeProvider>
+      <QueryClientProvider client={queryClient}>
+        <TooltipProvider>
+          <InstallPrompt />
+          <OfflineBanner />
+          <Toaster />
+          <Sonner />
+          <BrowserRouter>
+            <AppRoutes />
+          </BrowserRouter>
+        </TooltipProvider>
+      </QueryClientProvider>
+    </StartupFailsafeProvider>
   );
 };
 
