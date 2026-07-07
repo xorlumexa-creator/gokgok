@@ -7,6 +7,7 @@ import { toast } from '@/hooks/use-toast';
 import { PhoneInput } from '@/components/auth/PhoneInput';
 import { Country, defaultCountry } from '@/data/countries';
 import { normalizePhone } from '@/lib/phone';
+import { withTimeout } from '@/lib/asyncTimeout';
 import logoImg from '@/assets/logo.png';
 
 
@@ -25,9 +26,9 @@ export default function ForgotPassword() {
     }
     setLoading(true);
     try {
-      const { data, error } = await supabase.functions.invoke('reset-password-temp', {
+      const { data, error } = await withTimeout(supabase.functions.invoke('reset-password-temp', {
         body: { phone: normalized },
-      });
+      }), 6000, 'forgotPassword.request');
       if (error || (data as any)?.error === 'not_found') {
         if ((data as any)?.error === 'not_found' || error?.message?.includes('404')) {
           toast({ title: 'এই ফোন নম্বরে কোনো একাউন্ট পাওয়া যায়নি।', variant: 'destructive' });
