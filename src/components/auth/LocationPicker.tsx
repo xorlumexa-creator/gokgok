@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { MapPin, Loader2, Navigation } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { toast } from '@/hooks/use-toast';
+import { withTimeout } from '@/lib/asyncTimeout';
 
 interface LocationPickerProps {
   address: string;
@@ -25,9 +26,9 @@ export function LocationPicker({ address, onAddressChange }: LocationPickerProps
           const { latitude, longitude } = position.coords;
           
           // Use reverse geocoding with OpenStreetMap Nominatim
-          const response = await fetch(
+          const response = await withTimeout(fetch(
             `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&accept-language=bn`
-          );
+          ), 6000, 'location.reverseGeocode');
           
           if (response.ok) {
             const data = await response.json();
