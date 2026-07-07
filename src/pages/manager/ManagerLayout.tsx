@@ -4,6 +4,7 @@ import { LayoutDashboard, CreditCard, KeyRound, Users, BarChart3, LogOut } from 
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
 import { useProfile } from '@/hooks/useProfile';
+import { withTimeout } from '@/lib/asyncTimeout';
 import logoImg from '@/assets/logo.png';
 
 const items = [
@@ -27,7 +28,7 @@ export default function ManagerLayout() {
   }, [loading, profile, navigate]);
 
   const signOut = async () => {
-    await supabase.auth.signOut();
+    await withTimeout(supabase.auth.signOut(), 4000, 'manager.signOut').catch(() => null);
     navigate('/auth');
   };
 
