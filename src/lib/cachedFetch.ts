@@ -9,6 +9,7 @@
  */
 
 import { isOnline } from '@/lib/connectivity';
+import { withTimeout } from '@/lib/asyncTimeout';
 
 const PREFIX = 'sbcache:';
 
@@ -46,7 +47,7 @@ export async function cachedFetch<T = unknown>(
   }
 
   try {
-    const result = await fetcher();
+    const result = await withTimeout(fetcher(), 5000, `cachedFetch:${key}`);
     if (!result.error && result.data != null) {
       writeCache(key, result.data);
       return { ...result, fromCache: false };
@@ -60,4 +61,4 @@ export async function cachedFetch<T = unknown>(
     if (cached != null) return { data: cached, error: null, fromCache: true };
     return { data: null, error, fromCache: false };
   }
-}
+                                }
