@@ -3,6 +3,7 @@ import { MessageCircle, X, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from '@/hooks/use-toast';
+import { withTimeout } from '@/lib/asyncTimeout';
 
 interface Row {
   id: string;
@@ -21,27 +22,28 @@ export default function PasswordResetRequests() {
 
   const load = async () => {
     setLoading(true);
-    const { data, error } = await supabase
-      .from('password_reset_requests')
-      .select('*')
-      .order('created_at', { ascending: false });
-    if (error) {
-      console.error('[manager/passwords] load error', error);
-      toast({ title: 'লোড করতে সমস্যা', description: error.message, variant: 'destructive' });
+    try {
+      const { data, error } = await withTimeout(supabase
+        .from('password_reset_requests')
+        .select('*')
+        .order('created_at', { ascending: false }), 6000, 'manager.passwords.load');
+      if (error) throw error;
+      if (data && data.length) {
+        const ids = [...new Set(data.map(r => r.user_id).filter(Boolean) as string[])];
+        let map = new Map<string, string | null>();
+        if (ids.length) {
+          const { data: profs } = await withTimeout(supabase.from('profiles').select('user_id, shop_name').in('user_id', ids), 6000, 'manager.passwords.profiles');
+          map = new Map((profs || []).map(p => [p.user_id, p.shop_name]));
+        }
+        setRows(data.map(r => ({ ...r, shop_name: r.user_id ? map.get(r.user_id) ?? null : null })) as any);
+      } else setRows([]);
+    } catch (e: any) {
+      console.error('[manager/passwords] load error', e);
+      toast({ title: 'লোড করতে সমস্যা', description: e.message, variant: 'destructive' });
       setRows([]);
+    } finally {
       setLoading(false);
-      return;
     }
-    if (data && data.length) {
-      const ids = [...new Set(data.map(r => r.user_id).filter(Boolean) as string[])];
-      let map = new Map<string, string | null>();
-      if (ids.length) {
-        const { data: profs } = await supabase.from('profiles').select('user_id, shop_name').in('user_id', ids);
-        map = new Map((profs || []).map(p => [p.user_id, p.shop_name]));
-      }
-      setRows(data.map(r => ({ ...r, shop_name: r.user_id ? map.get(r.user_id) ?? null : null })) as any);
-    } else setRows([]);
-    setLoading(false);
   };
 
   useEffect(() => {
@@ -66,9 +68,9 @@ export default function PasswordResetRequests() {
     const url = `https://wa.me/${phone}?text=${encodeURIComponent(message)}`;
     window.open(url, '_blank');
     try {
-      await supabase.from('password_reset_requests').update({
+      await withTimeout(supabase.from('password_reset_requests').update({
         status: 'sent', resolved_at: new Date().toISOString(),
-      }).eq('id', r.id);
+      }).eq('id', r.id), 6000, 'manager.passwords.sent');
       load();
     } finally { setBusy(null); }
   };
@@ -76,9 +78,9 @@ export default function PasswordResetRequests() {
   const reject = async (r: Row) => {
     setBusy(r.id);
     try {
-      await supabase.from('password_reset_requests').update({
+      await withTimeout(supabase.from('password_reset_requests').update({
         status: 'rejected', resolved_at: new Date().toISOString(),
-      }).eq('id', r.id);
+      }).eq('id', r.id), 6000, 'manager.passwords.reject');
       toast({ title: 'রিকোয়েস্ট প্রত্যাখ্যান করা হয়েছে' });
       load();
     } finally { setBusy(null); }
@@ -121,4 +123,5 @@ export default function PasswordResetRequests() {
       )}
     </div>
   );
-}
+  }
+    
