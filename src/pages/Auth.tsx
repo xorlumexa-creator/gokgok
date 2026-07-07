@@ -9,6 +9,7 @@ import { primeProfileFromAuth } from '@/hooks/useProfile';
 import { PhoneInput } from '@/components/auth/PhoneInput';
 import { Country, defaultCountry } from '@/data/countries';
 import { normalizePhone, phoneToEmail, isManagerPhone } from '@/lib/phone';
+import { withTimeout } from '@/lib/asyncTimeout';
 import logoImg from '@/assets/logo.png';
 
 type Mode = 'login' | 'signup';
@@ -48,10 +49,10 @@ export default function Auth() {
     }
     setLoading(true);
     try {
-      const { data, error } = await supabase.auth.signInWithPassword({
+      const { data, error } = await withTimeout(supabase.auth.signInWithPassword({
         email: phoneToEmail(normalized),
         password,
-      });
+      }), 6000, 'auth.login');
       if (error) {
         toast({ title: 'ফোন বা পাসওয়ার্ড ভুল', variant: 'destructive' });
         return;
@@ -62,6 +63,8 @@ export default function Auth() {
       if (isManagerPhone(normalizedForRoute)) navigate('/manager', { replace: true });
       else navigate('/dashboard', { replace: true });
       toast({ title: 'সফলভাবে লগইন হয়েছে ✓' });
+    } catch (e: any) {
+      toast({ title: e.message || 'লগইন করতে সমস্যা হয়েছে', variant: 'destructive' });
     } finally {
       setLoading(false);
     }
@@ -77,7 +80,7 @@ export default function Auth() {
 
     setLoading(true);
     try {
-      const { data, error } = await supabase.auth.signUp({
+      const { data, error } = await withTimeout(supabase.auth.signUp({
         email: phoneToEmail(normalized),
         password,
         options: {
@@ -88,7 +91,7 @@ export default function Auth() {
             country: country.code,
           },
         },
-      });
+      }), 6000, 'auth.signup');
       if (error) {
         if (error.message.toLowerCase().includes('already') || error.message.toLowerCase().includes('registered')) {
           toast({ title: 'এই ফোন নম্বরে আগেই একাউন্ট আছে', variant: 'destructive' });
@@ -100,7 +103,7 @@ export default function Auth() {
       let session = data.session;
       let user = data.user;
       if (!session) {
-        const signedIn = await supabase.auth.signInWithPassword({ email: phoneToEmail(normalized), password });
+        const signedIn = await withTimeout(supabase.auth.signInWithPassword({ email: phoneToEmail(normalized), password }), 6000, 'auth.signupLogin');
         session = signedIn.data.session;
         user = signedIn.data.user;
       }
