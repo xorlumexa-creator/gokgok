@@ -1,8 +1,10 @@
 import React, { createContext, useContext, useState, useEffect, useRef, ReactNode } from 'react';
 import { Product, Sale, Customer, StoreInfo, DashboardStats, Expense, PersonalAccountStats, UnitType, PreOrder, PreOrderStatus, BulkSaleRecord, BakiPaymentRecord, CustomEarning, Supplier } from '@/types/store';
 import { supabase } from '@/integrations/supabase/client';
-import { markDirty } from '@/lib/syncEngine';
+import { markDirty, restoreFromCloud } from '@/lib/syncEngine';
 import { putAll, scheduleMirror, setMeta } from '@/lib/idb';
+import { withTimeout } from '@/lib/asyncTimeout';
+
 
 interface StoreContextType {
   storeInfo: StoreInfo | null;
@@ -170,7 +172,86 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     markDirty('hisab');
   }, [expenses, customEarnings]);
 
+  // ── Cloud restore on login ──────────────────────────────────────────────
+  // When the user signs in (or opens the app already signed-in), pull any
+  // previously-synced data from `user_backups` and merge it into local state.
+  // This is what makes data reappear after logout / reinstall / new device.
+  //
+  // Merge rule: cloud wins for any slice that is *empty* locally OR when the
+  // cloud row is newer than our local last-sync stamp. This preserves offline
+  // work while ensuring restore works on a fresh device.
+  const hydratedForUserRef = useRef<string | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const { data: { user } } = await withTimeout(supabase.auth.getUser(), 4000, 'store.getUser');
+        if (!user || cancelled) return;
+        if (hydratedForUserRef.current === user.id) return;
+        hydratedForUserRef.current = user.id;
+
+        const snap = await withTimeout(restoreFromCloud(), 5000, 'store.restore');
+        if (!snap || cancelled) return;
+
+        // Suppress the immediate markDirty that our setState calls would
+        // otherwise trigger — this data JUST came from the cloud.
+        mountedBakiRef.current = false;
+        mountedProductsRef.current = false;
+        mountedHisabRef.current = false;
+
+        if (snap.customers && (customers.length === 0 || snap.customers.length > customers.length)) {
+          setCustomers(snap.customers as Customer[]);
+        }
+        if (snap.bakiPaymentRecords && (bakiPaymentRecords.length === 0 || snap.bakiPaymentRecords.length > bakiPaymentRecords.length)) {
+          setBakiPaymentRecords(snap.bakiPaymentRecords as BakiPaymentRecord[]);
+        }
+        if (snap.products && (products.length === 0 || snap.products.length > products.length)) {
+          setProducts(snap.products as Product[]);
+        }
+        if (snap.expenses && (expenses.length === 0 || snap.expenses.length > expenses.length)) {
+          setExpenses(snap.expenses as Expense[]);
+        }
+        if (snap.customEarnings && (customEarnings.length === 0 || snap.customEarnings.length > customEarnings.length)) {
+          setCustomEarnings(snap.customEarnings as CustomEarning[]);
+        }
+      } catch (e) {
+        console.warn('[store] cloud hydrate failed:', e);
+      }
+    })();
+
+    // Re-hydrate whenever auth state changes to a different user.
+    const { data: sub } = supabase.auth.onAuthStateChange((_evt, session) => {
+      if (!session?.user) { hydratedForUserRef.current = null; return; }
+      if (hydratedForUserRef.current !== session.user.id) {
+        hydratedForUserRef.current = null; // will trigger next mount cycle
+        // Kick the effect: cheapest is to reload by refetching now.
+        void (async () => {
+          try {
+          const snap = await withTimeout(restoreFromCloud(), 5000, 'store.authRestore');
+          if (!snap) return;
+          mountedBakiRef.current = false;
+          mountedProductsRef.current = false;
+          mountedHisabRef.current = false;
+          if (snap.customers?.length)          setCustomers(snap.customers as Customer[]);
+          if (snap.bakiPaymentRecords?.length) setBakiPaymentRecords(snap.bakiPaymentRecords as BakiPaymentRecord[]);
+          if (snap.products?.length)           setProducts(snap.products as Product[]);
+          if (snap.expenses?.length)           setExpenses(snap.expenses as Expense[]);
+          if (snap.customEarnings?.length)     setCustomEarnings(snap.customEarnings as CustomEarning[]);
+          hydratedForUserRef.current = session.user.id;
+          } catch (e) {
+            console.warn('[store] auth restore failed:', e);
+          }
+        })();
+      }
+    });
+
+    return () => { cancelled = true; sub.subscription.unsubscribe(); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const setStoreInfo = (info: StoreInfo) => setStoreInfoState(info);
+
+
 
   const generateCustomerDisplayName = (name: string): string => {
     const normalizedName = name.toLowerCase().trim();
@@ -342,119 +423,4 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     setPreOrders(prev => [...prev, { ...preOrder, id: generateId(), createdAt: new Date() }]);
   };
 
-  const updatePreOrderStatus = (id: string, status: PreOrderStatus) => {
-    setPreOrders(prev => prev.map(o => o.id === id ? { ...o, status } : o));
-  };
-
-  const markPreOrderAsSold = (id: string) => {
-    const order = preOrders.find(o => o.id === id);
-    if (!order || order.status !== 'pending') return;
-    const salesList: Omit<Sale, 'id' | 'createdAt'>[] = order.items.map(item => {
-      const product = products.find(p => p.id === item.productId);
-      const quantityInBase = item.quantityInBaseUnit || item.quantity;
-      const profit = product ? product.profit * quantityInBase : (item.profit || 0);
-      return { productId: item.productId, productName: item.productName, quantity: item.quantity, quantityInBaseUnit: quantityInBase, unitType: item.unitType, unitName: item.unitName, totalPrice: item.price, profit, customerId: undefined, customerName: order.customerName, isPaid: true };
-    });
-    salesList.forEach(sale => { setSales(prev => [...prev, { ...sale, id: generateId(), createdAt: new Date() }]); });
-    const totalProfit = salesList.reduce((sum, s) => sum + s.profit, 0);
-    const serialNumber = getTodaysSalesSerial();
-    setBulkSaleRecords(prev => [...prev, { id: generateId(), serialNumber, productNames: salesList.map(s => s.productName), totalPrice: order.totalPrice, totalProfit, createdAt: new Date() }]);
-    updatePreOrderStatus(id, 'delivered');
-  };
-
-  const addSupplier = (supplier: Omit<Supplier, 'id' | 'createdAt'>) => {
-    setSuppliers(prev => [...prev, { ...supplier, id: generateId(), createdAt: new Date() }]);
-  };
-
-  const updateSupplier = (id: string, supplierUpdate: Partial<Supplier>) => {
-    setSuppliers(prev => prev.map(s => s.id === id ? { ...s, ...supplierUpdate } : s));
-  };
-
-  const deleteSupplier = (id: string) => setSuppliers(prev => prev.filter(s => s.id !== id));
-
-  const getProductSuggestions = (query: string): Product[] => {
-    if (!query.trim()) return [];
-    const lowerQuery = query.toLowerCase();
-    return products.filter(p => p.name.toLowerCase().includes(lowerQuery));
-  };
-
-  const completeOnboarding = async (storeName: string, initialProducts: Omit<Product, 'id' | 'createdAt'>[]) => {
-    const trialStart = new Date();
-    setStoreInfoState({ name: storeName, trialStartDate: trialStart, trialDaysLeft: 3, isOnboarded: true });
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) await supabase.from('profiles').update({ shop_name: storeName }).eq('user_id', user.id);
-    } catch (e) { console.error('Failed to save shop name to profile:', e); }
-    initialProducts.forEach(product => { if (product.name.trim()) addProduct(product); });
-  };
-
-  const getDashboardStats = (): DashboardStats => {
-    const today = new Date(); today.setHours(0, 0, 0, 0);
-    const todaySalesData = sales.filter(s => new Date(s.createdAt) >= today);
-    const todayCashSales = todaySalesData.filter(s => s.isPaid);
-    const todayCreditSales = todaySalesData.filter(s => !s.isPaid);
-    return {
-      todaySales: todaySalesData.reduce((sum, s) => sum + s.totalPrice, 0),
-      todayProfit: todaySalesData.reduce((sum, s) => sum + s.profit, 0),
-      todayCashSales: todayCashSales.reduce((sum, s) => sum + s.totalPrice, 0),
-      todayCashProfit: todayCashSales.reduce((sum, s) => sum + s.profit, 0),
-      todayCreditSales: todayCreditSales.reduce((sum, s) => sum + s.totalPrice, 0),
-      todayCreditProfit: todayCreditSales.reduce((sum, s) => sum + s.profit, 0),
-      totalDue: customers.reduce((sum, c) => sum + c.totalDue, 0),
-      totalBakiProfit: customers.reduce((sum, c) => sum + c.pendingProfit, 0),
-      lowStockProducts: products.filter(p => p.stock <= 5).length,
-      totalProducts: products.length,
-    };
-  };
-
-  const getPersonalAccountStats = (): PersonalAccountStats => {
-    const today = new Date(); today.setHours(0, 0, 0, 0);
-    const thisWeekStart = new Date(today); thisWeekStart.setDate(today.getDate() - today.getDay());
-    const thisMonthStart = new Date(today.getFullYear(), today.getMonth(), 1);
-    const cashSales = sales.filter(s => s.isPaid);
-    const totalCashProfit = cashSales.reduce((sum, s) => sum + s.profit, 0);
-    const todayCashProfit = cashSales.filter(s => new Date(s.createdAt) >= today).reduce((sum, s) => sum + s.profit, 0);
-    const weekCashProfit = cashSales.filter(s => new Date(s.createdAt) >= thisWeekStart).reduce((sum, s) => sum + s.profit, 0);
-    const monthCashProfit = cashSales.filter(s => new Date(s.createdAt) >= thisMonthStart).reduce((sum, s) => sum + s.profit, 0);
-    const totalBakiProfit = bakiPaymentRecords.reduce((sum, r) => sum + r.profitEarned, 0);
-    const todayBakiProfit = bakiPaymentRecords.filter(r => new Date(r.createdAt) >= today).reduce((sum, r) => sum + r.profitEarned, 0);
-    const weekBakiProfit = bakiPaymentRecords.filter(r => new Date(r.createdAt) >= thisWeekStart).reduce((sum, r) => sum + r.profitEarned, 0);
-    const monthBakiProfit = bakiPaymentRecords.filter(r => new Date(r.createdAt) >= thisMonthStart).reduce((sum, r) => sum + r.profitEarned, 0);
-    const totalCustomEarnings = customEarnings.reduce((sum, e) => sum + e.amount, 0);
-    const totalEarnings = totalCashProfit + totalBakiProfit + totalCustomEarnings;
-    const totalExpenses = expenses.reduce((sum, e) => sum + e.amount, 0);
-    return {
-      totalCashProfit, totalBakiProfit, totalCustomEarnings, totalEarnings,
-      totalExpenses, netEarning: totalEarnings - totalExpenses,
-      todayCashProfit, weekCashProfit, monthCashProfit,
-      todayBakiProfit, weekBakiProfit, monthBakiProfit
-    };
-  };
-
-  return (
-    <StoreContext.Provider value={{
-      storeInfo, products, sales, customers, expenses, preOrders,
-      bulkSaleRecords, bakiPaymentRecords, customEarnings, suppliers, isOnboarded,
-      setStoreInfo, addProduct, updateProduct, deleteProduct,
-      addSale, addMultipleSales, addCustomer, updateCustomer,
-      updateCustomerDue, payCustomerDue, completeOnboarding,
-      getDashboardStats, getPersonalAccountStats,
-      addExpense, addCustomEarning, getProductSuggestions,
-      generateCustomerDisplayName, getExistingCustomersByName,
-      searchCustomersByPhone, searchCustomersByName,
-      getUnpaidCustomers, getCustomersDueFor30Days,
-      addPreOrder, updatePreOrderStatus, markPreOrderAsSold,
-      getWeeklyBulkSales, getTodaysSalesSerial,
-      addSupplier, updateSupplier, deleteSupplier,
-    }}>
-      {children}
-    </StoreContext.Provider>
-  );
-}
-
-export function useStore() {
-  const context = useContext(StoreContext);
-  if (context === undefined) throw new Error('useStore must be used within a StoreProvider');
-  return context;
-}
-
+  const updatePreOrderStatus = (id: string,
