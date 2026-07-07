@@ -3,6 +3,7 @@ import { Users, CreditCard, KeyRound, CheckCircle2, Wallet, Cloud, TrendingUp, K
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { toast } from '@/hooks/use-toast';
+import { withTimeout } from '@/lib/asyncTimeout';
 
 const PLAN_PRICE: Record<string, number> = { basic: 80, standard: 140, pro: 200 };
 
@@ -16,34 +17,38 @@ export default function ManagerDashboard() {
   const [bootBusy, setBootBusy] = useState(false);
 
   const load = async () => {
-    const [u, ps, pp, asu, approved, settings] = await Promise.all([
-      supabase.from('profiles').select('*', { count: 'exact', head: true }),
-      supabase.from('subscription_requests').select('*', { count: 'exact', head: true }).eq('status', 'pending'),
-      supabase.from('password_reset_requests').select('*', { count: 'exact', head: true }).eq('status', 'pending'),
-      supabase.from('profiles').select('*', { count: 'exact', head: true }).eq('subscription_status', 'active'),
-      supabase.from('subscription_requests').select('plan_type').eq('status', 'approved'),
-      supabase.from('app_settings').select('cloud_cost_monthly').eq('id', 1).maybeSingle(),
-    ]);
-    setStats({
-      users: u.count || 0,
-      pendingSubs: ps.count || 0,
-      pendingPw: pp.count || 0,
-      activeSubs: asu.count || 0,
-    });
-    const breakdown: Record<string, { count: number; total: number }> = {
-      basic: { count: 0, total: 0 }, standard: { count: 0, total: 0 }, pro: { count: 0, total: 0 },
-    };
-    let total = 0;
-    (approved.data || []).forEach((r: any) => {
-      const price = PLAN_PRICE[r.plan_type] || 0;
-      if (breakdown[r.plan_type]) { breakdown[r.plan_type].count++; breakdown[r.plan_type].total += price; }
-      total += price;
-    });
-    setEarnings(total);
-    setPlanBreakdown(breakdown);
-    const cc = Number(settings.data?.cloud_cost_monthly || 0);
-    setCloudCost(cc);
-    setCostInput(String(cc));
+    try {
+      const [u, ps, pp, asu, approved, settings] = await withTimeout(Promise.all([
+        supabase.from('profiles').select('*', { count: 'exact', head: true }),
+        supabase.from('subscription_requests').select('*', { count: 'exact', head: true }).eq('status', 'pending'),
+        supabase.from('password_reset_requests').select('*', { count: 'exact', head: true }).eq('status', 'pending'),
+        supabase.from('profiles').select('*', { count: 'exact', head: true }).eq('subscription_status', 'active'),
+        supabase.from('subscription_requests').select('plan_type').eq('status', 'approved'),
+        supabase.from('app_settings').select('cloud_cost_monthly').eq('id', 1).maybeSingle(),
+      ]), 6000, 'manager.dashboard.load');
+      setStats({
+        users: u.count || 0,
+        pendingSubs: ps.count || 0,
+        pendingPw: pp.count || 0,
+        activeSubs: asu.count || 0,
+      });
+      const breakdown: Record<string, { count: number; total: number }> = {
+        basic: { count: 0, total: 0 }, standard: { count: 0, total: 0 }, pro: { count: 0, total: 0 },
+      };
+      let total = 0;
+      (approved.data || []).forEach((r: any) => {
+        const price = PLAN_PRICE[r.plan_type] || 0;
+        if (breakdown[r.plan_type]) { breakdown[r.plan_type].count++; breakdown[r.plan_type].total += price; }
+        total += price;
+      });
+      setEarnings(total);
+      setPlanBreakdown(breakdown);
+      const cc = Number(settings.data?.cloud_cost_monthly || 0);
+      setCloudCost(cc);
+      setCostInput(String(cc));
+    } catch (e) {
+      console.warn('[manager/dashboard] load failed:', e);
+    }
   };
 
   useEffect(() => { load(); }, []);
@@ -51,16 +56,17 @@ export default function ManagerDashboard() {
   const saveCost = async () => {
     setSavingCost(true);
     const v = Number(costInput || 0);
-    const { error } = await supabase.from('app_settings').update({ cloud_cost_monthly: v, updated_at: new Date().toISOString() }).eq('id', 1);
-    if (error) toast({ title: error.message, variant: 'destructive' });
-    else { toast({ title: 'খরচ সংরক্ষিত হয়েছে ✓' }); setCloudCost(v); }
-    setSavingCost(false);
+    try {
+      const { error } = await withTimeout(supabase.from('app_settings').update({ cloud_cost_monthly: v, updated_at: new Date().toISOString() }).eq('id', 1), 6000, 'manager.dashboard.saveCost');
+      if (error) toast({ title: error.message, variant: 'destructive' });
+      else { toast({ title: 'খরচ সংরক্ষিত হয়েছে ✓' }); setCloudCost(v); }
+    } finally { setSavingCost(false); }
   };
 
   const bootstrapPw = async () => {
     setBootBusy(true);
     try {
-      const { data, error } = await supabase.functions.invoke('manager-admin', { body: { action: 'bootstrap_manager_password' } });
+      const { data, error } = await withTimeout(supabase.functions.invoke('manager-admin', { body: { action: 'bootstrap_manager_password' } }), 8000, 'manager.bootstrapPassword');
       if (error) throw error;
       if (!data?.ok) throw new Error(data?.error || 'failed');
       toast({ title: 'ম্যানেজার পাসওয়ার্ড সেট হয়েছে ✓', description: 'ফোন: 01305969812' });
