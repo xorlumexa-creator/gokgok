@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from './useAuth';
 import { isManagerPhone } from '@/lib/phone';
+import { withTimeout } from '@/lib/asyncTimeout';
 
 export interface AppProfile {
   id: string;
@@ -93,17 +94,24 @@ async function loadProfile(userId: string, force = false): Promise<AppProfile | 
   cachedLoading = !hasProfileForUser;
   notifyProfileListeners();
 
-  inFlight = Promise.resolve(
+  inFlight = withTimeout(
     supabase
       .from('profiles')
       .select('id,user_id,full_name,shop_name,phone,role,plan,plan_expiry,subscription_status,trial_start_date,temporary_access,temporary_expiry,must_change_password')
       .eq('user_id', userId)
-      .maybeSingle()
+      .maybeSingle(),
+    5000,
+    'profile.load',
   )
-    .then(({ data }) => {
+    .then(({ data, error }) => {
+      if (error) throw error;
       cachedProfile = (data as AppProfile | null) ?? null;
       persistProfile(cachedProfile);
       return cachedProfile;
+    })
+    .catch((error) => {
+      console.warn('[profile] load failed:', error);
+      return cachedProfile?.user_id === userId ? cachedProfile : null;
     })
     .finally(() => {
       cachedLoading = false;
@@ -132,10 +140,13 @@ export function useProfile() {
       setLoading(false);
       return null;
     }
-    const data = await loadProfile(user.id, force);
-    setProfile(data);
-    setLoading(false);
-    return data;
+    try {
+      const data = await loadProfile(user.id, force);
+      setProfile(data);
+      return data;
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => {
@@ -162,7 +173,7 @@ export function useProfile() {
         setProfile(null);
         setLoading(true);
       }
-      loadProfile(user.id).then(setProfile).finally(() => setLoading(false));
+      loadProfile(user.id).then(setProfile).catch(() => setProfile(cachedProfile)).finally(() => setLoading(false));
     }
 
     return () => { listeners = listeners.filter(item => item !== listener); };
@@ -172,3 +183,4 @@ export function useProfile() {
   // ProtectedRoute already handles the authLoading case separately
   return { profile, loading, refresh };
 }
+  
