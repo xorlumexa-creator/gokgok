@@ -25,6 +25,7 @@ import {
   enqueue, clearQueueByScope, queueCount, queueCountByScope,
   getAll, getMeta, setMeta, migrateFromLocalStorage,
 } from './idb';
+import { withTimeout } from './asyncTimeout';
 
 export type SyncScope = 'baki' | 'products' | 'hisab';
 export type SyncState = 'safe' | 'pending' | 'syncing' | 'error';
@@ -144,7 +145,7 @@ async function performSync(scope: SyncScope, reason: string): Promise<boolean> {
   const pending = await queueCountByScope(scope);
   if (pending === 0 && reason !== 'manual') return true;
 
-  const { data: auth } = await supabase.auth.getUser();
+  const { data: auth } = await withTimeout(supabase.auth.getUser(), 4000, 'sync.getUser');
   const userId = auth.user?.id;
   if (!userId) return false;
 
@@ -155,11 +156,11 @@ async function performSync(scope: SyncScope, reason: string): Promise<boolean> {
     const payload = await buildPayload(scope);
 
     // Read existing row so we can merge instead of overwriting other scopes.
-    const { data: existing } = await supabase
+    const { data: existing } = await withTimeout(supabase
       .from('user_backups')
       .select('data, updated_at')
       .eq('user_id', userId)
-      .maybeSingle();
+      .maybeSingle(), 5000, 'sync.readBackup');
 
     const merged = { ...(existing?.data as Record<string, unknown> ?? {}), ...payload };
 
@@ -173,12 +174,12 @@ async function performSync(scope: SyncScope, reason: string): Promise<boolean> {
       }
     }
 
-    const { error } = await supabase
+    const { error } = await withTimeout(supabase
       .from('user_backups')
       .upsert(
         { user_id: userId, data: merged as any, updated_at: new Date().toISOString() },
         { onConflict: 'user_id' },
-      );
+      ), 5000, 'sync.writeBackup');
     if (error) throw error;
 
     await clearQueueByScope(scope);
@@ -255,6 +256,71 @@ export async function syncNow(): Promise<boolean> {
   return ok1 && ok2 && ok3;
 }
 
+/**
+ * Flush any pending baki debounce immediately, then push all scopes.
+ * Call this before signOut so unsaved changes make it to the cloud.
+ */
+export async function flushBeforeSignOut(): Promise<boolean> {
+  if (bakiTimer) { clearTimeout(bakiTimer); bakiTimer = null; }
+  if (!isOnline()) return false;
+  return syncNow();
+}
+
+/**
+ * Restore all synced data from `user_backups` for the current user.
+ * Returns the merged payload, or null if there is no cloud backup
+ * (e.g. brand-new account) or the user is not signed in.
+ * The caller is responsible for hydrating React state / IndexedDB.
+ */
+export interface CloudSnapshot {
+  customers?: unknown[];
+  bakiPaymentRecords?: unknown[];
+  products?: unknown[];
+  expenses?: unknown[];
+  customEarnings?: unknown[];
+  updatedAt: number;
+}
+
+export async function restoreFromCloud(): Promise<CloudSnapshot | null> {
+  try {
+    const { data: auth } = await withTimeout(supabase.auth.getUser(), 4000, 'restore.getUser');
+    const userId = auth.user?.id;
+    if (!userId) return null;
+
+    const { data, error } = await withTimeout(supabase
+      .from('user_backups')
+      .select('data, updated_at')
+      .eq('user_id', userId)
+      .maybeSingle(), 5000, 'restore.readBackup');
+    if (error) { console.warn('[sync] restore failed:', error.message); return null; }
+    if (!data?.data) return null;
+
+    const payload = data.data as Record<string, unknown>;
+    const updatedAt = data.updated_at ? new Date(data.updated_at).getTime() : Date.now();
+
+    // Mark all scopes as freshly synced so the very first local mutation
+    // doesn't re-upload identical data unnecessarily.
+    await Promise.all([
+      setMeta(LAST_SYNC_KEY('baki'), updatedAt),
+      setMeta(LAST_SYNC_KEY('products'), updatedAt),
+      setMeta(LAST_SYNC_KEY('hisab'), updatedAt),
+    ]);
+    void refreshSnapshot();
+
+    return {
+      customers:            Array.isArray(payload.customers) ? payload.customers as unknown[] : undefined,
+      bakiPaymentRecords:   Array.isArray(payload.bakiPaymentRecords) ? payload.bakiPaymentRecords as unknown[] : undefined,
+      products:             Array.isArray(payload.products) ? payload.products as unknown[] : undefined,
+      expenses:             Array.isArray(payload.expenses) ? payload.expenses as unknown[] : undefined,
+      customEarnings:       Array.isArray(payload.customEarnings) ? payload.customEarnings as unknown[] : undefined,
+      updatedAt,
+    };
+  } catch (e: any) {
+    console.warn('[sync] restore threw:', e?.message ?? e);
+    return null;
+  }
+}
+
 // ---------- legacy compatibility shims ------------------------------------
 // Older code calls these — keep them so the rest of the app keeps working.
 export function getPendingCount(): number { return snapshot.pendingTotal; }
@@ -267,3 +333,5 @@ export function getLastSyncAt(): number | null {
   ) || null;
 }
 export function getNextSyncAt(): number { return snapshot.nextBackupAt; }
+
+      
