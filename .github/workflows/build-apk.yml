@@ -38,42 +38,63 @@ jobs:
         run: |
           pip install Pillow --break-system-packages
           python3 -c "
-          from PIL import Image, ImageDraw
+          from PIL import Image
           import os
 
           img = Image.open('public/logo.png').convert('RGBA')
 
-          # All icon sizes needed by Android
-          icon_configs = [
+          def make_padded_icon(source, size, padding_pct, bg=(255, 255, 255, 255)):
+              # Places the source logo centered on a full-size canvas with
+              # transparent-safe padding, so Android's launcher mask (circle,
+              # squircle, etc.) doesn't crop into the actual artwork.
+              canvas = Image.new('RGBA', (size, size), bg)
+              inner = int(size * (1 - padding_pct * 2))
+              resized = source.resize((inner, inner), Image.LANCZOS)
+              x = (size - inner) // 2
+              y = (size - inner) // 2
+              canvas.paste(resized, (x, y), mask=resized.split()[3])
+              return canvas
+
+          # Legacy/round icons: moderate padding (~15%) — these are shown
+          # mostly as-is on older launchers, just enough breathing room.
+          legacy_configs = [
             ('android/app/src/main/res/mipmap-mdpi/ic_launcher.png', 48),
             ('android/app/src/main/res/mipmap-hdpi/ic_launcher.png', 72),
             ('android/app/src/main/res/mipmap-xhdpi/ic_launcher.png', 96),
             ('android/app/src/main/res/mipmap-xxhdpi/ic_launcher.png', 144),
             ('android/app/src/main/res/mipmap-xxxhdpi/ic_launcher.png', 192),
-            # FIX: round icons also required by Android launcher
             ('android/app/src/main/res/mipmap-mdpi/ic_launcher_round.png', 48),
             ('android/app/src/main/res/mipmap-hdpi/ic_launcher_round.png', 72),
             ('android/app/src/main/res/mipmap-xhdpi/ic_launcher_round.png', 96),
             ('android/app/src/main/res/mipmap-xxhdpi/ic_launcher_round.png', 144),
             ('android/app/src/main/res/mipmap-xxxhdpi/ic_launcher_round.png', 192),
-            # FIX: foreground layer for adaptive icons
+          ]
+          for path, size in legacy_configs:
+            os.makedirs(os.path.dirname(path), exist_ok=True)
+            icon = make_padded_icon(img, size, padding_pct=0.15)
+            icon.convert('RGB').save(path)
+            print(f'Created {path}')
+
+          # Adaptive icon foreground layers: Android's adaptive icon spec
+          # only guarantees the center ~66% (a 'safe zone') survives every
+          # possible mask shape (circle, squircle, rounded square, etc).
+          # Content outside that zone WILL get clipped on some launchers —
+          # this is the actual cause of the 'zoomed in' look. ~30% padding
+          # keeps the logo safely inside that zone on every shape.
+          foreground_configs = [
             ('android/app/src/main/res/mipmap-mdpi/ic_launcher_foreground.png', 48),
             ('android/app/src/main/res/mipmap-hdpi/ic_launcher_foreground.png', 72),
             ('android/app/src/main/res/mipmap-xhdpi/ic_launcher_foreground.png', 96),
             ('android/app/src/main/res/mipmap-xxhdpi/ic_launcher_foreground.png', 144),
             ('android/app/src/main/res/mipmap-xxxhdpi/ic_launcher_foreground.png', 192),
           ]
-
-          for path, size in icon_configs:
+          for path, size in foreground_configs:
             os.makedirs(os.path.dirname(path), exist_ok=True)
-            resized = img.resize((size, size), Image.LANCZOS)
-            # Convert RGBA to RGB with white background for non-transparent formats
-            background = Image.new('RGBA', resized.size, (255, 255, 255, 255))
-            background.paste(resized, mask=resized.split()[3])
-            background.convert('RGB').save(path)
+            icon = make_padded_icon(img, size, padding_pct=0.30)
+            icon.convert('RGB').save(path)
             print(f'Created {path}')
 
-          # FIX: Splash screen logo — centered on teal background
+          # Splash screen logo — centered on teal background (unchanged)
           splash_sizes = [
             ('android/app/src/main/res/drawable/splash.png', 1080, 1920),
             ('android/app/src/main/res/drawable-land/splash.png', 1920, 1080),
@@ -110,5 +131,6 @@ jobs:
         with:
           name: dukan360-debug
           path: android/app/build/outputs/apk/debug/app-debug.apk
+
 
           
