@@ -6,6 +6,17 @@ import { SubscriptionLock } from './SubscriptionLock';
 import TrialWarningBanner from '@/components/TrialWarningBanner';
 import { SafetyNotice } from '@/components/SafetyNotice';
 import { ensureNotificationPermission, runScheduledChecks, maybeShowDailyReminder } from '@/lib/notifications';
+import { useAndroidBackButton } from '@/hooks/useAndroidBackButton';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 
 interface MainLayoutProps {
   title?: string;
@@ -13,6 +24,7 @@ interface MainLayoutProps {
 
 export function MainLayout({ title }: MainLayoutProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const { showExitConfirm, confirmExit, cancelExit } = useAndroidBackButton();
 
   useEffect(() => {
     let cancelled = false;
@@ -46,6 +58,21 @@ export function MainLayout({ title }: MainLayoutProps) {
           </SubscriptionLock>
         </main>
       </div>
+
+      <AlertDialog open={showExitConfirm} onOpenChange={(open) => { if (!open) cancelExit(); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Exit Dukan 360?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Do you want to exit the app?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={cancelExit}>No</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmExit}>Yes</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
