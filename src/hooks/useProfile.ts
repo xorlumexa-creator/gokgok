@@ -18,6 +18,7 @@ export interface AppProfile {
   temporary_access: boolean;
   temporary_expiry: string | null;
   must_change_password: boolean;
+  created_at?: string;
 }
 
 type ProfileListener = (profile: AppProfile | null, loading: boolean) => void;
@@ -55,7 +56,7 @@ export function primeProfileFromAuth(userId: string, metadata: Record<string, an
   const previous = cachedProfile?.user_id === userId ? cachedProfile : null;
 
   cachedUserId = userId;
-  cachedProfile = {
+  const primed: AppProfile = {
     ...(previous ?? {} as AppProfile),
     id: previous?.id || userId,
     user_id: userId,
@@ -65,14 +66,29 @@ export function primeProfileFromAuth(userId: string, metadata: Record<string, an
     role: phone && isManagerPhone(phone) ? 'manager' : (previous?.role || 'user'),
     plan: previous?.plan || null,
     plan_expiry: previous?.plan_expiry || null,
-    subscription_status: previous?.subscription_status || 'trial',
-    trial_start_date: previous?.trial_start_date || new Date().toISOString(),
+    // IMPORTANT: never fabricate subscription_status/trial_start_date when
+    // we have no previous cached data. Guessing 'trial' + today's date here
+    // meant any paid user whose local cache was empty (e.g. after clearing
+    // app data, or right after a password reset) would flash — and, if the
+    // real fetch below then failed/timed out, permanently show — as being
+    // on a brand-new trial. Leave these blank until the real DB fetch in
+    // loadProfile() confirms the actual values.
+    subscription_status: previous?.subscription_status || '',
+    trial_start_date: previous?.trial_start_date || '',
     temporary_access: previous?.temporary_access || false,
     temporary_expiry: previous?.temporary_expiry || null,
     must_change_password: previous?.must_change_password || false,
   };
+
+  cachedProfile = primed;
   cachedLoading = false;
-  persistProfile(cachedProfile);
+
+  // Only persist to localStorage if this profile actually has confirmed
+  // subscription data (i.e. it came from a previous real fetch, not a
+  // fresh guess). A bare optimistic guess must never become "sticky"
+  // ground truth in the cache.
+  if (previous) persistProfile(cachedProfile);
+
   notifyProfileListeners();
   return cachedProfile;
 }
@@ -97,7 +113,7 @@ async function loadProfile(userId: string, force = false): Promise<AppProfile | 
   inFlight = withTimeout(
     supabase
       .from('profiles')
-      .select('id,user_id,full_name,shop_name,phone,role,plan,plan_expiry,subscription_status,trial_start_date,temporary_access,temporary_expiry,must_change_password')
+      .select('id,user_id,full_name,shop_name,phone,role,plan,plan_expiry,subscription_status,trial_start_date,temporary_access,temporary_expiry,must_change_password,created_at')
       .eq('user_id', userId)
       .maybeSingle(),
     5000,
@@ -183,4 +199,4 @@ export function useProfile() {
   // ProtectedRoute already handles the authLoading case separately
   return { profile, loading, refresh };
 }
-  
+
