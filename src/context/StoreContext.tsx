@@ -26,6 +26,7 @@ interface StoreContextType {
   addMultipleSales: (sales: Omit<Sale, 'id' | 'createdAt'>[], customerId?: string, customerName?: string, isPaid?: boolean) => void;
   addCustomer: (customer: Omit<Customer, 'id' | 'createdAt' | 'displayName' | 'pendingProfit' | 'lastPaymentDate'>) => Customer;
   updateCustomer: (id: string, customer: Partial<Customer>) => void;
+  deleteCustomer: (id: string) => void;
   updateCustomerDue: (id: string, amount: number, profitAmount?: number) => void;
   payCustomerDue: (id: string, paymentAmount: number) => number;
   completeOnboarding: (storeName: string, initialProducts: Omit<Product, 'id' | 'createdAt'>[]) => void;
@@ -40,6 +41,7 @@ interface StoreContextType {
   searchCustomersByName: (name: string) => Customer[];
   getUnpaidCustomers: () => Customer[];
   getCustomersDueFor30Days: () => Customer[];
+  getZeroDueAccounts: () => Customer[];
   addPreOrder: (preOrder: Omit<PreOrder, 'id' | 'createdAt'>) => void;
   updatePreOrderStatus: (id: string, status: PreOrderStatus) => void;
   markPreOrderAsSold: (id: string) => void;
@@ -293,15 +295,31 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   };
 
   const getCustomersDueFor30Days = (): Customer[] => {
+    // Shows a reminder 30 days after the baki account was created, OR 30 days
+    // after the last payment (full or partial) — whichever is more recent.
+    // This makes the reminder clock "restart" every time a customer pays
+    // something, instead of disappearing forever after the first payment.
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
     return customers.filter(c => {
       if (c.totalDue <= 0) return false;
-      const bakiDate = c.bakiCreatedAt ? new Date(c.bakiCreatedAt) : new Date(c.createdAt);
-      if (bakiDate > thirtyDaysAgo) return false;
-      if (c.lastPaymentDate) return false;
-      return true;
+      const referenceDate = c.lastPaymentDate
+        ? new Date(c.lastPaymentDate)
+        : (c.bakiCreatedAt ? new Date(c.bakiCreatedAt) : new Date(c.createdAt));
+      return referenceDate <= thirtyDaysAgo;
     });
+  };
+
+  // Accounts sitting at ৳0 baki but still counted against the account limit.
+  // Sorted oldest-zero-first so the shopkeeper sees the longest-idle accounts up top.
+  const getZeroDueAccounts = (): Customer[] => {
+    return customers
+      .filter(c => c.totalDue === 0)
+      .sort((a, b) => {
+        const aDate = a.dueClearedAt ? new Date(a.dueClearedAt).getTime() : new Date(a.createdAt).getTime();
+        const bDate = b.dueClearedAt ? new Date(b.dueClearedAt).getTime() : new Date(b.createdAt).getTime();
+        return aDate - bDate;
+      });
   };
 
   const getTodaysSalesSerial = (): number => {
@@ -373,13 +391,48 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   const addCustomer = (customer: Omit<Customer, 'id' | 'createdAt' | 'displayName' | 'pendingProfit' | 'lastPaymentDate'>): Customer => {
     const displayName = generateCustomerDisplayName(customer.name);
-    const newCustomer: Customer = { ...customer, id: generateId(), displayName, pendingProfit: 0, totalDue: Math.max(0, customer.totalDue), createdAt: new Date(), bakiCreatedAt: customer.totalDue > 0 ? new Date() : undefined };
+    const safeDue = Math.max(0, customer.totalDue);
+    const newCustomer: Customer = {
+      ...customer,
+      id: generateId(),
+      displayName,
+      pendingProfit: 0,
+      totalDue: safeDue,
+      createdAt: new Date(),
+      bakiCreatedAt: safeDue > 0 ? new Date() : undefined,
+      dueClearedAt: safeDue === 0 ? new Date() : undefined,
+    };
     setCustomers(prev => [...prev, newCustomer]);
     return newCustomer;
   };
 
+  // Update a customer's profile fields, or manually customize their baki amount
+  // (used by the pen/edit icon on the baki khata list). When the due amount is
+  // set to 0 we stamp dueClearedAt (for the "০ টাকা বাকি" cleanup reminder);
+  // when it's set back above 0 we clear that stamp since the baki is active again.
   const updateCustomer = (id: string, customerUpdate: Partial<Customer>) => {
-    setCustomers(prev => prev.map(c => c.id === id ? { ...c, ...customerUpdate } : c));
+    setCustomers(prev => prev.map(c => {
+      if (c.id !== id) return c;
+      const merged: Customer = { ...c, ...customerUpdate };
+      if (customerUpdate.totalDue !== undefined) {
+        const newDue = Math.max(0, customerUpdate.totalDue);
+        merged.totalDue = newDue;
+        if (newDue === 0) {
+          merged.dueClearedAt = c.dueClearedAt || new Date();
+        } else {
+          merged.dueClearedAt = undefined;
+          merged.bakiCreatedAt = c.bakiCreatedAt || new Date();
+        }
+      }
+      return merged;
+    }));
+  };
+
+  // Permanently remove a customer account. Used from the "০ টাকা বাকি" cleanup
+  // reminder — deleting a zero-due account frees up one slot from the
+  // subscription's account limit (limit is based on customers.length).
+  const deleteCustomer = (id: string) => {
+    setCustomers(prev => prev.filter(c => c.id !== id));
   };
 
   const updateCustomerDue = (id: string, amount: number, profitAmount?: number) => {
@@ -388,7 +441,14 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     setCustomers(prev => prev.map(c => {
       if (c.id !== id) return c;
       const newDue = Math.max(0, c.totalDue + safeAmount);
-      return { ...c, totalDue: newDue, pendingProfit: Math.max(0, c.pendingProfit + safeProfitAmount), bakiCreatedAt: c.bakiCreatedAt || (newDue > 0 ? new Date() : undefined) };
+      return {
+        ...c,
+        totalDue: newDue,
+        pendingProfit: Math.max(0, c.pendingProfit + safeProfitAmount),
+        bakiCreatedAt: c.bakiCreatedAt || (newDue > 0 ? new Date() : undefined),
+        // New baki added → account is active again, clear the zero-due stamp.
+        dueClearedAt: newDue > 0 ? undefined : c.dueClearedAt,
+      };
     }));
   };
 
@@ -396,9 +456,16 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     const customer = customers.find(c => c.id === id);
     if (!customer || customer.totalDue <= 0 || paymentAmount <= 0) return 0;
     const proportionalProfit = customer.totalDue > 0 ? (customer.pendingProfit / customer.totalDue) * paymentAmount : 0;
-    const newTotalDue = customer.totalDue - paymentAmount;
-    const newPendingProfit = customer.pendingProfit - proportionalProfit;
-    setCustomers(prev => prev.map(c => c.id === id ? { ...c, totalDue: Math.max(0, newTotalDue), pendingProfit: Math.max(0, newPendingProfit), lastPaymentDate: new Date() } : c));
+    const newTotalDue = Math.max(0, customer.totalDue - paymentAmount);
+    const newPendingProfit = Math.max(0, customer.pendingProfit - proportionalProfit);
+    setCustomers(prev => prev.map(c => c.id === id ? {
+      ...c,
+      totalDue: newTotalDue,
+      pendingProfit: newPendingProfit,
+      lastPaymentDate: new Date(),
+      // Full payment brought the due down to 0 → stamp it for the cleanup reminder.
+      dueClearedAt: newTotalDue === 0 ? new Date() : undefined,
+    } : c));
     if (proportionalProfit > 0) {
       setBakiPaymentRecords(prev => [...prev, { id: generateId(), customerId: id, customerName: customer.displayName, paymentAmount, profitEarned: proportionalProfit, createdAt: new Date() }]);
     }
@@ -517,13 +584,13 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       storeInfo, products, sales, customers, expenses, preOrders,
       bulkSaleRecords, bakiPaymentRecords, customEarnings, suppliers, isOnboarded,
       setStoreInfo, addProduct, updateProduct, deleteProduct,
-      addSale, addMultipleSales, addCustomer, updateCustomer,
+      addSale, addMultipleSales, addCustomer, updateCustomer, deleteCustomer,
       updateCustomerDue, payCustomerDue, completeOnboarding,
       getDashboardStats, getPersonalAccountStats,
       addExpense, addCustomEarning, getProductSuggestions,
       generateCustomerDisplayName, getExistingCustomersByName,
       searchCustomersByPhone, searchCustomersByName,
-      getUnpaidCustomers, getCustomersDueFor30Days,
+      getUnpaidCustomers, getCustomersDueFor30Days, getZeroDueAccounts,
       addPreOrder, updatePreOrderStatus, markPreOrderAsSold,
       getWeeklyBulkSales, getTodaysSalesSerial,
       addSupplier, updateSupplier, deleteSupplier,
