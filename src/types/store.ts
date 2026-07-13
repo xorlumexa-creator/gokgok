@@ -110,6 +110,8 @@ export interface Customer {
   lastPaymentDate?: Date;
   // Track when first baki was created for 30-day reminder
   bakiCreatedAt?: Date;
+  // Track when totalDue last became 0 (used for the "০ টাকা বাকি" cleanup reminder)
+  dueClearedAt?: Date;
 }
 
 // Supplier types
@@ -294,3 +296,4 @@ export const validatePhoneWithCountryCode = (phone: string): { valid: boolean; m
   
   return { valid: true, message: '' };
 };
+  
