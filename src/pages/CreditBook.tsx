@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { BookOpen, Search, User, Phone, Plus, X, CheckCircle, AlertTriangle, MessageCircle, Send, Edit3, PhoneCall } from 'lucide-react';
+import { BookOpen, Search, User, Phone, Plus, X, CheckCircle, AlertTriangle, MessageCircle, Send, Edit3, PhoneCall, Trash2, Clock, ChevronDown, ChevronUp } from 'lucide-react';
 import { useStore } from '@/context/StoreContext';
 import { useSubscription } from '@/context/SubscriptionContext';
 import { Button } from '@/components/ui/button';
@@ -14,11 +14,13 @@ export default function CreditBook() {
     storeInfo,
     addCustomer, 
     updateCustomer,
+    deleteCustomer,
     payCustomerDue, 
     getExistingCustomersByName, 
     generateCustomerDisplayName,
     getUnpaidCustomers,
-    getCustomersDueFor30Days
+    getCustomersDueFor30Days,
+    getZeroDueAccounts
   } = useStore();
   const { guardAddCustomer, guardFeature } = useSubscription();
   
@@ -41,6 +43,10 @@ export default function CreditBook() {
   const [reminderMessage, setReminderMessage] = useState('');
   const [editingMessage, setEditingMessage] = useState(false);
 
+  // "০ টাকা বাকি" cleanup reminder state (lives on the baki page only)
+  const [showZeroDueSection, setShowZeroDueSection] = useState(false);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+
   // Check if today is 1st of month for monthly reminder
   const isFirstOfMonth = new Date().getDate() === 1;
 
@@ -52,6 +58,21 @@ export default function CreditBook() {
 
   // Get all customers with any baki (for monthly reminder)
   const customersWithBaki = useMemo(() => customers.filter(c => c.totalDue > 0), [customers]);
+
+  // Get accounts sitting at ৳0 baki (still occupying an account slot in the limit)
+  const zeroDueAccounts = useMemo(() => getZeroDueAccounts(), [getZeroDueAccounts, customers]);
+
+  // Human-readable "X দিন ধরে" / "X মাস ধরে" text for how long an account has been at ৳0
+  const formatZeroDuration = (date: Date | string): string => {
+    const start = new Date(date);
+    const diffDays = Math.max(0, Math.floor((Date.now() - start.getTime()) / (1000 * 60 * 60 * 24)));
+    if (diffDays < 30) {
+      return diffDays === 0 ? 'আজ থেকে' : `${diffDays} দিন ধরে`;
+    }
+    const months = Math.floor(diffDays / 30);
+    const remDays = diffDays % 30;
+    return remDays === 0 ? `${months} মাস ধরে` : `${months} মাস ${remDays} দিন ধরে`;
+  };
 
   // Default reminder message template
   const defaultReminderMessage = `আসসালামু আলাইকুম,
@@ -154,6 +175,21 @@ ${storeInfo?.name || 'আমাদের দোকানে'} এ আপনা�
 
   const getPayingCustomer = () => {
     return customers.find(c => c.id === showPaymentModal);
+  };
+
+  // Delete a ৳0-baki account. Frees one slot from the account limit
+  // (subscription limit is based on total number of customer accounts).
+  const handleDeleteZeroDueAccount = (customerId: string, displayName: string) => {
+    if (confirmDeleteId !== customerId) {
+      setConfirmDeleteId(customerId);
+      return;
+    }
+    deleteCustomer(customerId);
+    setConfirmDeleteId(null);
+    toast({
+      title: `"${displayName}" অ্যাকাউন্ট মুছে ফেলা হয়েছে ✓`,
+      description: 'অ্যাকাউন্ট স্লট খালি হয়েছে',
+    });
   };
 
   // Send WhatsApp message
@@ -362,6 +398,80 @@ ${storeInfo?.name || 'আমাদের দোকানে'} এ আপনা�
         </button>
       )}
 
+      {/* ৳0 Baki Cleanup Reminder (baki page only, not dashboard) */}
+      {zeroDueAccounts.length > 0 && (
+        <div className="space-y-0">
+          <button
+            onClick={() => setShowZeroDueSection(!showZeroDueSection)}
+            className={`w-full p-4 rounded-xl border-2 transition-all flex items-center gap-3 ${
+              showZeroDueSection ? 'border-primary bg-primary/5' : 'border-slate-300 bg-slate-50'
+            }`}
+          >
+            <Clock className={`w-6 h-6 ${showZeroDueSection ? 'text-primary' : 'text-slate-500'}`} />
+            <div className="text-left flex-1">
+              <p className="font-semibold text-foreground">
+                ৳০ বাকি এমন অ্যাকাউন্ট আছে ({zeroDueAccounts.length}জন)
+              </p>
+              <p className="text-sm text-muted-foreground">
+                এই অ্যাকাউন্টগুলো এখনো আপনার লিমিটের জায়গা দখল করে আছে
+              </p>
+            </div>
+            {showZeroDueSection ? (
+              <ChevronUp className="w-5 h-5 text-muted-foreground" />
+            ) : (
+              <ChevronDown className="w-5 h-5 text-muted-foreground" />
+            )}
+          </button>
+
+          {showZeroDueSection && (
+            <div className="card-elevated p-4 mt-3 space-y-2 animate-fade-in max-h-80 overflow-y-auto">
+              {zeroDueAccounts.map((customer) => {
+                const zeroSince = customer.dueClearedAt || customer.createdAt;
+                const isConfirming = confirmDeleteId === customer.id;
+                return (
+                  <div
+                    key={customer.id}
+                    className="flex items-center justify-between p-3 bg-muted/30 rounded-xl"
+                  >
+                    <div className="flex-1">
+                      <p className="font-medium">{customer.displayName}</p>
+                      {customer.phone && (
+                        <p className="text-xs text-muted-foreground">{customer.phone}</p>
+                      )}
+                      <p className="text-xs text-primary font-medium mt-0.5">
+                        {formatZeroDuration(zeroSince)} ৳০ বাকি
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {isConfirming && (
+                        <button
+                          onClick={() => setConfirmDeleteId(null)}
+                          className="px-3 py-2 bg-muted hover:bg-muted/80 rounded-lg text-xs font-medium"
+                        >
+                          বাতিল
+                        </button>
+                      )}
+                      <button
+                        onClick={() => handleDeleteZeroDueAccount(customer.id, customer.displayName)}
+                        className={`flex items-center gap-1 px-3 py-2 rounded-lg text-xs font-medium transition-colors ${
+                          isConfirming
+                            ? 'bg-destructive text-destructive-foreground hover:bg-destructive/90'
+                            : 'bg-red-100 text-red-600 hover:bg-red-200'
+                        }`}
+                        title="অ্যাকাউন্ট মুছুন"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                        {isConfirming ? 'নিশ্চিত মুছুন' : 'মুছুন'}
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Search Type Toggle */}
       <div className="flex gap-2">
         <button
@@ -557,12 +667,15 @@ ${storeInfo?.name || 'আমাদের দোকানে'} এ আপনা�
                       setEditingDueFor(customer.id);
                       setEditDueAmount(customer.totalDue.toString());
                     }}
-                    className="flex items-center gap-1 group"
+                    className="flex items-center gap-1.5 group"
+                    title="বাকির পরিমাণ কাস্টমাইজ করুন"
                   >
                     <span className={`text-xl font-bold ${customer.totalDue > 0 ? 'text-due' : 'text-profit'}`}>
                       ৳{customer.totalDue.toLocaleString()}
                     </span>
-                    <Edit3 className="w-4 h-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
+                    <span className="p-1.5 bg-primary/10 group-hover:bg-primary/20 rounded-lg text-primary transition-colors">
+                      <Edit3 className="w-4 h-4" />
+                    </span>
                   </button>
                 )}
 
