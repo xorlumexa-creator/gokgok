@@ -26,7 +26,7 @@ jobs:
           VITE_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.VITE_SUPABASE_PUBLISHABLE_KEY }}
 
       - name: Install Capacitor
-        run: npm install @capacitor/core@latest @capacitor/cli@latest @capacitor/android@latest @capacitor/network@latest
+        run: npm install @capacitor/core@latest @capacitor/cli@latest @capacitor/android@latest @capacitor/network@latest @capacitor/app@latest
 
       - name: Add Capacitor Android
         run: npx cap add android
@@ -131,6 +131,3 @@ jobs:
         with:
           name: dukan360-debug
           path: android/app/build/outputs/apk/debug/app-debug.apk
-
-
-          
