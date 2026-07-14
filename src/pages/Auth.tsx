@@ -7,6 +7,7 @@ import { toast } from '@/hooks/use-toast';
 import { primeAuthSession, useAuth } from '@/hooks/useAuth';
 import { primeProfileFromAuth } from '@/hooks/useProfile';
 import { PhoneInput } from '@/components/auth/PhoneInput';
+import { LocationPicker } from '@/components/auth/LocationPicker';
 import { Country, defaultCountry } from '@/data/countries';
 import { normalizePhone, phoneToEmail, isManagerPhone } from '@/lib/phone';
 import { withTimeout } from '@/lib/asyncTimeout';
@@ -27,6 +28,7 @@ export default function Auth() {
 
   const [name, setName] = useState('');
   const [shopName, setShopName] = useState('');
+  const [address, setAddress] = useState('');
 
   const { user, loading: authLoading } = useAuth();
 
@@ -74,6 +76,7 @@ export default function Auth() {
     const normalized = normalizePhone(phone, country.dialCode);
     if (!name.trim()) { toast({ title: 'আপনার নাম দিন', variant: 'destructive' }); return; }
     if (!shopName.trim()) { toast({ title: 'দোকানের নাম দিন', variant: 'destructive' }); return; }
+    if (!address.trim()) { toast({ title: 'দোকানের লোকেশন দিন', variant: 'destructive' }); return; }
     if (!normalized || normalized.length < 8) { toast({ title: 'সঠিক ফোন নম্বর দিন', variant: 'destructive' }); return; }
     if (password.length < 6) { toast({ title: 'পাসওয়ার্ড কমপক্ষে ৬ অক্ষরের হতে হবে', variant: 'destructive' }); return; }
     if (password !== confirmPassword) { toast({ title: 'পাসওয়ার্ড মিলছে না', variant: 'destructive' }); return; }
@@ -89,6 +92,7 @@ export default function Auth() {
             shop_name: shopName.trim(),
             phone: normalized,
             country: country.code,
+            address: address.trim(),
           },
         },
       }), 6000, 'auth.signup');
@@ -109,6 +113,11 @@ export default function Auth() {
       }
       primeAuthSession(session ?? null);
       if (user) primeProfileFromAuth(user.id, { full_name: name.trim(), shop_name: shopName.trim(), phone: normalized });
+      if (user && address.trim()) {
+        // The signup DB trigger doesn't copy `address` from metadata, so save it explicitly.
+        supabase.from('profiles').update({ address: address.trim() }).eq('user_id', user.id)
+          .then(({ error }) => { if (error) console.warn('Failed to save shop location:', error); });
+      }
       navigate(isManagerPhone(normalized) ? '/manager' : '/dashboard', { replace: true });
       if (isManagerPhone(normalized)) {
         toast({ title: 'ম্যানেজার একাউন্ট তৈরি হয়েছে ✓' });
@@ -154,6 +163,7 @@ export default function Auth() {
                   <label className="block text-sm font-medium mb-2"><Store className="w-4 h-4 inline mr-1" />দোকানের নাম</label>
                   <input type="text" value={shopName} onChange={e => setShopName(e.target.value)} placeholder="যেমন: করিম স্টোর" className="input-field" />
                 </div>
+                <LocationPicker address={address} onAddressChange={setAddress} />
               </>
             )}
 
