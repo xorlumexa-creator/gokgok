@@ -254,7 +254,33 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   const setStoreInfo = (info: StoreInfo) => setStoreInfoState(info);
 
-
+  // ── Backfill শপ লোকেশন (shop location) ─────────────────────────────────
+  // The shopkeeper's location is captured at signup and saved straight to
+  // the `profiles` table, but `storeInfo` (used to fill in WhatsApp
+  // messages/invoices) lives in localStorage and may not have it yet -
+  // e.g. right after signup, before the Profile page has ever been saved
+  // from this device. Pull it once so location shows up everywhere it's
+  // used without the shopkeeper having to re-enter it.
+  const hydratedLocationRef = useRef(false);
+  useEffect(() => {
+    if (hydratedLocationRef.current) return;
+    if (!storeInfo || storeInfo.location) return;
+    hydratedLocationRef.current = true;
+    (async () => {
+      try {
+        const { data: { user } } = await withTimeout(supabase.auth.getUser(), 4000, 'store.hydrateLocation.getUser');
+        if (!user) return;
+        const { data, error } = await withTimeout(
+          supabase.from('profiles').select('address').eq('user_id', user.id).maybeSingle(),
+          4000, 'store.hydrateLocation.profile'
+        );
+        if (error || !data?.address) return;
+        setStoreInfoState(prev => prev ? { ...prev, location: data.address } : prev);
+      } catch (e) {
+        console.warn('[store] location hydrate failed:', e);
+      }
+    })();
+  }, [storeInfo]);
 
   const generateCustomerDisplayName = (name: string): string => {
     const normalizedName = name.toLowerCase().trim();
