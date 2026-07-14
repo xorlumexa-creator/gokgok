@@ -33,14 +33,29 @@ export default function Suppliers() {
   
   const [productSearch, setProductSearch] = useState('');
   
-  const filteredSuppliers = useMemo(() => {
-    if (!searchTerm.trim()) return suppliers;
+  // Flatten to one row per (product, supplier) pair so the list can show
+  // "পণ্যের নাম (সরবরাহকারীর নাম)" - this covers suppliers added manually on
+  // this page AND suppliers auto-linked from the product page's supplier field.
+  const supplierProductRows = useMemo(() => {
+    const rows: { key: string; supplier: typeof suppliers[0]; product: typeof products[0] }[] = [];
+    suppliers.forEach(supplier => {
+      supplier.productIds.forEach(pid => {
+        const product = products.find(p => p.id === pid);
+        if (product) rows.push({ key: `${supplier.id}-${pid}`, supplier, product });
+      });
+    });
+    return rows.sort((a, b) => a.product.name.localeCompare(b.product.name, 'bn'));
+  }, [suppliers, products]);
+
+  const filteredSupplierRows = useMemo(() => {
+    if (!searchTerm.trim()) return supplierProductRows;
     const lower = searchTerm.toLowerCase();
-    return suppliers.filter(s => 
-      s.name.toLowerCase().includes(lower) ||
-      s.phone.includes(searchTerm)
+    return supplierProductRows.filter(row =>
+      row.supplier.name.toLowerCase().includes(lower) ||
+      row.supplier.phone.includes(searchTerm) ||
+      row.product.name.toLowerCase().includes(lower)
     );
-  }, [suppliers, searchTerm]);
+  }, [supplierProductRows, searchTerm]);
 
   const filteredProducts = useMemo(() => {
     if (!productSearch.trim()) return products;
@@ -69,6 +84,12 @@ ${storeInfo?.name || 'আমাদের দোকান'} থেকে অন�
     const validation = validatePhoneWithCountryCode(formData.phone);
     if (!validation.valid) {
       toast({ title: validation.message, variant: "destructive" });
+      return;
+    }
+
+    // Suppliers can only be added by selecting a product
+    if (formData.productIds.length === 0) {
+      toast({ title: "কমপক্ষে একটি পণ্য নির্বাচন করুন", variant: "destructive" });
       return;
     }
 
@@ -187,81 +208,70 @@ ${storeInfo?.name || 'আমাদের দোকান'} থেকে অন�
           type="text"
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
-          placeholder="সরবরাহকারী খুঁজুন..."
+          placeholder="পণ্য বা সরবরাহকারীর নাম দিয়ে খুঁজুন..."
           className="input-field pl-10"
         />
       </div>
 
-      {/* Supplier List */}
+      {/* Supplier List - one row per product, supplier name shown in brackets */}
       <div className="space-y-3">
-        {filteredSuppliers.map((supplier) => {
-          const suppliedProducts = products.filter(p => supplier.productIds.includes(p.id));
-          return (
-            <div key={supplier.id} className="card-elevated p-4">
-              <div className="flex items-start justify-between">
-                <div className="flex-1">
-                  <h3 className="font-semibold text-foreground text-lg">{supplier.name}</h3>
-                  <p className="text-sm text-muted-foreground flex items-center gap-1 mt-1">
-                    <Phone className="w-4 h-4" />
-                    {supplier.phone}
-                  </p>
-                  {suppliedProducts.length > 0 && (
-                    <div className="mt-2 flex flex-wrap gap-1">
-                      {suppliedProducts.slice(0, 3).map(p => (
-                        <span key={p.id} className="text-xs px-2 py-1 bg-primary/10 text-primary rounded-full">
-                          {p.name}
-                        </span>
-                      ))}
-                      {suppliedProducts.length > 3 && (
-                        <span className="text-xs px-2 py-1 bg-muted text-muted-foreground rounded-full">
-                          +{suppliedProducts.length - 3}টি আরও
-                        </span>
-                      )}
-                    </div>
-                  )}
-                </div>
-                <div className="flex items-center gap-2">
-                  {/* Call Button */}
-                  <button
-                    onClick={() => callSupplier(supplier.phone)}
-                    className="p-2 bg-primary/10 hover:bg-primary/20 rounded-xl text-primary transition-colors"
-                    title="কল করুন"
-                  >
-                    <Phone className="w-5 h-5" />
-                  </button>
-                  {/* Message Button */}
-                  <button
-                    onClick={() => messageSupplier(supplier)}
-                    className="p-2 bg-green-100 hover:bg-green-200 rounded-xl text-green-600 transition-colors"
-                    title="WhatsApp বার্তা"
-                  >
-                    <MessageCircle className="w-5 h-5" />
-                  </button>
-                  {/* Edit Button */}
-                  <button
-                    onClick={() => handleEdit(supplier)}
-                    className="p-2 hover:bg-muted rounded-lg text-muted-foreground hover:text-foreground"
-                  >
-                    <Edit2 className="w-4 h-4" />
-                  </button>
-                  {/* Delete Button */}
-                  <button
-                    onClick={() => handleDelete(supplier.id)}
-                    className="p-2 hover:bg-destructive/10 rounded-lg text-muted-foreground hover:text-destructive"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
-                </div>
+        {filteredSupplierRows.map(({ key, supplier, product }) => (
+          <div key={key} className="card-elevated p-4">
+            <div className="flex items-start justify-between">
+              <div className="flex-1">
+                <h3 className="font-semibold text-foreground text-lg">
+                  {product.name}{' '}
+                  <span className="text-primary font-medium">({supplier.name})</span>
+                </h3>
+                <p className="text-sm text-muted-foreground flex items-center gap-1 mt-1">
+                  <Phone className="w-4 h-4" />
+                  {supplier.phone}
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                {/* Call Button */}
+                <button
+                  onClick={() => callSupplier(supplier.phone)}
+                  className="p-2 bg-primary/10 hover:bg-primary/20 rounded-xl text-primary transition-colors"
+                  title="কল করুন"
+                >
+                  <Phone className="w-5 h-5" />
+                </button>
+                {/* Message Button */}
+                <button
+                  onClick={() => messageSupplier(supplier)}
+                  className="p-2 bg-green-100 hover:bg-green-200 rounded-xl text-green-600 transition-colors"
+                  title="WhatsApp বার্তা"
+                >
+                  <MessageCircle className="w-5 h-5" />
+                </button>
+                {/* Edit Button */}
+                <button
+                  onClick={() => handleEdit(supplier)}
+                  className="p-2 hover:bg-muted rounded-lg text-muted-foreground hover:text-foreground"
+                  title="সরবরাহকারী সম্পাদনা"
+                >
+                  <Edit2 className="w-4 h-4" />
+                </button>
+                {/* Delete Button */}
+                <button
+                  onClick={() => handleDelete(supplier.id)}
+                  className="p-2 hover:bg-destructive/10 rounded-lg text-muted-foreground hover:text-destructive"
+                  title="সরবরাহকারী মুছুন"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </button>
               </div>
             </div>
-          );
-        })}
+          </div>
+        ))}
       </div>
 
-      {filteredSuppliers.length === 0 && (
+      {filteredSupplierRows.length === 0 && (
         <div className="text-center py-12 text-muted-foreground">
           <Truck className="w-12 h-12 mx-auto mb-3 opacity-50" />
           <p>কোন সরবরাহকারী পাওয়া যায়নি</p>
+          <p className="text-sm mt-1">পণ্য যোগ করার সময় বা এখানে "নতুন সরবরাহকারী" থেকে একটি পণ্য নির্বাচন করে সরবরাহকারী যোগ করুন</p>
         </div>
       )}
 
@@ -304,8 +314,11 @@ ${storeInfo?.name || 'আমাদের দোকান'} থেকে অন�
               <div className="border-t border-border pt-4">
                 <label className="block text-sm font-medium mb-2">
                   <Package className="w-4 h-4 inline mr-1" />
-                  সরবরাহকৃত পণ্য নির্বাচন করুন
+                  সরবরাহকৃত পণ্য নির্বাচন করুন *
                 </label>
+                <p className="text-xs text-muted-foreground -mt-1 mb-2">
+                  কমপক্ষে একটি পণ্য নির্বাচন করতে হবে
+                </p>
                 
                 <input
                   type="text"
