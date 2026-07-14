@@ -98,6 +98,7 @@ export default function Products() {
   const [formData, setFormData] = useState({
     name: '',
     stock: '',
+    supplierName: '',
     supplierPhone: '',
     supplierCountryCode: '+880',
     restockThreshold: '',
@@ -229,6 +230,16 @@ export default function Products() {
       toast({ title: "একই নামে দুইটি ইউনিট থাকতে পারে না", variant: "destructive" });
       return;
     }
+    // Supplier name and phone must be given together so the supplier page can
+    // always display "পণ্যের নাম (সরবরাহকারীর নাম)" correctly.
+    if (formData.supplierPhone.trim() && !formData.supplierName.trim()) {
+      toast({ title: "সরবরাহকারীর নাম দিন", variant: "destructive" });
+      return;
+    }
+    if (formData.supplierName.trim() && !formData.supplierPhone.trim()) {
+      toast({ title: "সরবরাহকারীর নম্বর দিন", variant: "destructive" });
+      return;
+    }
 
     const basePrice = validUnits[0].price / validUnits[0].conversionToBase;
     const baseProfit = validUnits[0].profit / validUnits[0].conversionToBase;
@@ -246,6 +257,7 @@ export default function Products() {
         id: u.id, name: u.name, conversionToBase: u.conversionToBase,
         price: u.price, profit: Math.max(0, u.profit),
       })),
+      supplierName: formData.supplierName.trim() || undefined,
       supplierPhone: formData.supplierPhone.trim() || undefined,
       supplierCountryCode: formData.supplierCountryCode,
       dynamicPrice: formData.dynamicPrice,
@@ -280,6 +292,7 @@ export default function Products() {
     setFormData({
       name: product.name,
       stock: displayStock.toString(),
+      supplierName: (product as any).supplierName || '',
       supplierPhone: (product as any).supplierPhone || '',
       supplierCountryCode: (product as any).supplierCountryCode || '+880',
       restockThreshold: product.restockThreshold ? (product.restockThreshold / defaultStockUnit.toBaseMultiplier).toString() : '',
@@ -313,7 +326,7 @@ export default function Products() {
     setStockType('number');
     setSelectedStockUnit('পিস');
     setCustomStockConversion('');
-    setFormData({ name: '', stock: '', supplierPhone: '', supplierCountryCode: '+880', restockThreshold: '', restockThresholdUnit: 'base', category: '', dynamicPrice: false, location: '২ নম্বর তাক', expiryDate: '' });
+    setFormData({ name: '', stock: '', supplierName: '', supplierPhone: '', supplierCountryCode: '+880', restockThreshold: '', restockThresholdUnit: 'base', category: '', dynamicPrice: false, location: '২ নম্বর তাক', expiryDate: '' });
     setSellingUnits([{ id: generateId(), name: '১ পিস', conversionToBase: 1, price: 0, profit: 0, costPrice: 0 }]);
     setShowSuggestions(false);
     setShowSummary(false);
@@ -435,11 +448,26 @@ export default function Products() {
 
 
               {/* Supplier (Optional) */}
+              <div>
+                <label className="block text-sm font-medium mb-2">সরবরাহকারীর নাম (ঐচ্ছিক)</label>
+                <input
+                  type="text"
+                  value={formData.supplierName}
+                  onChange={(e) => setFormData({ ...formData, supplierName: e.target.value })}
+                  placeholder="যেমন: করিম ট্রেডার্স"
+                  className="input-field"
+                />
+              </div>
               <PhoneInputWithCode
                 value={formData.supplierPhone}
                 onChange={(phone, code) => setFormData({ ...formData, supplierPhone: phone, supplierCountryCode: code || '+880' })}
                 label="সরবরাহকারীর WhatsApp নম্বর (ঐচ্ছিক)"
               />
+              {formData.supplierName.trim() && formData.supplierPhone.trim() && (
+                <p className="text-xs text-muted-foreground -mt-2">
+                  এই সরবরাহকারী "সরবরাহকারী" পেজে "{formData.name.trim() || 'পণ্যের নাম'} ({formData.supplierName.trim()})" হিসেবে দেখাবে
+                </p>
+              )}
 
               {/* Stock Type Selection */}
               <div>
