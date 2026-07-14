@@ -29,6 +29,7 @@ interface StoreContextType {
   deleteCustomer: (id: string) => void;
   updateCustomerDue: (id: string, amount: number, profitAmount?: number) => void;
   payCustomerDue: (id: string, paymentAmount: number) => number;
+  setCustomerReminderDate: (id: string, date: Date | null) => void;
   completeOnboarding: (storeName: string, initialProducts: Omit<Product, 'id' | 'createdAt'>[]) => void;
   getDashboardStats: () => DashboardStats;
   getPersonalAccountStats: () => PersonalAccountStats;
@@ -299,10 +300,16 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     // after the last payment (full or partial) — whichever is more recent.
     // This makes the reminder clock "restart" every time a customer pays
     // something, instead of disappearing forever after the first payment.
+    // If the shopkeeper has set a custom reminder date (clock icon on the
+    // baki khata list), that date is used instead of the 30-day default.
+    const now = new Date();
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
     return customers.filter(c => {
       if (c.totalDue <= 0) return false;
+      if (c.customReminderDate) {
+        return new Date(c.customReminderDate) <= now;
+      }
       const referenceDate = c.lastPaymentDate
         ? new Date(c.lastPaymentDate)
         : (c.bakiCreatedAt ? new Date(c.bakiCreatedAt) : new Date(c.createdAt));
@@ -310,11 +317,18 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     });
   };
 
-  // Accounts sitting at ৳0 baki but still counted against the account limit.
-  // Sorted oldest-zero-first so the shopkeeper sees the longest-idle accounts up top.
+  // Accounts sitting at ৳0 baki for 30+ days — still counted against the account
+  // limit, but only surfaced once they've been idle a full month (same 30-day
+  // rule as the due reminder), so freshly-cleared accounts don't show up right away.
   const getZeroDueAccounts = (): Customer[] => {
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
     return customers
-      .filter(c => c.totalDue === 0)
+      .filter(c => {
+        if (c.totalDue !== 0) return false;
+        const zeroSince = c.dueClearedAt ? new Date(c.dueClearedAt) : new Date(c.createdAt);
+        return zeroSince <= thirtyDaysAgo;
+      })
       .sort((a, b) => {
         const aDate = a.dueClearedAt ? new Date(a.dueClearedAt).getTime() : new Date(a.createdAt).getTime();
         const bDate = b.dueClearedAt ? new Date(b.dueClearedAt).getTime() : new Date(b.createdAt).getTime();
@@ -452,6 +466,12 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     }));
   };
 
+  // Set (or clear, by passing null) a custom reminder date for a customer.
+  // Used by the small clock icon on the baki khata list, next to the pen icon.
+  const setCustomerReminderDate = (id: string, date: Date | null) => {
+    setCustomers(prev => prev.map(c => c.id === id ? { ...c, customReminderDate: date || undefined } : c));
+  };
+
   const payCustomerDue = (id: string, paymentAmount: number): number => {
     const customer = customers.find(c => c.id === id);
     if (!customer || customer.totalDue <= 0 || paymentAmount <= 0) return 0;
@@ -585,7 +605,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       bulkSaleRecords, bakiPaymentRecords, customEarnings, suppliers, isOnboarded,
       setStoreInfo, addProduct, updateProduct, deleteProduct,
       addSale, addMultipleSales, addCustomer, updateCustomer, deleteCustomer,
-      updateCustomerDue, payCustomerDue, completeOnboarding,
+      updateCustomerDue, payCustomerDue, setCustomerReminderDate, completeOnboarding,
       getDashboardStats, getPersonalAccountStats,
       addExpense, addCustomEarning, getProductSuggestions,
       generateCustomerDisplayName, getExistingCustomersByName,
