@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ShoppingCart, Search, Plus, Minus, CheckCircle, User, X, Calculator, Phone, BookOpen, HelpCircle, AlertTriangle, Info, ChevronDown, Tag, Percent } from 'lucide-react';
+import { ShoppingCart, Search, Plus, Minus, CheckCircle, User, X, Calculator, Phone, BookOpen, HelpCircle, AlertTriangle, Info, ChevronDown, Tag, Percent, Wallet } from 'lucide-react';
 import { PhoneInputWithCode } from '@/components/common/PhoneInputWithCode';
 import { useStore } from '@/context/StoreContext';
 import { useSubscription } from '@/context/SubscriptionContext';
@@ -61,6 +61,7 @@ export default function Sell() {
   const { 
     products, 
     customers, 
+    addSale,
     addMultipleSales, 
     addCustomer, 
     updateCustomerDue,
@@ -95,6 +96,22 @@ export default function Sell() {
 
   const [selectingFor, setSelectingFor] = useState<Product | null>(null);
 
+  // Custom Bikri (custom sale) state - lets the shopkeeper record a sale by
+  // typing the total money directly, without picking products from the list.
+  const [showCustomSale, setShowCustomSale] = useState(false);
+  const [customAmount, setCustomAmount] = useState('');
+  const [customProfit, setCustomProfit] = useState('');
+  const [customIsPaid, setCustomIsPaid] = useState(true);
+  const [customCalcOpen, setCustomCalcOpen] = useState(false);
+  const [customPaidAmount, setCustomPaidAmount] = useState('');
+  const [customShowBakiOption, setCustomShowBakiOption] = useState(false);
+  const [customBakiSearchType, setCustomBakiSearchType] = useState<'name' | 'phone'>('name');
+  const [customBakiSearchTerm, setCustomBakiSearchTerm] = useState('');
+  const [customSelectedCustomer, setCustomSelectedCustomer] = useState<string | null>(null);
+  const [customShowNewCustomer, setCustomShowNewCustomer] = useState(false);
+  const [customNewCustomerName, setCustomNewCustomerName] = useState('');
+  const [customNewCustomerPhone, setCustomNewCustomerPhone] = useState('');
+
   const filteredProducts = products.filter(p =>
     p.name.toLowerCase().includes(searchTerm.toLowerCase())
   );
@@ -114,6 +131,25 @@ export default function Sell() {
     }
     return searchCustomersByName(bakiCustomerSearchTerm);
   }, [bakiCustomerSearchTerm, bakiCustomerSearchType, customers, searchCustomersByName, searchCustomersByPhone]);
+
+  // Custom Bikri customer search (kept separate from the main cart's baki search)
+  const customFilteredCustomers = useMemo(() => {
+    if (!customBakiSearchTerm.trim()) return customers;
+    if (customBakiSearchType === 'phone') {
+      return searchCustomersByPhone(customBakiSearchTerm);
+    }
+    return searchCustomersByName(customBakiSearchTerm);
+  }, [customBakiSearchTerm, customBakiSearchType, customers, searchCustomersByName, searchCustomersByPhone]);
+
+  const existingCustomCustomersWithSameName = useMemo(() => {
+    return getExistingCustomersByName(customNewCustomerName);
+  }, [customNewCustomerName, getExistingCustomersByName]);
+
+  const customAmountNum = parseFloat(customAmount) || 0;
+  const customProfitNum = Math.max(0, parseFloat(customProfit) || 0);
+  const customPaidNum = parseFloat(customPaidAmount) || 0;
+  const customChange = customPaidNum - customAmountNum;
+  const customShortfall = Math.abs(customChange);
 
   const existingCustomersWithSameName = useMemo(() => {
     return getExistingCustomersByName(newCustomerName);
@@ -280,6 +316,135 @@ export default function Sell() {
     setBakiCustomerSearchTerm('');
     setShowConfirmation(false);
   };
+
+  const resetCustomSale = () => {
+    setShowCustomSale(false);
+    setCustomAmount('');
+    setCustomProfit('');
+    setCustomIsPaid(true);
+    setCustomCalcOpen(false);
+    setCustomPaidAmount('');
+    setCustomShowBakiOption(false);
+    setCustomBakiSearchType('name');
+    setCustomBakiSearchTerm('');
+    setCustomSelectedCustomer(null);
+    setCustomShowNewCustomer(false);
+    setCustomNewCustomerName('');
+    setCustomNewCustomerPhone('');
+  };
+
+  // Resolve (or create) the customer chosen in the Custom Bikri baki flow
+  const resolveCustomBakiCustomer = (): { id: string; name: string } | null => {
+    if (customNewCustomerName.trim()) {
+      if (!guardAddCustomer()) return null;
+      const newCustomer = addCustomer({
+        name: customNewCustomerName.trim(),
+        phone: customNewCustomerPhone.trim(),
+        totalDue: 0,
+      });
+      return { id: newCustomer.id, name: newCustomer.displayName };
+    }
+    if (customSelectedCustomer) {
+      const customer = customers.find(c => c.id === customSelectedCustomer);
+      if (customer) return { id: customer.id, name: customer.displayName };
+    }
+    return null;
+  };
+
+  const handleCustomSale = () => {
+    if (customAmountNum <= 0) {
+      toast({ title: "বিক্রির টাকার পরিমাণ দিন", variant: "destructive" });
+      return;
+    }
+    if (!guardRecordSale(1)) return;
+
+    // বাকি বিক্রি - পুরো টাকাটাই গ্রাহকের নামে বাকি থাকবে
+    if (!customIsPaid) {
+      const customer = resolveCustomBakiCustomer();
+      if (!customer) {
+        toast({ title: "বাকি বিক্রির জন্য গ্রাহক নির্বাচন করুন", variant: "destructive" });
+        return;
+      }
+
+      addSale({
+        productId: 'custom-sale',
+        productName: 'কাস্টম বিক্রি',
+        quantity: 1,
+        quantityInBaseUnit: 1,
+        unitType: 'piece',
+        unitName: 'কাস্টম বিক্রি',
+        totalPrice: customAmountNum,
+        profit: customProfitNum,
+        customerId: customer.id,
+        customerName: customer.name,
+        isPaid: false,
+      });
+      incrementSalesCredit(1);
+      toast({
+        title: "বিক্রি সম্পন্ন! ✅",
+        description: `৳${customAmountNum} ${customer.name}-এর নামে বাকি হিসেবে যোগ হয়েছে`,
+      });
+      resetCustomSale();
+      return;
+    }
+
+    // নগদ বিক্রি, কিন্তু ক্যালকুলেটরে কম টাকা দেওয়া হয়েছে -> বাকি অংশ সংরক্ষণ
+    if (customCalcOpen && customPaidNum > 0 && customChange < 0 && customShowBakiOption) {
+      const customer = resolveCustomBakiCustomer();
+      if (!customer) {
+        toast({ title: "বাকি রাখার জন্য গ্রাহক নির্বাচন করুন", variant: "destructive" });
+        return;
+      }
+
+      addSale({
+        productId: 'custom-sale',
+        productName: 'কাস্টম বিক্রি',
+        quantity: 1,
+        quantityInBaseUnit: 1,
+        unitType: 'piece',
+        unitName: 'কাস্টম বিক্রি',
+        totalPrice: customAmountNum,
+        profit: customProfitNum,
+        isPaid: true,
+      });
+
+      const proportionalProfit = customAmountNum > 0 ? (customProfitNum / customAmountNum) * customShortfall : 0;
+      updateCustomerDue(customer.id, customShortfall, proportionalProfit);
+
+      incrementSalesCredit(1);
+      toast({
+        title: "বিক্রি সম্পন্ন! ✅",
+        description: `৳${customShortfall.toFixed(2)} বাকি ${customer.name}-এর হিসাবে যোগ হয়েছে`,
+      });
+      resetCustomSale();
+      return;
+    }
+
+    // সাধারণ নগদ বিক্রি - পুরো টাকা হাতে হাতে পাওয়া গেছে
+    addSale({
+      productId: 'custom-sale',
+      productName: 'কাস্টম বিক্রি',
+      quantity: 1,
+      quantityInBaseUnit: 1,
+      unitType: 'piece',
+      unitName: 'কাস্টম বিক্রি',
+      totalPrice: customAmountNum,
+      profit: customProfitNum,
+      isPaid: true,
+    });
+    incrementSalesCredit(1);
+    toast({
+      title: "বিক্রি সম্পন্ন! ✅",
+      description: `মোট: ৳${customAmountNum}${customProfitNum > 0 ? ` | লাভ: ৳${customProfitNum.toFixed(2)}` : ''}`,
+    });
+    resetCustomSale();
+  };
+
+  const customSaleSubmitDisabled =
+    customAmountNum <= 0 ||
+    (!customIsPaid && !customSelectedCustomer && !customNewCustomerName.trim()) ||
+    (customIsPaid && customCalcOpen && customPaidNum > 0 && customChange < 0 && customShowBakiOption &&
+      !customSelectedCustomer && !customNewCustomerName.trim());
 
   const handleSaveToBaki = () => {
     let customerId = bakiSelectedCustomer;
@@ -450,6 +615,15 @@ export default function Sell() {
         </div>
       )}
 
+      {/* Custom Bikri Button */}
+      <button
+        onClick={() => setShowCustomSale(true)}
+        className="w-full flex items-center justify-center gap-2 p-4 rounded-xl border-2 border-dashed border-primary/40 text-primary hover:bg-primary/5 transition-colors font-medium"
+      >
+        <Wallet className="w-5 h-5" />
+        কাস্টম বিক্রি — সরাসরি টাকা লিখে বিক্রি করুন
+      </button>
+
       {/* Search */}
       <div className="relative">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
@@ -547,6 +721,271 @@ export default function Sell() {
                   </div>
                 </button>
               ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Custom Bikri (Custom Sale) Modal */}
+      {showCustomSale && (
+        <div className="fixed inset-0 bg-foreground/20 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="w-full max-w-md bg-card rounded-2xl shadow-soft border border-border p-6 animate-slide-up max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-2">
+              <h2 className="text-xl font-bold text-foreground flex items-center gap-2">
+                <Wallet className="w-5 h-5 text-primary" />
+                কাস্টম বিক্রি
+              </h2>
+              <button onClick={resetCustomSale} className="p-2 hover:bg-muted rounded-lg">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <p className="text-sm text-muted-foreground mb-4">
+              পণ্যের তালিকা থেকে বাছাই না করে সরাসরি বিক্রির টাকা লিখুন
+            </p>
+
+            <div className="space-y-4">
+              {/* Amount */}
+              <div>
+                <label className="block text-sm font-medium mb-2">কত টাকার মাল বিক্রি হয়েছে? *</label>
+                <input
+                  type="number"
+                  value={customAmount}
+                  onChange={(e) => setCustomAmount(e.target.value)}
+                  placeholder="যেমন: ৫০০"
+                  className="input-field text-xl"
+                  autoFocus
+                  min="0"
+                />
+              </div>
+
+              {/* Optional Profit */}
+              <div>
+                <label className="block text-sm font-medium mb-2">এতে আপনার লাভ কত হয়েছে? (ঐচ্ছিক)</label>
+                <input
+                  type="number"
+                  value={customProfit}
+                  onChange={(e) => setCustomProfit(e.target.value)}
+                  placeholder="যেমন: ৫০"
+                  className="input-field"
+                  min="0"
+                />
+                <p className="text-xs text-muted-foreground mt-1">কিছু না লিখলে লাভ ৳০ ধরা হবে</p>
+              </div>
+
+              {/* Payment Type */}
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setCustomIsPaid(true)}
+                  className={`flex-1 py-3 px-4 rounded-xl border-2 transition-all ${
+                    customIsPaid ? 'border-primary bg-primary/5' : 'border-border'
+                  }`}
+                >
+                  <CheckCircle className={`w-5 h-5 mx-auto mb-1 ${customIsPaid ? 'text-primary' : 'text-muted-foreground'}`} />
+                  <span className={customIsPaid ? 'text-primary font-medium' : 'text-muted-foreground'}>নগদ</span>
+                </button>
+                <button
+                  onClick={() => { setCustomIsPaid(false); setCustomCalcOpen(false); setCustomShowBakiOption(false); }}
+                  className={`flex-1 py-3 px-4 rounded-xl border-2 transition-all ${
+                    !customIsPaid ? 'border-due bg-due/5' : 'border-border'
+                  }`}
+                >
+                  <User className={`w-5 h-5 mx-auto mb-1 ${!customIsPaid ? 'text-due' : 'text-muted-foreground'}`} />
+                  <span className={!customIsPaid ? 'text-due font-medium' : 'text-muted-foreground'}>বাকি</span>
+                </button>
+              </div>
+
+              {/* নগদ: Calculator for change */}
+              {customIsPaid && (
+                <div>
+                  <button onClick={() => setCustomCalcOpen(!customCalcOpen)} className="flex items-center gap-2 text-sm text-primary">
+                    <Calculator className="w-4 h-4" />
+                    ক্যালকুলেটর {customCalcOpen ? 'বন্ধ করুন' : 'খুলুন'} (ফেরত হিসাব করতে)
+                  </button>
+
+                  {customCalcOpen && (
+                    <div className="mt-3 p-4 bg-muted/50 rounded-xl space-y-3 animate-fade-in">
+                      <div>
+                        <label className="text-sm text-muted-foreground">গ্রাহক কত টাকা দিয়েছে?</label>
+                        <input
+                          type="number"
+                          value={customPaidAmount}
+                          onChange={(e) => setCustomPaidAmount(e.target.value)}
+                          placeholder="টাকার পরিমাণ"
+                          className="input-field mt-1"
+                          min="0"
+                        />
+                      </div>
+
+                      {customPaidAmount && customPaidNum > 0 && (
+                        <div className="space-y-2">
+                          {customChange >= 0 ? (
+                            <div className="p-3 bg-profit/10 rounded-lg">
+                              <p className="text-profit font-bold text-lg">ফেরত দিন: ৳{customChange.toFixed(2)}</p>
+                            </div>
+                          ) : (
+                            <div className="p-3 bg-due/10 rounded-lg">
+                              <p className="text-due font-bold text-lg">কম দিয়েছে: ৳{customShortfall.toFixed(2)}</p>
+                              <button
+                                onClick={() => setCustomShowBakiOption(!customShowBakiOption)}
+                                className="text-sm text-primary mt-2 flex items-center gap-1"
+                              >
+                                <BookOpen className="w-4 h-4" /> এই কম টাকা বাকি হিসেবে রাখুন
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Save shortfall as baki for this customer */}
+                      {customShowBakiOption && customChange < 0 && (
+                        <div className="border-t border-border pt-3 space-y-3 animate-fade-in">
+                          <p className="text-sm font-medium">কার নামে বাকি রাখবেন?</p>
+
+                          <div className="flex gap-2">
+                            <button
+                              onClick={() => { setCustomBakiSearchType('name'); setCustomBakiSearchTerm(''); }}
+                              className={`flex-1 py-2 px-3 rounded-lg text-sm ${customBakiSearchType === 'name' ? 'bg-primary text-primary-foreground' : 'bg-muted'}`}
+                            >
+                              নাম দিয়ে
+                            </button>
+                            <button
+                              onClick={() => { setCustomBakiSearchType('phone'); setCustomBakiSearchTerm(''); }}
+                              className={`flex-1 py-2 px-3 rounded-lg text-sm ${customBakiSearchType === 'phone' ? 'bg-primary text-primary-foreground' : 'bg-muted'}`}
+                            >
+                              ফোন দিয়ে
+                            </button>
+                          </div>
+
+                          <input
+                            type={customBakiSearchType === 'phone' ? 'tel' : 'text'}
+                            value={customBakiSearchTerm}
+                            onChange={(e) => setCustomBakiSearchTerm(e.target.value)}
+                            placeholder={customBakiSearchType === 'phone' ? "ফোন নম্বর দিন..." : "গ্রাহকের নাম লিখুন..."}
+                            className="input-field"
+                          />
+
+                          {customFilteredCustomers.length > 0 && (
+                            <div className="max-h-32 overflow-y-auto border border-border rounded-xl">
+                              {customFilteredCustomers.map(c => (
+                                <button
+                                  key={c.id}
+                                  onClick={() => { setCustomSelectedCustomer(c.id); setCustomShowNewCustomer(false); setCustomNewCustomerName(''); }}
+                                  className={`w-full text-left px-4 py-2 text-sm ${customSelectedCustomer === c.id ? 'bg-primary/10' : 'hover:bg-muted'}`}
+                                >
+                                  {c.displayName}
+                                </button>
+                              ))}
+                            </div>
+                          )}
+
+                          <button onClick={() => setCustomShowNewCustomer(!customShowNewCustomer)} className="text-sm text-primary">
+                            + নতুন গ্রাহক
+                          </button>
+
+                          {customShowNewCustomer && (
+                            <div className="space-y-2">
+                              <input
+                                type="text"
+                                value={customNewCustomerName}
+                                onChange={(e) => setCustomNewCustomerName(e.target.value)}
+                                placeholder="গ্রাহকের নাম"
+                                className="input-field"
+                              />
+                              <PhoneInputWithCode value={customNewCustomerPhone} onChange={(phone) => setCustomNewCustomerPhone(phone)} label="WhatsApp নম্বর (ঐচ্ছিক)" />
+                              {existingCustomCustomersWithSameName.length > 0 && (
+                                <p className="text-xs text-amber-600">⚠️ এই নামে {existingCustomCustomersWithSameName.length}জন গ্রাহক আছে</p>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* বাকি: Customer search & add */}
+              {!customIsPaid && (
+                <div className="space-y-3 animate-fade-in">
+                  <p className="text-sm font-medium text-foreground">কার নামে বাকি রাখবেন?</p>
+
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => { setCustomBakiSearchType('name'); setCustomBakiSearchTerm(''); }}
+                      className={`flex-1 py-2 px-3 rounded-lg text-sm transition-all ${
+                        customBakiSearchType === 'name' ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'
+                      }`}
+                    >
+                      <User className="w-4 h-4 inline mr-1" /> নাম দিয়ে
+                    </button>
+                    <button
+                      onClick={() => { setCustomBakiSearchType('phone'); setCustomBakiSearchTerm(''); }}
+                      className={`flex-1 py-2 px-3 rounded-lg text-sm transition-all ${
+                        customBakiSearchType === 'phone' ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'
+                      }`}
+                    >
+                      <Phone className="w-4 h-4 inline mr-1" /> ফোন দিয়ে
+                    </button>
+                  </div>
+
+                  <input
+                    type={customBakiSearchType === 'phone' ? 'tel' : 'text'}
+                    value={customBakiSearchTerm}
+                    onChange={(e) => setCustomBakiSearchTerm(e.target.value)}
+                    placeholder={customBakiSearchType === 'phone' ? "ফোন নম্বর দিন..." : "গ্রাহকের নাম লিখুন..."}
+                    className="input-field"
+                  />
+
+                  {customFilteredCustomers.length > 0 && (
+                    <div className="max-h-40 overflow-y-auto border border-border rounded-xl bg-background">
+                      {customFilteredCustomers.map(c => (
+                        <button
+                          key={c.id}
+                          onClick={() => { setCustomSelectedCustomer(c.id); setCustomShowNewCustomer(false); setCustomNewCustomerName(''); }}
+                          className={`w-full text-left px-4 py-3 transition-colors flex items-center justify-between ${
+                            customSelectedCustomer === c.id ? 'bg-primary/10' : 'hover:bg-muted'
+                          }`}
+                        >
+                          <div>
+                            <span className="font-medium">{c.displayName}</span>
+                            {c.phone && <span className="text-xs text-muted-foreground ml-2">{c.phone}</span>}
+                          </div>
+                          {c.totalDue > 0 && <span className="text-sm text-due">বাকি: ৳{c.totalDue}</span>}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+
+                  <button onClick={() => setCustomShowNewCustomer(!customShowNewCustomer)} className="text-sm text-primary flex items-center gap-1">
+                    <Plus className="w-4 h-4" /> নতুন গ্রাহক যোগ করুন
+                  </button>
+
+                  {customShowNewCustomer && (
+                    <div className="space-y-3 p-4 bg-muted/30 rounded-xl animate-fade-in">
+                      <input
+                        type="text"
+                        value={customNewCustomerName}
+                        onChange={(e) => setCustomNewCustomerName(e.target.value)}
+                        placeholder="গ্রাহকের নাম"
+                        className="input-field"
+                      />
+                      <PhoneInputWithCode value={customNewCustomerPhone} onChange={(phone) => setCustomNewCustomerPhone(phone)} label="WhatsApp নম্বর (ঐচ্ছিক)" />
+                      {existingCustomCustomersWithSameName.length > 0 && (
+                        <p className="text-xs text-amber-600">⚠️ এই নামে {existingCustomCustomersWithSameName.length}জন গ্রাহক আছে</p>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              <Button
+                onClick={handleCustomSale}
+                className="w-full btn-primary py-6 text-lg rounded-xl"
+                disabled={customSaleSubmitDisabled}
+              >
+                <CheckCircle className="w-5 h-5 mr-2" />
+                বিক্রি সম্পন্ন করুন
+              </Button>
             </div>
           </div>
         </div>
