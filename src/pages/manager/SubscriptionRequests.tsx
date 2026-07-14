@@ -52,16 +52,16 @@ export default function SubscriptionRequests() {
   const approve = async (r: ReqRow) => {
     setBusy(r.id);
     try {
-      const expiry = new Date(); expiry.setDate(expiry.getDate() + 30);
-      await withTimeout(supabase.from('profiles').update({
-        subscription_status: 'active',
-        plan: r.plan_type,
-        plan_expiry: expiry.toISOString(),
-        temporary_access: false,
-      }).eq('user_id', r.user_id), 6000, 'manager.subscriptions.approveProfile');
-      await withTimeout(supabase.from('subscription_requests').update({
-        status: 'approved', resolved_at: new Date().toISOString(),
-      }).eq('id', r.id), 6000, 'manager.subscriptions.approveRequest');
+      // Approval logic lives in a single atomic Postgres function now —
+      // see approve_subscription_request in the migrations. This avoids
+      // the race condition where approving multiple pending requests for
+      // the same user in quick succession could each read a stale expiry
+      // and silently fail to stack correctly.
+      const { error } = await withTimeout(
+        supabase.rpc('approve_subscription_request', { p_request_id: r.id }),
+        6000, 'manager.subscriptions.approve',
+      );
+      if (error) throw error;
       toast({ title: 'অনুমোদন করা হয়েছে ✓' });
       load();
     } catch (e: any) {
@@ -127,4 +127,4 @@ export default function SubscriptionRequests() {
     </div>
   );
     }
-                                                    
+
