@@ -55,6 +55,7 @@ interface SellOrderItem {
   totalProfit: number;
   customPrice: string;
   discount: string;
+  isCustom?: boolean; // "কাস্টম পণ্য" - not in stock, manually entered by shopkeeper
 }
 
 export default function PreOrders() {
@@ -73,6 +74,13 @@ export default function PreOrders() {
   const [addSelectingProduct, setAddSelectingProduct] = useState<any>(null);
   const [addProductSearch, setAddProductSearch] = useState('');
 
+  // কাস্টম পণ্য (custom / out-of-stock product) form state
+  const [showCustomProductForm, setShowCustomProductForm] = useState(false);
+  const [customProductName, setCustomProductName] = useState('');
+  const [customProductQty, setCustomProductQty] = useState('');
+  const [customProductUnit, setCustomProductUnit] = useState('');
+  const [customProductPrice, setCustomProductPrice] = useState('');
+
   // Selling modal state (Bikri-like interface)
   const [sellingOrder, setSellingOrder] = useState<PreOrder | null>(null);
   const [sellCart, setSellCart] = useState<SellOrderItem[]>([]);
@@ -90,7 +98,8 @@ export default function PreOrders() {
 আপনার অর্ডার [ORDER_DATE] তারিখে [STORE_NAME]-এ রাখানো ছিল।
 অনুগ্রহ করে আপনার অর্ডারটি সংগ্রহ করুন।
 
-ধন্যবাদ।`);
+ধন্যবাদ।
+[LOCATION]`);
 
   const overdueOrders = useMemo(() => {
     const today = new Date();
@@ -189,6 +198,33 @@ export default function PreOrders() {
     toast({ title: `${product.name} যোগ হয়েছে` });
   };
 
+  // Add a "কাস্টম পণ্য" - a product that isn't in stock/inventory. The
+  // shopkeeper manually types the name, quantity and unit instead of
+  // picking from the product list / unit dropdown.
+  const addCustomProductToCart = () => {
+    const name = customProductName.trim();
+    const qty = parseFloat(customProductQty);
+    const unit = customProductUnit.trim();
+    if (!name) { toast({ title: "পণ্যের নাম দিন", variant: "destructive" }); return; }
+    if (!qty || qty <= 0) { toast({ title: "সঠিক পরিমাণ দিন", variant: "destructive" }); return; }
+    if (!unit) { toast({ title: "একক লিখুন (যেমন: কেজি, বস্তা)", variant: "destructive" }); return; }
+    const price = parseFloat(customProductPrice) || 0;
+    const customId = `custom-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+    const pseudoProduct = { id: customId, name, unitType: 'piece', baseUnit: unit, price, profit: 0, stock: 0 };
+    setAddCart(prev => [...prev, {
+      product: pseudoProduct,
+      basePrice: { id: 'custom', name: unit, conversionToBase: 1, price: 0, profit: 0 },
+      sellUnitLabel: unit, sellUnitToBase: 1,
+      sellAmount: qty, quantityInBaseUnit: qty,
+      totalPrice: price, totalProfit: 0,
+      customPrice: price > 0 ? String(price) : '', discount: '',
+      isCustom: true,
+    }]);
+    toast({ title: `${name} যোগ হয়েছে (কাস্টম পণ্য) ✓` });
+    setCustomProductName(''); setCustomProductQty(''); setCustomProductUnit(''); setCustomProductPrice('');
+    setShowCustomProductForm(false);
+  };
+
   const updateAddCartItem = (index: number, sellAmount: number, sellUnitLabel?: string, sellUnitToBase?: number) => {
     setAddCart(prev => prev.map((item, i) => {
       if (i !== index) return item;
@@ -225,6 +261,7 @@ export default function PreOrders() {
       quantityInBaseUnit: item.quantityInBaseUnit,
       price: getFinalPrice(item),
       profit: Math.max(0, getFinalProfit(item)),
+      isCustom: item.isCustom || false,
     }));
 
     const totalPrice = orderItems.reduce((sum, i) => sum + i.price, 0);
@@ -268,7 +305,25 @@ export default function PreOrders() {
     
     const cartItems: SellOrderItem[] = order.items.map(item => {
       const product = products.find(p => p.id === item.productId);
-      if (!product) return null;
+      if (!product) {
+        // কাস্টম পণ্য (custom / was-out-of-stock item) - not in inventory,
+        // so reconstruct it from what was saved on the order itself.
+        if (item.isCustom || item.productId.startsWith('custom-')) {
+          const unitLabel = item.unitName?.split(' ').slice(1).join(' ') || 'পিস';
+          const amount = item.quantity;
+          const pseudoProduct = { id: item.productId, name: item.productName, unitType: 'piece', baseUnit: unitLabel, price: item.price, profit: 0, stock: 0 };
+          return {
+            product: pseudoProduct,
+            basePrice: { id: 'custom', name: unitLabel, conversionToBase: 1, price: 0, profit: 0 },
+            sellUnitLabel: unitLabel, sellUnitToBase: 1,
+            sellAmount: amount, quantityInBaseUnit: amount,
+            totalPrice: item.price, totalProfit: 0,
+            customPrice: item.price > 0 ? String(item.price) : '', discount: '',
+            isCustom: true,
+          } as SellOrderItem;
+        }
+        return null;
+      }
       const units = getSellingUnits(product);
       const basePrice = units[0];
       const stockType = getStockType(product.unitType);
@@ -335,7 +390,11 @@ export default function PreOrders() {
 
   const handleSendWhatsAppReminder = (order: PreOrder) => {
     if (!order.customerPhone) { toast({ title: "ফোন নম্বর নেই", variant: "destructive" }); return; }
-    const message = reminderMessage.replace('[ORDER_DATE]', format(new Date(order.deliveryDate), 'dd MMMM yyyy', { locale: bn })).replace('[STORE_NAME]', storeInfo?.name || 'দোকান');
+    const locationLine = storeInfo?.location ? `দোকান লোকেশন: ${storeInfo.location}` : '';
+    const message = reminderMessage
+      .replace('[ORDER_DATE]', format(new Date(order.deliveryDate), 'dd MMMM yyyy', { locale: bn }))
+      .replace('[STORE_NAME]', storeInfo?.name || 'দোকান')
+      .replace('[LOCATION]', locationLine);
     const phone = order.customerPhone.replace(/\+/g, '');
     window.open(`https://wa.me/${phone}?text=${encodeURIComponent(message)}`, '_blank');
   };
@@ -343,6 +402,7 @@ export default function PreOrders() {
   const resetForm = () => {
     setShowAddForm(false); setCustomerName(''); setCustomerPhone(''); setDeliveryDate('');
     setAddCart([]); setAddProductSearch(''); setAddSelectingProduct(null);
+    setShowCustomProductForm(false); setCustomProductName(''); setCustomProductQty(''); setCustomProductUnit(''); setCustomProductPrice('');
   };
 
   const pendingCount = preOrders.filter(o => o.status === 'pending').length;
@@ -354,15 +414,20 @@ export default function PreOrders() {
     updateField: (i: number, f: 'customPrice' | 'discount', v: string) => void,
     removeItem?: (i: number) => void
   ) => {
-    const unitOptions = getSellUnitOptions(item.product);
+    const unitOptions = item.isCustom ? [] : getSellUnitOptions(item.product);
     const finalP = getFinalPrice(item);
     const finalPr = getFinalProfit(item);
     return (
-      <div key={idx} className="p-4 bg-muted/50 rounded-xl space-y-3">
+      <div key={idx} className={`p-4 rounded-xl space-y-3 ${item.isCustom ? 'bg-amber-50/60 dark:bg-amber-900/10 border border-amber-200 dark:border-amber-800' : 'bg-muted/50'}`}>
         <div className="flex items-start justify-between">
           <div>
-            <p className="font-semibold text-foreground">{item.product.name}</p>
-            <p className="text-xs text-muted-foreground">বেজ: ৳{item.basePrice.price}/{item.basePrice.name}</p>
+            <p className="font-semibold text-foreground flex items-center gap-2">
+              {item.product.name}
+              {item.isCustom && <span className="text-[10px] px-1.5 py-0.5 bg-amber-200 dark:bg-amber-800 rounded-full text-amber-800 dark:text-amber-100">কাস্টম পণ্য</span>}
+            </p>
+            <p className="text-xs text-muted-foreground">
+              {item.isCustom ? 'স্টকে নেই - গ্রাহকের চাহিদামতো যোগ করা হয়েছে' : `বেজ: ৳${item.basePrice.price}/${item.basePrice.name}`}
+            </p>
           </div>
           {removeItem && (
             <button onClick={() => removeItem(idx)} className="p-1.5 text-destructive hover:bg-destructive/10 rounded-lg">
@@ -374,26 +439,31 @@ export default function PreOrders() {
         <div className="flex gap-2 items-end">
           <div className="flex-1">
             <label className="text-xs text-muted-foreground mb-1 block">পরিমাণ</label>
-            <input type="number" value={item.sellAmount || ''} onChange={(e) => updateItem(idx, parseFloat(e.target.value) || 0)}
+            <input type="number" value={item.sellAmount || ''} onChange={(e) => updateItem(idx, parseFloat(e.target.value) || 0, item.isCustom ? item.sellUnitLabel : undefined, item.isCustom ? 1 : undefined)}
               placeholder="পরিমাণ" className="w-full h-10 rounded-xl border border-border bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring" min="0" step="any" />
           </div>
           <div className="flex-1">
-            <label className="text-xs text-muted-foreground mb-1 block">ইউনিট</label>
-            <div className="relative">
-              <select value={`${item.sellUnitLabel}|${item.sellUnitToBase}`} onChange={(e) => { const [l, t] = e.target.value.split('|'); updateItem(idx, item.sellAmount, l, parseFloat(t)); }}
-                className="w-full h-10 rounded-xl border border-border bg-background px-3 pr-8 text-sm appearance-none focus:outline-none focus:ring-2 focus:ring-ring">
-                {unitOptions.map((opt) => (<option key={`${opt.label}-${opt.toBase}`} value={`${opt.label}|${opt.toBase}`}>{opt.label}</option>))}
-              </select>
-              <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
-            </div>
+            <label className="text-xs text-muted-foreground mb-1 block">একক</label>
+            {item.isCustom ? (
+              <input type="text" value={item.sellUnitLabel} onChange={(e) => updateItem(idx, item.sellAmount, e.target.value, 1)}
+                placeholder="যেমন: কেজি, বস্তা" className="w-full h-10 rounded-xl border border-border bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring" />
+            ) : (
+              <div className="relative">
+                <select value={`${item.sellUnitLabel}|${item.sellUnitToBase}`} onChange={(e) => { const [l, t] = e.target.value.split('|'); updateItem(idx, item.sellAmount, l, parseFloat(t)); }}
+                  className="w-full h-10 rounded-xl border border-border bg-background px-3 pr-8 text-sm appearance-none focus:outline-none focus:ring-2 focus:ring-ring">
+                  {unitOptions.map((opt) => (<option key={`${opt.label}-${opt.toBase}`} value={`${opt.label}|${opt.toBase}`}>{opt.label}</option>))}
+                </select>
+                <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
+              </div>
+            )}
           </div>
         </div>
         {/* Custom Price + Discount */}
         <div className="flex gap-2 items-end">
           <div className="flex-1">
-            <label className="text-xs text-muted-foreground mb-1 flex items-center gap-1"><Tag className="w-3 h-3" /> কাস্টম দাম</label>
+            <label className="text-xs text-muted-foreground mb-1 flex items-center gap-1"><Tag className="w-3 h-3" /> {item.isCustom ? 'পণ্যের দাম' : 'কাস্টম দাম'}</label>
             <input type="number" value={item.customPrice} onChange={(e) => updateField(idx, 'customPrice', e.target.value)}
-              placeholder={`৳${item.totalPrice.toFixed(0)}`} className="w-full h-10 rounded-xl border border-border bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring" min="0" step="any" />
+              placeholder={item.isCustom ? 'মোট দাম' : `৳${item.totalPrice.toFixed(0)}`} className="w-full h-10 rounded-xl border border-border bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring" min="0" step="any" />
           </div>
           <div className="flex-1">
             <label className="text-xs text-muted-foreground mb-1 flex items-center gap-1"><Percent className="w-3 h-3" /> ছাড় (৳)</label>
@@ -405,7 +475,7 @@ export default function PreOrders() {
         {item.sellAmount > 0 && (
           <div className="flex items-center justify-between text-sm pt-1 border-t border-border/50">
             <div className="space-y-0.5">
-              <p className="text-muted-foreground flex items-center gap-1"><Info className="w-3 h-3" /> {item.quantityInBaseUnit.toFixed(1)} {item.product.baseUnit || getUnitLabel(item.product.unitType)} কমবে</p>
+              {!item.isCustom && <p className="text-muted-foreground flex items-center gap-1"><Info className="w-3 h-3" /> {item.quantityInBaseUnit.toFixed(1)} {item.product.baseUnit || getUnitLabel(item.product.unitType)} কমবে</p>}
               <p className="text-xs text-profit">লাভ: ৳{finalPr.toFixed(2)}</p>
             </div>
             <p className="text-lg font-bold text-foreground">৳{finalP.toFixed(2)}</p>
@@ -468,7 +538,7 @@ export default function PreOrders() {
           <MessageCircle className="w-4 h-4 inline mr-1" /> ডিফল্ট রিমাইন্ডার মেসেজ
         </label>
         <textarea value={reminderMessage} onChange={(e) => setReminderMessage(e.target.value)} rows={4} className="input-field text-sm" />
-        <p className="text-xs text-muted-foreground mt-1">[ORDER_DATE] = অর্ডার তারিখ, [STORE_NAME] = দোকানের নাম</p>
+        <p className="text-xs text-muted-foreground mt-1">[ORDER_DATE] = অর্ডার তারিখ, [STORE_NAME] = দোকানের নাম, [LOCATION] = দোকানের অবস্থান</p>
       </div>
 
       {/* Status Filter */}
@@ -509,10 +579,45 @@ export default function PreOrders() {
               {/* Product Selection (Bikri-like) */}
               <div className="border-t border-border pt-4">
                 <label className="block text-sm font-medium mb-2"><Package className="w-4 h-4 inline mr-1" /> পণ্য যোগ করুন</label>
-                <div className="relative mb-3">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                  <input type="text" value={addProductSearch} onChange={(e) => setAddProductSearch(e.target.value)} placeholder="পণ্য খুঁজুন..." className="input-field pl-9 text-sm" />
+                <div className="flex gap-2 mb-3">
+                  <div className="relative flex-1">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                    <input type="text" value={addProductSearch} onChange={(e) => setAddProductSearch(e.target.value)} placeholder="পণ্য খুঁজুন..." className="input-field pl-9 text-sm" />
+                  </div>
+                  <button type="button" onClick={() => setShowCustomProductForm(v => !v)}
+                    className="shrink-0 px-3 rounded-xl border border-dashed border-primary text-primary text-sm font-medium hover:bg-primary/5 flex items-center gap-1 whitespace-nowrap">
+                    <Plus className="w-4 h-4" /> কাস্টম পণ্য
+                  </button>
                 </div>
+
+                {/* Custom Product Form (স্টকে নেই এমন পণ্য) */}
+                {showCustomProductForm && (
+                  <div className="mb-4 p-4 bg-amber-50/60 dark:bg-amber-900/10 border border-amber-200 dark:border-amber-800 rounded-xl space-y-3 animate-fade-in">
+                    <p className="text-sm font-medium flex items-center gap-1"><Package className="w-4 h-4" /> কাস্টম পণ্য যোগ করুন (স্টকে নেই)</p>
+                    <div>
+                      <label className="text-xs text-muted-foreground mb-1 block">পণ্যের নাম *</label>
+                      <input type="text" value={customProductName} onChange={(e) => setCustomProductName(e.target.value)} placeholder="যেমন: বিশেষ আম" className="input-field text-sm" />
+                    </div>
+                    <div className="flex gap-2">
+                      <div className="flex-1">
+                        <label className="text-xs text-muted-foreground mb-1 block">পরিমাণ *</label>
+                        <input type="number" value={customProductQty} onChange={(e) => setCustomProductQty(e.target.value)} placeholder="যেমন: ৫" className="input-field text-sm" min="0" step="any" />
+                      </div>
+                      <div className="flex-1">
+                        <label className="text-xs text-muted-foreground mb-1 block">একক *</label>
+                        <input type="text" value={customProductUnit} onChange={(e) => setCustomProductUnit(e.target.value)} placeholder="যেমন: কেজি, বস্তা" className="input-field text-sm" />
+                      </div>
+                    </div>
+                    <div>
+                      <label className="text-xs text-muted-foreground mb-1 block">দাম (৳) - ঐচ্ছিক</label>
+                      <input type="number" value={customProductPrice} onChange={(e) => setCustomProductPrice(e.target.value)} placeholder="মোট দাম" className="input-field text-sm" min="0" step="any" />
+                    </div>
+                    <div className="flex gap-2 pt-1">
+                      <button type="button" onClick={() => { setShowCustomProductForm(false); setCustomProductName(''); setCustomProductQty(''); setCustomProductUnit(''); setCustomProductPrice(''); }} className="flex-1 text-xs text-muted-foreground py-2">বাতিল</button>
+                      <Button type="button" onClick={addCustomProductToCart} className="flex-1 btn-primary py-2 rounded-lg text-sm">যোগ করুন</Button>
+                    </div>
+                  </div>
+                )}
 
                 {/* Product Grid */}
                 {addProductSearch && (
