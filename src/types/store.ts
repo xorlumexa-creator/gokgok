@@ -83,6 +83,7 @@ export interface PreOrderItem {
   quantityInBaseUnit?: number;
   price: number;
   profit?: number;
+  isCustom?: boolean; // true when this is a "কাস্টম পণ্য" - a product not in stock, entered manually
 }
 
 export interface PreOrder {
