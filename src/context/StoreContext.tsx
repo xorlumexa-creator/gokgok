@@ -353,21 +353,101 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     return bulkSaleRecords.filter(r => new Date(r.createdAt) > oneWeekAgo).sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
   };
 
+  // Find-or-create a Supplier record based on the supplierName/supplierPhone
+  // fields set on a product (the "added through product page" pathway), and
+  // keep that link in sync as the product is edited or its supplier changes.
+  // previousSupplierId is used to unlink the product from an old supplier
+  // when the phone number is changed or removed.
+  const syncProductSupplier = (
+    productId: string,
+    supplierName: string | undefined,
+    supplierPhone: string | undefined,
+    supplierCountryCode: string | undefined,
+    previousSupplierId?: string
+  ) => {
+    const trimmedName = supplierName?.trim();
+    const trimmedPhone = supplierPhone?.trim();
+    const normalize = (ph: string) => ph.replace(/\s+/g, '');
+
+    // Supplier phone cleared -> unlink from any previously linked supplier
+    if (!trimmedPhone) {
+      if (previousSupplierId) {
+        setSuppliers(prev => prev.map(s => s.id === previousSupplierId
+          ? { ...s, productIds: s.productIds.filter(pid => pid !== productId) }
+          : s
+        ));
+      }
+      setProducts(prev => prev.map(p => p.id === productId ? { ...p, supplierId: undefined } : p));
+      return;
+    }
+
+    const existing = suppliers.find(s => normalize(s.phone) === normalize(trimmedPhone));
+
+    if (existing) {
+      setSuppliers(prev => prev.map(s => {
+        if (s.id === existing.id) {
+          const productIds = s.productIds.includes(productId) ? s.productIds : [...s.productIds, productId];
+          return { ...s, name: s.name?.trim() ? s.name : (trimmedName || s.name), productIds };
+        }
+        if (previousSupplierId && s.id === previousSupplierId && s.id !== existing.id) {
+          return { ...s, productIds: s.productIds.filter(pid => pid !== productId) };
+        }
+        return s;
+      }));
+      setProducts(prev => prev.map(p => p.id === productId ? { ...p, supplierId: existing.id } : p));
+    } else {
+      const newSupplierId = generateId();
+      const newSupplier: Supplier = {
+        id: newSupplierId,
+        name: trimmedName || 'সরবরাহকারী',
+        phone: trimmedPhone,
+        countryCode: supplierCountryCode || '+880',
+        productIds: [productId],
+        createdAt: new Date(),
+      };
+      setSuppliers(prev => {
+        const withoutOldLink = previousSupplierId
+          ? prev.map(s => s.id === previousSupplierId ? { ...s, productIds: s.productIds.filter(pid => pid !== productId) } : s)
+          : prev;
+        return [...withoutOldLink, newSupplier];
+      });
+      setProducts(prev => prev.map(p => p.id === productId ? { ...p, supplierId: newSupplierId } : p));
+    }
+  };
+
   const addProduct = (product: Omit<Product, 'id' | 'createdAt'>) => {
     const safeProfit = Math.min(Math.max(0, product.profit), product.price);
-    setProducts(prev => [...prev, { ...product, profit: safeProfit, id: generateId(), createdAt: new Date() }]);
+    const id = generateId();
+    const newProduct: Product = { ...product, profit: safeProfit, id, createdAt: new Date() };
+    setProducts(prev => [...prev, newProduct]);
+    syncProductSupplier(id, product.supplierName, product.supplierPhone, product.supplierCountryCode, undefined);
   };
 
   const updateProduct = (id: string, productUpdate: Partial<Product>) => {
+    const existingProduct = products.find(p => p.id === id);
     setProducts(prev => prev.map(p => {
       if (p.id !== id) return p;
       const updated = { ...p, ...productUpdate };
       if (updated.profit > updated.price) updated.profit = updated.price;
       return updated;
     }));
+    // Only re-sync the supplier link when supplier fields were actually part of this update
+    if (existingProduct && ('supplierPhone' in productUpdate || 'supplierName' in productUpdate)) {
+      const newName = 'supplierName' in productUpdate ? productUpdate.supplierName : existingProduct.supplierName;
+      const newPhone = 'supplierPhone' in productUpdate ? productUpdate.supplierPhone : existingProduct.supplierPhone;
+      const newCountryCode = 'supplierCountryCode' in productUpdate ? productUpdate.supplierCountryCode : existingProduct.supplierCountryCode;
+      syncProductSupplier(id, newName, newPhone, newCountryCode, existingProduct.supplierId);
+    }
   };
 
-  const deleteProduct = (id: string) => setProducts(prev => prev.filter(p => p.id !== id));
+  const deleteProduct = (id: string) => {
+    setProducts(prev => prev.filter(p => p.id !== id));
+    // Clean up any supplier (manual or product-linked) that referenced this product
+    setSuppliers(prev => prev.map(s => s.productIds.includes(id)
+      ? { ...s, productIds: s.productIds.filter(pid => pid !== id) }
+      : s
+    ));
+  };
 
   const addSale = (sale: Omit<Sale, 'id' | 'createdAt'>) => {
     const safeSale = { ...sale, profit: Math.max(0, sale.profit), totalPrice: Math.max(0, sale.totalPrice) };
