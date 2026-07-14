@@ -34,6 +34,10 @@ export interface Product {
   sellingUnits?: SellingUnit[];
   supplierPhone?: string;
   supplierCountryCode?: string;
+  supplierName?: string;
+  // Internal reference to the linked Supplier record (auto-managed when
+  // supplier name/phone are set on the product form)
+  supplierId?: string;
   unitsPerBox?: number;
   units?: ProductUnit[];
   // New fields
