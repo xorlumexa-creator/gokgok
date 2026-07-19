@@ -16,6 +16,8 @@ interface ReqRow {
   status: string;
   created_at: string;
   shop_name?: string | null;
+  request_type?: string;
+  amount_tk?: number | null;
 }
 
 export default function SubscriptionRequests() {
@@ -96,6 +98,15 @@ export default function SubscriptionRequests() {
                   <p className="font-bold">{r.shop_name || 'অজানা দোকান'}</p>
                   <p className="text-sm text-muted-foreground">📞 {r.user_phone}</p>
                   <p className="text-sm">প্ল্যান: <span className="font-semibold capitalize">{r.plan_type}</span></p>
+                  {r.request_type === 'upgrade' ? (
+                    <span className="inline-block px-2 py-0.5 rounded text-xs font-medium bg-primary/10 text-primary">
+                      আপগ্রেড {r.amount_tk ? `(+৳${r.amount_tk})` : ''} — মেয়াদ অপরিবর্তিত থাকবে
+                    </span>
+                  ) : (
+                    <span className="inline-block px-2 py-0.5 rounded text-xs font-medium bg-muted text-muted-foreground">
+                      নতুন প্ল্যান{r.amount_tk ? ` — ৳${r.amount_tk}` : ''}
+                    </span>
+                  )}
                   <p className="text-sm">পেমেন্ট: {r.payment_method}</p>
                   {r.transaction_id && <p className="text-sm">TXN: <code className="bg-muted px-1 rounded">{r.transaction_id}</code></p>}
                   {r.screenshot_url && (
@@ -128,3 +139,4 @@ export default function SubscriptionRequests() {
   );
     }
 
+                    
