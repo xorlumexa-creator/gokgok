@@ -10,12 +10,14 @@ const PAYMENT_NUMBER = '01305969812';
 interface Props {
   userId: string;
   userPhone: string;
-  plan: 'basic' | 'standard' | 'pro';
+  plan: 'basic' | 'pro';
   amount: string;
+  requestType?: 'new' | 'upgrade';
+  amountTk?: number;
   onDone?: () => void;
 }
 
-export function SubscriptionPaymentForm({ userId, userPhone, plan, amount, onDone }: Props) {
+export function SubscriptionPaymentForm({ userId, userPhone, plan, amount, requestType = 'new', amountTk, onDone }: Props) {
   const [method, setMethod] = useState<'bkash' | 'nagad'>('bkash');
   const [txn, setTxn] = useState('');
   const [file, setFile] = useState<File | null>(null);
@@ -45,18 +47,28 @@ export function SubscriptionPaymentForm({ userId, userPhone, plan, amount, onDon
         screenshot_url,
         payment_method: method,
         status: 'pending',
+        request_type: requestType,
+        amount_tk: amountTk ?? null,
       }), 6000, 'payment.request');
       if (error) throw error;
 
-      // Grant 2-day temporary access while manager reviews
-      const expiry = new Date(); expiry.setDate(expiry.getDate() + 2);
-      await withTimeout(supabase.from('profiles').update({
-        temporary_access: true,
-        temporary_expiry: expiry.toISOString(),
-      }).eq('user_id', userId), 6000, 'payment.tempAccess');
+      // Only grant the 2-day bridge access for brand-new purchases — an
+      // upgrade request means the user already has an active plan, so
+      // there's nothing to bridge while the manager reviews it.
+      if (requestType === 'new') {
+        const expiry = new Date(); expiry.setDate(expiry.getDate() + 2);
+        await withTimeout(supabase.from('profiles').update({
+          temporary_access: true,
+          temporary_expiry: expiry.toISOString(),
+        }).eq('user_id', userId), 6000, 'payment.tempAccess');
+      }
 
       setDone(true);
-      toast({ title: 'রিকোয়েস্ট জমা হয়েছে — ২ দিনের অস্থায়ী অ্যাক্সেস চালু হলো 🎉' });
+      toast({
+        title: requestType === 'upgrade'
+          ? 'আপগ্রেড রিকোয়েস্ট জমা হয়েছে ✓'
+          : 'রিকোয়েস্ট জমা হয়েছে — ২ দিনের অস্থায়ী অ্যাক্সেস চালু হলো 🎉',
+      });
       onDone?.();
     } catch (e: any) {
       toast({ title: e.message || 'সমস্যা হয়েছে', variant: 'destructive' });
@@ -69,7 +81,9 @@ export function SubscriptionPaymentForm({ userId, userPhone, plan, amount, onDon
         <CheckCircle2 className="w-14 h-14 text-profit mx-auto" />
         <h3 className="text-lg font-bold">রিকোয়েস্ট জমা হয়েছে</h3>
         <p className="text-sm text-muted-foreground">
-          ম্যানেজার আপনার পেমেন্ট যাচাই করবেন। অনুমোদনের আগ পর্যন্ত ১ দিনের ফ্রি অ্যাক্সেস চালু রইলো।
+          {requestType === 'upgrade'
+            ? 'ম্যানেজার আপনার পেমেন্ট যাচাই করবেন। অনুমোদনের পর WhatsApp ফিচার চালু হবে — আপনার মেয়াদ অপরিবর্তিত থাকবে।'
+            : 'ম্যানেজার আপনার পেমেন্ট যাচাই করবেন। অনুমোদনের আগ পর্যন্ত ২ দিনের ফ্রি অ্যাক্সেস চালু রইলো।'}
         </p>
       </div>
     );
