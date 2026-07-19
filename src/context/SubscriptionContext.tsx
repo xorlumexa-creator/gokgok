@@ -3,13 +3,13 @@ import { supabase } from '@/integrations/supabase/client';
 import { useStore } from '@/context/StoreContext';
 import { withTimeout } from '@/lib/asyncTimeout';
 
-export type PlanId = 'basic' | 'standard' | 'pro';
+export type PlanId = 'basic' | 'pro';
 
-export const PLAN_BASE_PRICE: Record<PlanId, number> = { basic: 80, standard: 120, pro: 180 };
-export const PLAN_LABEL: Record<PlanId, string> = { basic: 'Basic', standard: 'Standard', pro: 'Pro' };
+export const PLAN_BASE_PRICE: Record<PlanId, number> = { basic: 100, pro: 120 };
+export const PLAN_LABEL: Record<PlanId, string> = { basic: 'Basic', pro: 'Pro' };
 export const PLAN_FEATURES = {
-  whatsapp: ['standard', 'pro'] as PlanId[],
-  invoice: ['pro'] as PlanId[],
+  whatsapp: ['pro'] as PlanId[],
+  invoice: ['basic', 'pro'] as PlanId[],
 };
 export const SALES_CREDIT_LIMIT = 12000;
 export const STORAGE_UNIT = 1000;
