@@ -29,7 +29,24 @@ export default function ManagerLayout() {
 
   const signOut = async () => {
     await withTimeout(supabase.auth.signOut(), 4000, 'manager.signOut').catch(() => null);
-    navigate('/auth');
+
+    // Same account-switch safety as the regular sign-out: wipe local
+    // caches and hard-reload so a different account on this device never
+    // inherits stale profile/business data.
+    try {
+      const { clearAllStores } = await import('@/lib/idb');
+      await clearAllStores();
+    } catch { /* ignore */ }
+    const STORE_DATA_KEYS = [
+      'storeInfo', 'products', 'sales', 'customers', 'expenses', 'preOrders',
+      'bulkSaleRecords', 'bakiPaymentRecords', 'customEarnings', 'suppliers',
+      'cache:profile', 'idb:migrated:v1',
+    ];
+    for (const key of STORE_DATA_KEYS) {
+      try { localStorage.removeItem(key); } catch { /* ignore */ }
+    }
+
+    window.location.href = '/auth';
   };
 
   if (loading) {
