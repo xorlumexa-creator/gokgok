@@ -24,10 +24,16 @@ export default function Suppliers() {
     productIds: [] as string[]
   });
   
-  // Order message state
+  // Order message state — a list of items (from this supplier's own
+  // products, or fully custom), each with its own quantity and unit.
+  interface OrderItem { id: string; name: string; quantity: string; unit: string; isCustom: boolean }
   const [showOrderModal, setShowOrderModal] = useState<string | null>(null);
-  const [orderProduct, setOrderProduct] = useState('');
-  const [orderQuantity, setOrderQuantity] = useState('');
+  const [orderItems, setOrderItems] = useState<OrderItem[]>([]);
+  const [showOrderProductPicker, setShowOrderProductPicker] = useState(false);
+  const [showOrderCustomForm, setShowOrderCustomForm] = useState(false);
+  const [customItemName, setCustomItemName] = useState('');
+  const [customItemQty, setCustomItemQty] = useState('');
+  const [customItemUnit, setCustomItemUnit] = useState('');
   const [orderMessage, setOrderMessage] = useState('');
   const [editingMessage, setEditingMessage] = useState(false);
   
@@ -62,12 +68,27 @@ export default function Suppliers() {
     return products.filter(p => p.name.toLowerCase().includes(productSearch.toLowerCase()));
   }, [products, productSearch]);
 
-  const generateDefaultMessage = (productName: string, quantity: string) => {
+  // Products belonging ONLY to the supplier whose order modal is currently
+  // open — never the whole shop's catalog, so a shop owner can't
+  // accidentally order an item from the wrong supplier.
+  const orderModalSupplier = useMemo(
+    () => suppliers.find(s => s.id === showOrderModal) || null,
+    [suppliers, showOrderModal],
+  );
+  const orderModalSupplierProducts = useMemo(() => {
+    if (!orderModalSupplier) return [];
+    return products.filter(p => orderModalSupplier.productIds.includes(p.id));
+  }, [products, orderModalSupplier]);
+
+  const generateDefaultMessage = (items: OrderItem[]) => {
+    const itemLines = items.length
+      ? items.map((it, i) => `${i + 1}. ${it.name || '[পণ্যের নাম]'} — ${it.quantity || '[পরিমাণ]'}${it.unit ? ' ' + it.unit : ''}`).join('\n')
+      : '[কোনো আইটেম যোগ করা হয়নি]';
     return `Assalamualaikum,
 ${storeInfo?.name || 'আমাদের দোকান'} থেকে অনুরোধ করা হচ্ছে যে, নিচের আইটেমগুলো সরবরাহ করবেন:
 
-আইটেম: ${productName || '[পণ্যের নাম]'}
-পরিমাণ: ${quantity || '[পরিমাণ]'}
+আইটেম:
+${itemLines}
 
 দোকান লোকেশন: ${storeInfo?.location || '[ঠিকানা]'}
 মোবাইল: ${storeInfo?.phone || '[ফোন নম্বর]'}
@@ -149,9 +170,11 @@ ${storeInfo?.name || 'আমাদের দোকান'} থেকে অন�
   const openOrderModal = (supplier: typeof suppliers[0]) => {
     if (!guardFeature('whatsapp')) return;
     setShowOrderModal(supplier.id);
-    setOrderProduct('');
-    setOrderQuantity('');
-    setOrderMessage(generateDefaultMessage('', ''));
+    setOrderItems([]);
+    setShowOrderProductPicker(false);
+    setShowOrderCustomForm(false);
+    setCustomItemName(''); setCustomItemQty(''); setCustomItemUnit('');
+    setOrderMessage(generateDefaultMessage([]));
     setEditingMessage(false);
   };
 
@@ -161,6 +184,10 @@ ${storeInfo?.name || 'আমাদের দোকান'} থেকে অন�
     const supplier = suppliers.find(s => s.id === showOrderModal);
     if (!supplier) return;
 
+    if (orderItems.length === 0) {
+      toast({ title: 'অন্তত একটি পণ্য যোগ করুন', variant: 'destructive' });
+      return;
+    }
 
     // Format phone number for WhatsApp
     let phone = supplier.phone.replace(/\s+/g, '');
@@ -168,11 +195,46 @@ ${storeInfo?.name || 'আমাদের দোকান'} থেকে অন�
       phone = '+' + phone;
     }
 
-    const message = editingMessage ? orderMessage : generateDefaultMessage(orderProduct, orderQuantity);
+    const message = editingMessage ? orderMessage : generateDefaultMessage(orderItems);
     const whatsappUrl = `https://wa.me/${phone.replace('+', '')}?text=${encodeURIComponent(message)}`;
-    
+
     window.open(whatsappUrl, '_blank');
     setShowOrderModal(null);
+  };
+
+  const addProductOrderItem = (product: typeof products[0]) => {
+    setOrderItems(prev => [...prev, {
+      id: `p-${product.id}-${Date.now()}`,
+      name: product.name,
+      quantity: '',
+      unit: product.baseUnit || '',
+      isCustom: false,
+    }]);
+    setShowOrderProductPicker(false);
+  };
+
+  const addCustomOrderItem = () => {
+    if (!customItemName.trim()) {
+      toast({ title: 'পণ্যের নাম দিন', variant: 'destructive' });
+      return;
+    }
+    setOrderItems(prev => [...prev, {
+      id: `c-${Date.now()}`,
+      name: customItemName.trim(),
+      quantity: customItemQty.trim(),
+      unit: customItemUnit.trim(),
+      isCustom: true,
+    }]);
+    setCustomItemName(''); setCustomItemQty(''); setCustomItemUnit('');
+    setShowOrderCustomForm(false);
+  };
+
+  const updateOrderItem = (idx: number, patch: Partial<OrderItem>) => {
+    setOrderItems(prev => prev.map((it, i) => (i === idx ? { ...it, ...patch } : it)));
+  };
+
+  const removeOrderItem = (idx: number) => {
+    setOrderItems(prev => prev.filter((_, i) => i !== idx));
   };
 
   const callSupplier = (phone: string) => {
@@ -382,46 +444,119 @@ ${storeInfo?.name || 'আমাদের দোকান'} থেকে অন�
             </div>
 
             <div className="space-y-4">
-              {/* Product Name */}
-              <div>
-                <label className="block text-sm font-medium mb-2">পণ্যের নাম</label>
-                <input
-                  type="text"
-                  value={orderProduct}
-                  onChange={(e) => {
-                    setOrderProduct(e.target.value);
-                    if (!editingMessage) {
-                      setOrderMessage(generateDefaultMessage(e.target.value, orderQuantity));
-                    }
-                  }}
-                  placeholder="যে পণ্য চাই"
-                  className="input-field"
-                />
+              {/* Item list */}
+              {orderItems.length > 0 && (
+                <div className="space-y-2">
+                  {orderItems.map((item, idx) => (
+                    <div key={item.id} className="p-3 bg-muted/50 rounded-xl space-y-2">
+                      <div className="flex items-center justify-between gap-2">
+                        {item.isCustom ? (
+                          <input
+                            type="text"
+                            value={item.name}
+                            onChange={(e) => updateOrderItem(idx, { name: e.target.value })}
+                            placeholder="পণ্যের নাম"
+                            className="input-field text-sm flex-1"
+                          />
+                        ) : (
+                          <p className="font-medium text-sm truncate flex-1">{item.name}</p>
+                        )}
+                        <button onClick={() => removeOrderItem(idx)} className="shrink-0 p-1.5 hover:bg-background rounded-lg">
+                          <X className="w-4 h-4 text-muted-foreground" />
+                        </button>
+                      </div>
+                      <div className="flex gap-2">
+                        <input
+                          type="text"
+                          value={item.quantity}
+                          onChange={(e) => updateOrderItem(idx, { quantity: e.target.value })}
+                          placeholder="পরিমাণ"
+                          className="input-field text-sm flex-1"
+                        />
+                        <input
+                          type="text"
+                          value={item.unit}
+                          onChange={(e) => updateOrderItem(idx, { unit: e.target.value })}
+                          placeholder="একক (কেজি, বস্তা...)"
+                          className="input-field text-sm flex-1"
+                        />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Add item buttons */}
+              <div className="flex gap-2">
+                <button type="button" onClick={() => { setShowOrderProductPicker(v => !v); setShowOrderCustomForm(false); }}
+                  className="flex-1 py-2.5 rounded-xl border border-dashed border-primary text-primary text-sm font-medium hover:bg-primary/5 flex items-center justify-center gap-1">
+                  <Plus className="w-4 h-4" /> পণ্য যোগ করুন
+                </button>
+                <button type="button" onClick={() => { setShowOrderCustomForm(v => !v); setShowOrderProductPicker(false); }}
+                  className="flex-1 py-2.5 rounded-xl border border-dashed border-amber-500 text-amber-700 dark:text-amber-400 text-sm font-medium hover:bg-amber-50 dark:hover:bg-amber-900/10 flex items-center justify-center gap-1">
+                  <Plus className="w-4 h-4" /> কাস্টম পণ্য
+                </button>
               </div>
 
-              {/* Quantity */}
-              <div>
-                <label className="block text-sm font-medium mb-2">পরিমাণ</label>
-                <input
-                  type="text"
-                  value={orderQuantity}
-                  onChange={(e) => {
-                    setOrderQuantity(e.target.value);
-                    if (!editingMessage) {
-                      setOrderMessage(generateDefaultMessage(orderProduct, e.target.value));
-                    }
-                  }}
-                  placeholder="কত পরিমাণ চাই"
-                  className="input-field"
-                />
-              </div>
+              {/* Product picker — ONLY this supplier's own linked products */}
+              {showOrderProductPicker && (
+                <div className="p-3 bg-muted/30 rounded-xl space-y-2">
+                  <p className="text-xs text-muted-foreground">শুধু এই সরবরাহকারীর পণ্য দেখানো হচ্ছে</p>
+                  {orderModalSupplierProducts.length > 0 ? (
+                    <div className="grid grid-cols-2 gap-2 max-h-48 overflow-y-auto">
+                      {orderModalSupplierProducts.map(p => (
+                        <button key={p.id} type="button" onClick={() => addProductOrderItem(p)}
+                          className="p-3 rounded-xl border border-border hover:border-primary/50 bg-background text-left transition-all">
+                          <p className="font-medium text-sm truncate">{p.name}</p>
+                          <p className="text-xs text-muted-foreground">{p.baseUnit}</p>
+                        </button>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-xs text-muted-foreground">
+                      এই সরবরাহকারীর সাথে কোনো পণ্য যুক্ত নেই। পণ্য পেজ থেকে যুক্ত করুন, অথবা নিচের "কাস্টম পণ্য" ব্যবহার করুন।
+                    </p>
+                  )}
+                </div>
+              )}
+
+              {/* Custom item form */}
+              {showOrderCustomForm && (
+                <div className="p-4 bg-amber-50/60 dark:bg-amber-900/10 border border-amber-200 dark:border-amber-800 rounded-xl space-y-3">
+                  <div>
+                    <label className="text-xs text-muted-foreground mb-1 block">পণ্যের নাম *</label>
+                    <input type="text" value={customItemName} onChange={(e) => setCustomItemName(e.target.value)}
+                      placeholder="যেমন: বিশেষ চাল" className="input-field text-sm" />
+                  </div>
+                  <div className="flex gap-2">
+                    <div className="flex-1">
+                      <label className="text-xs text-muted-foreground mb-1 block">পরিমাণ</label>
+                      <input type="text" value={customItemQty} onChange={(e) => setCustomItemQty(e.target.value)}
+                        placeholder="যেমন: ৫" className="input-field text-sm" />
+                    </div>
+                    <div className="flex-1">
+                      <label className="text-xs text-muted-foreground mb-1 block">একক</label>
+                      <input type="text" value={customItemUnit} onChange={(e) => setCustomItemUnit(e.target.value)}
+                        placeholder="যেমন: কেজি, বস্তা" className="input-field text-sm" />
+                    </div>
+                  </div>
+                  <div className="flex gap-2 pt-1">
+                    <button type="button" onClick={() => { setShowOrderCustomForm(false); setCustomItemName(''); setCustomItemQty(''); setCustomItemUnit(''); }}
+                      className="flex-1 text-xs text-muted-foreground py-2">বাতিল</button>
+                    <Button type="button" onClick={addCustomOrderItem} className="flex-1 btn-primary py-2 rounded-lg text-sm">যোগ করুন</Button>
+                  </div>
+                </div>
+              )}
 
               {/* Message Preview/Edit */}
               <div>
                 <div className="flex items-center justify-between mb-2">
                   <label className="text-sm font-medium">বার্তা:</label>
                   <button
-                    onClick={() => setEditingMessage(!editingMessage)}
+                    onClick={() => {
+                      if (!editingMessage) setOrderMessage(generateDefaultMessage(orderItems));
+                      setEditingMessage(!editingMessage);
+                    }}
                     className="text-sm text-primary flex items-center gap-1"
                   >
                     {editingMessage ? 'ডিফল্ট করুন' : 'সম্পাদনা করুন'}
@@ -435,7 +570,7 @@ ${storeInfo?.name || 'আমাদের দোকান'} থেকে অন�
                   />
                 ) : (
                   <div className="p-3 bg-muted/50 rounded-xl text-sm whitespace-pre-line max-h-[200px] overflow-y-auto">
-                    {generateDefaultMessage(orderProduct, orderQuantity)}
+                    {generateDefaultMessage(orderItems)}
                   </div>
                 )}
               </div>
