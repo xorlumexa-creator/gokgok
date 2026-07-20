@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useRef } from 'react';
 import { CalendarCheck, Plus, Search, User, Phone, X, Package, Trash2, CheckCircle, XCircle, Clock, MessageCircle, AlertTriangle, ShoppingBag, ChevronDown, Info, Tag, Percent, BookOpen } from 'lucide-react';
 import { useStore } from '@/context/StoreContext';
 import { Button } from '@/components/ui/button';
@@ -71,6 +71,11 @@ export default function PreOrders() {
   const [customerPhone, setCustomerPhone] = useState('');
   const [deliveryDate, setDeliveryDate] = useState('');
   const [addCart, setAddCart] = useState<SellOrderItem[]>([]);
+  const addProductSearchInputRef = useRef<HTMLInputElement>(null);
+  const focusProductSearch = () => {
+    addProductSearchInputRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    addProductSearchInputRef.current?.focus();
+  };
   const [addSelectingProduct, setAddSelectingProduct] = useState<any>(null);
   const [addProductSearch, setAddProductSearch] = useState('');
 
@@ -582,7 +587,7 @@ export default function PreOrders() {
                 <div className="flex gap-2 mb-3">
                   <div className="relative flex-1">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                    <input type="text" value={addProductSearch} onChange={(e) => setAddProductSearch(e.target.value)} placeholder="পণ্য খুঁজুন..." className="input-field pl-9 text-sm" />
+                    <input ref={addProductSearchInputRef} type="text" value={addProductSearch} onChange={(e) => setAddProductSearch(e.target.value)} placeholder="পণ্য খুঁজুন..." className="input-field pl-9 text-sm" />
                   </div>
                   <button type="button" onClick={() => setShowCustomProductForm(v => !v)}
                     className="shrink-0 px-3 rounded-xl border border-dashed border-primary text-primary text-sm font-medium hover:bg-primary/5 flex items-center gap-1 whitespace-nowrap">
@@ -657,6 +662,16 @@ export default function PreOrders() {
                 {addCart.length > 0 && (
                   <div className="space-y-3 mb-4">
                     {addCart.map((item, idx) => renderCartItem(item, idx, updateAddCartItem, updateAddCartField, (i) => setAddCart(prev => prev.filter((_, j) => j !== i))))}
+                    <div className="flex gap-2">
+                      <button type="button" onClick={focusProductSearch}
+                        className="flex-1 py-2.5 rounded-xl border border-dashed border-primary text-primary text-sm font-medium hover:bg-primary/5 flex items-center justify-center gap-1">
+                        <Plus className="w-4 h-4" /> আরো পণ্য যোগ করুন
+                      </button>
+                      <button type="button" onClick={() => setShowCustomProductForm(true)}
+                        className="flex-1 py-2.5 rounded-xl border border-dashed border-amber-500 text-amber-700 dark:text-amber-400 text-sm font-medium hover:bg-amber-50 dark:hover:bg-amber-900/10 flex items-center justify-center gap-1">
+                        <Plus className="w-4 h-4" /> আরো কাস্টম পণ্য
+                      </button>
+                    </div>
                     <div className="border-t border-border pt-3 space-y-1">
                       <div className="flex justify-between text-lg">
                         <span className="font-medium">মোট:</span>
