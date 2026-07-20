@@ -158,6 +158,23 @@ export async function getMeta<T = unknown>(key: string): Promise<T | null> {
   return (row?.value as T) ?? null;
 }
 
+// ---------- full wipe (used on logout) --------------------------------------
+
+/**
+ * Clears every object store completely. This is the account-switch-on-the-
+ * -same-device fix: without it, logging into a different account left the
+ * previous shop's products/baki/sales sitting in IndexedDB, since none of
+ * the stores were ever scoped per-user. Call this from signOut(), then hard
+ * -reload the app so React state (which only reads localStorage once, on
+ * mount) also starts from a genuinely clean slate.
+ */
+export async function clearAllStores(): Promise<void> {
+  const db = await getDB();
+  const tx = db.transaction(STORES, 'readwrite');
+  await Promise.all(STORES.map((s) => tx.objectStore(s).clear()));
+  await tx.done;
+}
+
 // ---------- sync queue -----------------------------------------------------
 
 export type QueueScope = 'baki' | 'products' | 'hisab';
