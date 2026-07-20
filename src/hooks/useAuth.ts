@@ -91,9 +91,31 @@ export function useAuth() {
     } catch { /* offline or engine not started — local data stays safe */ }
     try {
       await withTimeout(supabase.auth.signOut(), 4000, 'auth.signOut');
-    } finally {
-      primeAuthSession(null);
+    } catch { /* proceed with local cleanup regardless */ }
+    primeAuthSession(null);
+
+    // Critical: wipe every local trace of this account's business data.
+    // Without this, logging into a DIFFERENT account on the same device
+    // would still show the previous shop's products/baki/sales, since
+    // IndexedDB and localStorage were never scoped per-user. A hard
+    // reload afterward is deliberate too — React's local state only
+    // reads localStorage once on mount, so clearing storage alone
+    // wouldn't refresh an already-running session.
+    try {
+      const { clearAllStores } = await import('@/lib/idb');
+      await clearAllStores();
+    } catch { /* IndexedDB unavailable — localStorage wipe below still runs */ }
+
+    const STORE_DATA_KEYS = [
+      'storeInfo', 'products', 'sales', 'customers', 'expenses', 'preOrders',
+      'bulkSaleRecords', 'bakiPaymentRecords', 'customEarnings', 'suppliers',
+      'cache:profile', 'idb:migrated:v1',
+    ];
+    for (const key of STORE_DATA_KEYS) {
+      try { localStorage.removeItem(key); } catch { /* ignore */ }
     }
+
+    window.location.href = '/auth';
   };
 
   return { user, session, loading, signOut };
