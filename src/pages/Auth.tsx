@@ -60,6 +60,30 @@ export default function Auth() {
         return;
       }
       const normalizedForRoute = normalized;
+
+      // Safety net for the account-switch data leak: if the account
+      // logging in now is different from whoever was last active on this
+      // device, and any local business data is still sitting around
+      // (meaning a previous sign-out's cleanup was somehow interrupted),
+      // wipe it before proceeding. This should rarely trigger in practice
+      // since signOut() already clears everything itself — this just
+      // guards against that cleanup being cut short (e.g. app killed
+      // mid-cleanup).
+      const LAST_USER_KEY = 'last_active_user_id';
+      const lastUserId = localStorage.getItem(LAST_USER_KEY);
+      if (data.user && lastUserId && lastUserId !== data.user.id) {
+        try {
+          const { clearAllStores } = await import('@/lib/idb');
+          await clearAllStores();
+        } catch { /* ignore */ }
+        ['storeInfo', 'products', 'sales', 'customers', 'expenses', 'preOrders',
+          'bulkSaleRecords', 'bakiPaymentRecords', 'customEarnings', 'suppliers',
+          'cache:profile', 'idb:migrated:v1'].forEach((k) => {
+          try { localStorage.removeItem(k); } catch { /* ignore */ }
+        });
+      }
+      if (data.user) localStorage.setItem(LAST_USER_KEY, data.user.id);
+
       primeAuthSession(data.session ?? null);
       if (data.user) primeProfileFromAuth(data.user.id, { ...data.user.user_metadata, phone: normalized });
       if (isManagerPhone(normalizedForRoute)) navigate('/manager', { replace: true });
@@ -230,4 +254,5 @@ export default function Auth() {
       </div>
     </main>
   );
-}
+        }
+    
