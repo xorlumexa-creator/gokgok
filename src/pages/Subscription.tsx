@@ -230,7 +230,7 @@ export default function Subscription() {
           ) : (
             <div className="card-elevated rounded-2xl p-5 mb-6 bg-card text-center">
               <ShieldCheck className="w-10 h-10 text-emerald-600 mx-auto mb-2" />
-              <p className="font-bold text-foreground">আপনার Pro প্ল্যান সক্রিয় আছে</p>
+              <p className="font-bold text-foreground">আপনার {PLAN_LABEL[plan] || 'Pro'} প্ল্যান সক্রিয় আছে</p>
               <p className="text-xs text-muted-foreground mt-1">
                 মেয়াদ শেষ না হওয়া পর্যন্ত নতুন প্ল্যান কেনার প্রয়োজন নেই
               </p>
