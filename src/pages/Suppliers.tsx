@@ -1,89 +1,180 @@
 import { useState, useMemo } from 'react';
-import { Truck, Plus, Search, Phone, MessageCircle, X, Edit2, Trash2, Package } from 'lucide-react';
+import { Truck, Plus, Search, Phone, MessageCircle, X, Package, Trash2, ChevronDown, ArrowLeft, RotateCcw, CheckCircle2 } from 'lucide-react';
 import { useStore } from '@/context/StoreContext';
 import { useSubscription } from '@/context/SubscriptionContext';
 import { Button } from '@/components/ui/button';
 import { toast } from '@/hooks/use-toast';
 import { PhoneInputWithCode } from '@/components/common/PhoneInputWithCode';
-import { validatePhoneWithCountryCode } from '@/types/store';
+import { validatePhoneWithCountryCode, SellingUnit } from '@/types/store';
+
+// Quantity-unit options by stock type — same list used on বিক্রি করুন (Sell page)
+const SELL_UNIT_OPTIONS: Record<string, { label: string; toBase: number }[]> = {
+  weight: [
+    { label: 'গ্রাম', toBase: 1 },
+    { label: 'কেজি', toBase: 1000 },
+  ],
+  number: [
+    { label: 'পিস', toBase: 1 },
+    { label: 'ডজন', toBase: 12 },
+    { label: 'হালি', toBase: 4 },
+  ],
+  liquid: [
+    { label: 'মিলি', toBase: 1 },
+    { label: 'লিটার', toBase: 1000 },
+  ],
+};
+
+const getStockType = (unitType: string): string => {
+  if (['kg', 'gram'].includes(unitType)) return 'weight';
+  if (['litre'].includes(unitType)) return 'liquid';
+  return 'number';
+};
+
+// An item the shopkeeper wants to order — either a real product from
+// inventory (carrying its linked supplier's phone/name straight from the
+// product record) or a fully custom item typed in by hand.
+interface OrderCartItem {
+  id: string;
+  productId?: string;
+  name: string;
+  sellAmount: number;
+  sellUnitLabel: string;
+  sellUnitToBase: number;
+  isCustom: boolean;
+  supplierPhone?: string;
+  supplierName?: string;
+}
+
+const NO_CONTACT_KEY = '__no_contact__';
 
 export default function Suppliers() {
-  const { suppliers, products, storeInfo, addSupplier, updateSupplier, deleteSupplier } = useStore();
+  const { products, storeInfo } = useStore();
   const { guardFeature } = useSubscription();
 
-  
-  const [searchTerm, setSearchTerm] = useState('');
-  const [showAddForm, setShowAddForm] = useState(false);
-  const [editingId, setEditingId] = useState<string | null>(null);
-  
-  // Form state
-  const [formData, setFormData] = useState({
-    name: '',
-    phone: '',
-    countryCode: '+880',
-    productIds: [] as string[]
-  });
-  
-  // Order message state — a list of items (from this supplier's own
-  // products, or fully custom), each with its own quantity and unit.
-  interface OrderItem { id: string; name: string; quantity: string; unit: string; isCustom: boolean }
-  const [showOrderModal, setShowOrderModal] = useState<string | null>(null);
-  const [orderItems, setOrderItems] = useState<OrderItem[]>([]);
-  const [showOrderProductPicker, setShowOrderProductPicker] = useState(false);
-  const [showOrderCustomForm, setShowOrderCustomForm] = useState(false);
-  const [customItemName, setCustomItemName] = useState('');
-  const [customItemQty, setCustomItemQty] = useState('');
-  const [customItemUnit, setCustomItemUnit] = useState('');
-  const [orderMessage, setOrderMessage] = useState('');
-  const [editingMessage, setEditingMessage] = useState(false);
-  
+  // --- Order-building (main) state ---
+  const [cart, setCart] = useState<OrderCartItem[]>([]);
   const [productSearch, setProductSearch] = useState('');
-  
-  // Flatten to one row per (product, supplier) pair so the list can show
-  // "পণ্যের নাম (সরবরাহকারীর নাম)" - this covers suppliers added manually on
-  // this page AND suppliers auto-linked from the product page's supplier field.
-  const supplierProductRows = useMemo(() => {
-    const rows: { key: string; supplier: typeof suppliers[0]; product: typeof products[0] }[] = [];
-    suppliers.forEach(supplier => {
-      supplier.productIds.forEach(pid => {
-        const product = products.find(p => p.id === pid);
-        if (product) rows.push({ key: `${supplier.id}-${pid}`, supplier, product });
-      });
-    });
-    return rows.sort((a, b) => a.product.name.localeCompare(b.product.name, 'bn'));
-  }, [suppliers, products]);
+  const [selectingProduct, setSelectingProduct] = useState<any>(null);
 
-  const filteredSupplierRows = useMemo(() => {
-    if (!searchTerm.trim()) return supplierProductRows;
-    const lower = searchTerm.toLowerCase();
-    return supplierProductRows.filter(row =>
-      row.supplier.name.toLowerCase().includes(lower) ||
-      row.supplier.phone.includes(searchTerm) ||
-      row.product.name.toLowerCase().includes(lower)
-    );
-  }, [supplierProductRows, searchTerm]);
+  const [showCustomForm, setShowCustomForm] = useState(false);
+  const [customName, setCustomName] = useState('');
+  const [customQty, setCustomQty] = useState('');
+  const [customUnit, setCustomUnit] = useState('');
+
+  // --- Review / send state ---
+  const [reviewMode, setReviewMode] = useState(false);
+  const [noContactPhone, setNoContactPhone] = useState('');
+  const [editingGroupKey, setEditingGroupKey] = useState<string | null>(null);
+  const [groupMessageOverrides, setGroupMessageOverrides] = useState<Record<string, string>>({});
+  const [sentGroups, setSentGroups] = useState<Set<string>>(new Set());
 
   const filteredProducts = useMemo(() => {
     if (!productSearch.trim()) return products;
-    return products.filter(p => p.name.toLowerCase().includes(productSearch.toLowerCase()));
+    const lower = productSearch.toLowerCase();
+    return products.filter(p => p.name.toLowerCase().includes(lower));
   }, [products, productSearch]);
 
-  // Products belonging ONLY to the supplier whose order modal is currently
-  // open — never the whole shop's catalog, so a shop owner can't
-  // accidentally order an item from the wrong supplier.
-  const orderModalSupplier = useMemo(
-    () => suppliers.find(s => s.id === showOrderModal) || null,
-    [suppliers, showOrderModal],
-  );
-  const orderModalSupplierProducts = useMemo(() => {
-    if (!orderModalSupplier) return [];
-    return products.filter(p => orderModalSupplier.productIds.includes(p.id));
-  }, [products, orderModalSupplier]);
+  const getSellUnitOptions = (product: any) => {
+    const stockType = getStockType(product.unitType);
+    const options = SELL_UNIT_OPTIONS[stockType] || SELL_UNIT_OPTIONS.number;
+    const customUnits: { label: string; toBase: number }[] = [];
+    if (product.sellingUnits) {
+      for (const su of product.sellingUnits as SellingUnit[]) {
+        if (!options.some(o => o.toBase === su.conversionToBase) && su.conversionToBase > 0) {
+          customUnits.push({ label: su.name, toBase: su.conversionToBase });
+        }
+      }
+    }
+    return [...options, ...customUnits];
+  };
 
-  const generateDefaultMessage = (items: OrderItem[]) => {
-    const itemLines = items.length
-      ? items.map((it, i) => `${i + 1}. ${it.name || '[পণ্যের নাম]'} — ${it.quantity || '[পরিমাণ]'}${it.unit ? ' ' + it.unit : ''}`).join('\n')
-      : '[কোনো আইটেম যোগ করা হয়নি]';
+  // --- Cart helpers (Bikri-korun style: pick product → pick unit → edit amount) ---
+  const addProductToCart = (product: any, unit?: { label: string; toBase: number }) => {
+    const options = getSellUnitOptions(product);
+    if (options.length > 1 && !unit) {
+      setSelectingProduct(product);
+      return;
+    }
+    const chosen = unit || options[0];
+    setCart(prev => [...prev, {
+      id: `p-${product.id}-${Date.now()}`,
+      productId: product.id,
+      name: product.name,
+      sellAmount: 1,
+      sellUnitLabel: chosen.label,
+      sellUnitToBase: chosen.toBase,
+      isCustom: false,
+      supplierPhone: product.supplierPhone || undefined,
+      supplierName: product.supplierName || undefined,
+    }]);
+    setSelectingProduct(null);
+    setProductSearch('');
+    toast({ title: `${product.name} যোগ হয়েছে` });
+  };
+
+  const addCustomItemToCart = () => {
+    const name = customName.trim();
+    const qty = parseFloat(customQty);
+    const unit = customUnit.trim();
+    if (!name) { toast({ title: 'পণ্যের নাম দিন', variant: 'destructive' }); return; }
+    if (!qty || qty <= 0) { toast({ title: 'সঠিক পরিমাণ দিন', variant: 'destructive' }); return; }
+    if (!unit) { toast({ title: 'একক লিখুন (যেমন: কেজি, বস্তা)', variant: 'destructive' }); return; }
+    setCart(prev => [...prev, {
+      id: `c-${Date.now()}`,
+      name, sellAmount: qty, sellUnitLabel: unit, sellUnitToBase: 1, isCustom: true,
+    }]);
+    toast({ title: `${name} যোগ হয়েছে (কাস্টম পণ্য) ✓` });
+    setCustomName(''); setCustomQty(''); setCustomUnit('');
+    setShowCustomForm(false);
+  };
+
+  const updateCartAmount = (idx: number, amount: number) => {
+    setCart(prev => prev.map((it, i) => i === idx ? { ...it, sellAmount: Math.max(0, amount) } : it));
+  };
+
+  const updateCartUnit = (idx: number, label: string, toBase: number) => {
+    setCart(prev => prev.map((it, i) => i === idx ? { ...it, sellUnitLabel: label, sellUnitToBase: toBase } : it));
+  };
+
+  const removeCartItem = (idx: number) => {
+    setCart(prev => prev.filter((_, i) => i !== idx));
+  };
+
+  const resetOrder = () => {
+    setCart([]); setProductSearch(''); setSelectingProduct(null);
+    setShowCustomForm(false); setCustomName(''); setCustomQty(''); setCustomUnit('');
+    setReviewMode(false); setNoContactPhone(''); setEditingGroupKey(null);
+    setGroupMessageOverrides({}); setSentGroups(new Set());
+  };
+
+  const handleDone = () => {
+    if (cart.length === 0) { toast({ title: 'অন্তত একটি পণ্য যোগ করুন', variant: 'destructive' }); return; }
+    if (cart.some(it => !it.sellAmount || it.sellAmount <= 0)) { toast({ title: '⚠️ প্রতিটি পণ্যের সঠিক পরিমাণ দিন', variant: 'destructive' }); return; }
+    setReviewMode(true);
+  };
+
+  // --- Grouping: one group per supplier phone number, plus a group for
+  // custom items / products with no supplier phone attached ---
+  const groupedOrder = useMemo(() => {
+    const bySupplier = new Map<string, { key: string; name: string; phone: string; items: OrderCartItem[] }>();
+    const noContact: OrderCartItem[] = [];
+    cart.forEach(item => {
+      const phone = !item.isCustom ? item.supplierPhone?.trim() : '';
+      if (phone) {
+        const key = phone.replace(/\s+/g, '');
+        if (!bySupplier.has(key)) {
+          bySupplier.set(key, { key, name: item.supplierName || 'সরবরাহকারী', phone, items: [] });
+        }
+        bySupplier.get(key)!.items.push(item);
+      } else {
+        noContact.push(item);
+      }
+    });
+    return { supplierGroups: Array.from(bySupplier.values()), noContact };
+  }, [cart]);
+
+  const generateGroupMessage = (items: OrderCartItem[]) => {
+    const itemLines = items.map((it, i) => `${i + 1}. ${it.name} — ${it.sellAmount} ${it.sellUnitLabel}`).join('\n');
     return `Assalamualaikum,
 ${storeInfo?.name || 'আমাদের দোকান'} থেকে অনুরোধ করা হচ্ছে যে, নিচের আইটেমগুলো সরবরাহ করবেন:
 
@@ -96,497 +187,299 @@ ${itemLines}
 ধন্যবাদ।`;
   };
 
-  const handleSubmit = () => {
-    if (!formData.name.trim()) {
-      toast({ title: "সরবরাহকারীর নাম দিন", variant: "destructive" });
-      return;
-    }
+  const getGroupMessage = (key: string, items: OrderCartItem[]) => groupMessageOverrides[key] ?? generateGroupMessage(items);
 
-    const validation = validatePhoneWithCountryCode(formData.phone);
-    if (!validation.valid) {
-      toast({ title: validation.message, variant: "destructive" });
-      return;
-    }
-
-    // Suppliers can only be added by selecting a product
-    if (formData.productIds.length === 0) {
-      toast({ title: "কমপক্ষে একটি পণ্য নির্বাচন করুন", variant: "destructive" });
-      return;
-    }
-
-    if (editingId) {
-      updateSupplier(editingId, {
-        name: formData.name.trim(),
-        phone: formData.phone,
-        countryCode: formData.countryCode,
-        productIds: formData.productIds
-      });
-      toast({ title: "সরবরাহকারী আপডেট হয়েছে ✓" });
-    } else {
-      addSupplier({
-        name: formData.name.trim(),
-        phone: formData.phone,
-        countryCode: formData.countryCode,
-        productIds: formData.productIds
-      });
-      toast({ title: "নতুন সরবরাহকারী যোগ হয়েছে ✓" });
-    }
-
-    resetForm();
-  };
-
-  const handleEdit = (supplier: typeof suppliers[0]) => {
-    setEditingId(supplier.id);
-    setFormData({
-      name: supplier.name,
-      phone: supplier.phone,
-      countryCode: supplier.countryCode,
-      productIds: supplier.productIds
-    });
-    setShowAddForm(true);
-  };
-
-  const handleDelete = (id: string) => {
-    deleteSupplier(id);
-    toast({ title: "সরবরাহকারী মুছে ফেলা হয়েছে" });
-  };
-
-  const resetForm = () => {
-    setShowAddForm(false);
-    setEditingId(null);
-    setFormData({ name: '', phone: '', countryCode: '+880', productIds: [] });
-    setProductSearch('');
-  };
-
-  const toggleProduct = (productId: string) => {
-    setFormData(prev => ({
-      ...prev,
-      productIds: prev.productIds.includes(productId)
-        ? prev.productIds.filter(id => id !== productId)
-        : [...prev.productIds, productId]
-    }));
-  };
-
-  const openOrderModal = (supplier: typeof suppliers[0]) => {
+  const sendGroupMessage = (key: string, phone: string, items: OrderCartItem[]) => {
     if (!guardFeature('whatsapp')) return;
-    setShowOrderModal(supplier.id);
-    setOrderItems([]);
-    setShowOrderProductPicker(false);
-    setShowOrderCustomForm(false);
-    setCustomItemName(''); setCustomItemQty(''); setCustomItemUnit('');
-    setOrderMessage(generateDefaultMessage([]));
-    setEditingMessage(false);
+    let cleanPhone = phone.replace(/\s+/g, '');
+    if (!cleanPhone.startsWith('+')) cleanPhone = '+' + cleanPhone;
+    const validation = validatePhoneWithCountryCode(cleanPhone);
+    if (!validation.valid) { toast({ title: validation.message, variant: 'destructive' }); return; }
+    const message = getGroupMessage(key, items);
+    window.open(`https://wa.me/${cleanPhone.replace('+', '')}?text=${encodeURIComponent(message)}`, '_blank');
+    setSentGroups(prev => new Set(prev).add(key));
   };
 
-
-  const handleSendMessage = () => {
-    if (!guardFeature('whatsapp')) return;
-    const supplier = suppliers.find(s => s.id === showOrderModal);
-    if (!supplier) return;
-
-    if (orderItems.length === 0) {
-      toast({ title: 'অন্তত একটি পণ্য যোগ করুন', variant: 'destructive' });
-      return;
-    }
-
-    // Format phone number for WhatsApp
-    let phone = supplier.phone.replace(/\s+/g, '');
-    if (!phone.startsWith('+')) {
-      phone = '+' + phone;
-    }
-
-    const message = editingMessage ? orderMessage : generateDefaultMessage(orderItems);
-    const whatsappUrl = `https://wa.me/${phone.replace('+', '')}?text=${encodeURIComponent(message)}`;
-
-    window.open(whatsappUrl, '_blank');
-    setShowOrderModal(null);
-  };
-
-  const addProductOrderItem = (product: typeof products[0]) => {
-    setOrderItems(prev => [...prev, {
-      id: `p-${product.id}-${Date.now()}`,
-      name: product.name,
-      quantity: '',
-      unit: product.baseUnit || '',
-      isCustom: false,
-    }]);
-    setShowOrderProductPicker(false);
-  };
-
-  const addCustomOrderItem = () => {
-    if (!customItemName.trim()) {
-      toast({ title: 'পণ্যের নাম দিন', variant: 'destructive' });
-      return;
-    }
-    setOrderItems(prev => [...prev, {
-      id: `c-${Date.now()}`,
-      name: customItemName.trim(),
-      quantity: customItemQty.trim(),
-      unit: customItemUnit.trim(),
-      isCustom: true,
-    }]);
-    setCustomItemName(''); setCustomItemQty(''); setCustomItemUnit('');
-    setShowOrderCustomForm(false);
-  };
-
-  const updateOrderItem = (idx: number, patch: Partial<OrderItem>) => {
-    setOrderItems(prev => prev.map((it, i) => (i === idx ? { ...it, ...patch } : it)));
-  };
-
-  const removeOrderItem = (idx: number) => {
-    setOrderItems(prev => prev.filter((_, i) => i !== idx));
-  };
-
-  const callSupplier = (phone: string) => {
-    window.location.href = `tel:${phone}`;
-  };
-
-  const messageSupplier = (supplier: typeof suppliers[0]) => {
-    openOrderModal(supplier);
+  const sendNoContactMessage = () => {
+    const validation = validatePhoneWithCountryCode(noContactPhone);
+    if (!validation.valid) { toast({ title: validation.message, variant: 'destructive' }); return; }
+    sendGroupMessage(NO_CONTACT_KEY, noContactPhone, groupedOrder.noContact);
   };
 
   return (
     <div className="space-y-6 animate-fade-in">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className="p-3 bg-primary/10 rounded-xl">
-            <Truck className="w-6 h-6 text-primary" />
-          </div>
-          <div>
-            <h1 className="text-2xl font-bold text-foreground">সরবরাহকারী</h1>
-            <p className="text-muted-foreground">{suppliers.length}জন সরবরাহকারী</p>
-          </div>
+      <div className="flex items-center gap-3">
+        <div className="p-3 bg-primary/10 rounded-xl">
+          <Truck className="w-6 h-6 text-primary" />
         </div>
-        <Button onClick={() => setShowAddForm(true)} className="btn-primary rounded-xl">
-          <Plus className="w-5 h-5 mr-2" />
-          নতুন সরবরাহকারী
-        </Button>
-      </div>
-
-      {/* Search */}
-      <div className="relative">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
-        <input
-          type="text"
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          placeholder="পণ্য বা সরবরাহকারীর নাম দিয়ে খুঁজুন..."
-          className="input-field pl-10"
-        />
-      </div>
-
-      {/* Supplier List - one row per product, supplier name shown in brackets */}
-      <div className="space-y-3">
-        {filteredSupplierRows.map(({ key, supplier, product }) => (
-          <div key={key} className="card-elevated p-4">
-            <div className="flex items-start justify-between">
-              <div className="flex-1">
-                <h3 className="font-semibold text-foreground text-lg">
-                  {product.name}{' '}
-                  <span className="text-primary font-medium">({supplier.name})</span>
-                </h3>
-                <p className="text-sm text-muted-foreground flex items-center gap-1 mt-1">
-                  <Phone className="w-4 h-4" />
-                  {supplier.phone}
-                </p>
-              </div>
-              <div className="flex items-center gap-2">
-                {/* Call Button */}
-                <button
-                  onClick={() => callSupplier(supplier.phone)}
-                  className="p-2 bg-primary/10 hover:bg-primary/20 rounded-xl text-primary transition-colors"
-                  title="কল করুন"
-                >
-                  <Phone className="w-5 h-5" />
-                </button>
-                {/* Message Button */}
-                <button
-                  onClick={() => messageSupplier(supplier)}
-                  className="p-2 bg-green-100 hover:bg-green-200 rounded-xl text-green-600 transition-colors"
-                  title="WhatsApp বার্তা"
-                >
-                  <MessageCircle className="w-5 h-5" />
-                </button>
-                {/* Edit Button */}
-                <button
-                  onClick={() => handleEdit(supplier)}
-                  className="p-2 hover:bg-muted rounded-lg text-muted-foreground hover:text-foreground"
-                  title="সরবরাহকারী সম্পাদনা"
-                >
-                  <Edit2 className="w-4 h-4" />
-                </button>
-                {/* Delete Button */}
-                <button
-                  onClick={() => handleDelete(supplier.id)}
-                  className="p-2 hover:bg-destructive/10 rounded-lg text-muted-foreground hover:text-destructive"
-                  title="সরবরাহকারী মুছুন"
-                >
-                  <Trash2 className="w-4 h-4" />
-                </button>
-              </div>
-            </div>
-          </div>
-        ))}
-      </div>
-
-      {filteredSupplierRows.length === 0 && (
-        <div className="text-center py-12 text-muted-foreground">
-          <Truck className="w-12 h-12 mx-auto mb-3 opacity-50" />
-          <p>কোন সরবরাহকারী পাওয়া যায়নি</p>
-          <p className="text-sm mt-1">পণ্য যোগ করার সময় বা এখানে "নতুন সরবরাহকারী" থেকে একটি পণ্য নির্বাচন করে সরবরাহকারী যোগ করুন</p>
+        <div>
+          <h1 className="text-2xl font-bold text-foreground">পণ্য অর্ডার করুন</h1>
+          <p className="text-muted-foreground">সরবরাহকারীদের কাছে হোলসেল অর্ডার পাঠান</p>
         </div>
-      )}
+      </div>
 
-      {/* Add/Edit Form Modal */}
-      {showAddForm && (
-        <div className="fixed inset-0 bg-foreground/20 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="w-full max-w-lg bg-card rounded-2xl shadow-soft border border-border p-6 animate-slide-up max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="text-xl font-bold text-foreground">
-                {editingId ? 'সরবরাহকারী সম্পাদনা' : 'নতুন সরবরাহকারী যোগ করুন'}
-              </h2>
-              <button onClick={resetForm} className="p-2 hover:bg-muted rounded-lg">
-                <X className="w-5 h-5" />
-              </button>
+      {!reviewMode ? (
+        <>
+          {/* Product search + custom button */}
+          <div className="flex gap-2">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
+              <input
+                type="text"
+                value={productSearch}
+                onChange={(e) => setProductSearch(e.target.value)}
+                placeholder="পণ্য খুঁজুন..."
+                className="input-field pl-10"
+              />
             </div>
+            <button
+              type="button"
+              onClick={() => { setShowCustomForm(v => !v); setSelectingProduct(null); }}
+              className="shrink-0 px-4 rounded-xl border border-dashed border-amber-500 text-amber-700 dark:text-amber-400 text-sm font-medium hover:bg-amber-50 dark:hover:bg-amber-900/10 flex items-center gap-1 whitespace-nowrap"
+            >
+              <Plus className="w-4 h-4" /> কাস্টম পণ্য
+            </button>
+          </div>
 
-            <div className="space-y-4">
-              {/* Name */}
+          {/* Custom item form */}
+          {showCustomForm && (
+            <div className="p-4 bg-amber-50/60 dark:bg-amber-900/10 border border-amber-200 dark:border-amber-800 rounded-xl space-y-3 animate-fade-in">
+              <p className="text-sm font-medium flex items-center gap-1"><Package className="w-4 h-4" /> কাস্টম পণ্য যোগ করুন</p>
               <div>
-                <label className="block text-sm font-medium mb-2">সরবরাহকারীর নাম *</label>
-                <input
-                  type="text"
-                  value={formData.name}
-                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  placeholder="নাম লিখুন"
-                  className="input-field"
-                  autoFocus
-                />
+                <label className="text-xs text-muted-foreground mb-1 block">পণ্যের নাম *</label>
+                <input type="text" value={customName} onChange={(e) => setCustomName(e.target.value)} placeholder="যেমন: বিশেষ চাল" className="input-field text-sm" />
+              </div>
+              <div className="flex gap-2">
+                <div className="flex-1">
+                  <label className="text-xs text-muted-foreground mb-1 block">পরিমাণ *</label>
+                  <input type="number" value={customQty} onChange={(e) => setCustomQty(e.target.value)} placeholder="যেমন: ৫" className="input-field text-sm" min="0" step="any" />
+                </div>
+                <div className="flex-1">
+                  <label className="text-xs text-muted-foreground mb-1 block">একক *</label>
+                  <input type="text" value={customUnit} onChange={(e) => setCustomUnit(e.target.value)} placeholder="যেমন: কেজি, বস্তা" className="input-field text-sm" />
+                </div>
+              </div>
+              <div className="flex gap-2 pt-1">
+                <button type="button" onClick={() => { setShowCustomForm(false); setCustomName(''); setCustomQty(''); setCustomUnit(''); }} className="flex-1 text-xs text-muted-foreground py-2">বাতিল</button>
+                <Button type="button" onClick={addCustomItemToCart} className="flex-1 btn-primary py-2 rounded-lg text-sm">যোগ করুন</Button>
+              </div>
+            </div>
+          )}
+
+          {/* Unit picker for a just-selected product */}
+          {selectingProduct && (
+            <div className="p-4 bg-primary/5 border border-primary/20 rounded-xl space-y-2 animate-fade-in">
+              <div className="flex items-center justify-between">
+                <p className="text-sm font-medium">{selectingProduct.name} - কোন এককে অর্ডার করবেন?</p>
+                <button onClick={() => setSelectingProduct(null)} className="p-1 hover:bg-background rounded-lg"><X className="w-4 h-4" /></button>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {getSellUnitOptions(selectingProduct).map(opt => (
+                  <button key={`${opt.label}-${opt.toBase}`} onClick={() => addProductToCart(selectingProduct, opt)}
+                    className="px-3 py-2 rounded-lg border border-border hover:border-primary/50 bg-background text-sm">
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Product search results */}
+          {productSearch.trim() && !selectingProduct && (
+            <div className="grid grid-cols-2 gap-2 max-h-64 overflow-y-auto">
+              {filteredProducts.map(p => (
+                <button key={p.id} onClick={() => addProductToCart(p)}
+                  className="p-3 rounded-xl border border-border hover:border-primary/50 bg-background text-left transition-all">
+                  <p className="font-medium text-sm truncate">{p.name}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {p.supplierName ? `সরবরাহকারী: ${p.supplierName}` : 'সরবরাহকারী নেই'}
+                  </p>
+                </button>
+              ))}
+              {filteredProducts.length === 0 && (
+                <p className="col-span-2 text-center py-6 text-muted-foreground text-sm">পণ্য পাওয়া যায়নি</p>
+              )}
+            </div>
+          )}
+
+          {/* Cart */}
+          <div className="space-y-3">
+            {cart.length === 0 && !productSearch.trim() && (
+              <div className="text-center py-12 text-muted-foreground">
+                <Package className="w-12 h-12 mx-auto mb-3 opacity-50" />
+                <p>কোনো পণ্য যোগ করা হয়নি</p>
+                <p className="text-sm mt-1">উপরে খুঁজে পণ্য যোগ করুন, বা "কাস্টম পণ্য" ব্যবহার করুন</p>
+              </div>
+            )}
+            {cart.map((item, idx) => (
+              <div key={item.id} className={`p-4 rounded-xl space-y-3 ${item.isCustom ? 'bg-amber-50/60 dark:bg-amber-900/10 border border-amber-200 dark:border-amber-800' : 'bg-muted/50'}`}>
+                <div className="flex items-start justify-between">
+                  <div>
+                    <p className="font-semibold text-foreground flex items-center gap-2">
+                      {item.name}
+                      {item.isCustom && <span className="text-[10px] px-1.5 py-0.5 bg-amber-200 dark:bg-amber-800 rounded-full text-amber-800 dark:text-amber-100">কাস্টম</span>}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      {item.isCustom ? 'সরবরাহকারীর নম্বর পাঠানোর সময় দিতে হবে' : (item.supplierPhone ? `সরবরাহকারী: ${item.supplierName || 'অজানা'}` : 'সরবরাহকারীর নম্বর নেই')}
+                    </p>
+                  </div>
+                  <button onClick={() => removeCartItem(idx)} className="p-1.5 text-destructive hover:bg-destructive/10 rounded-lg">
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
+                <div className="flex gap-2 items-end">
+                  <div className="flex-1">
+                    <label className="text-xs text-muted-foreground mb-1 block">পরিমাণ</label>
+                    <input type="number" value={item.sellAmount || ''} onChange={(e) => updateCartAmount(idx, parseFloat(e.target.value) || 0)}
+                      placeholder="পরিমাণ" className="w-full h-10 rounded-xl border border-border bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring" min="0" step="any" />
+                  </div>
+                  <div className="flex-1">
+                    <label className="text-xs text-muted-foreground mb-1 block">একক</label>
+                    {item.isCustom ? (
+                      <input type="text" value={item.sellUnitLabel} onChange={(e) => updateCartUnit(idx, e.target.value, 1)}
+                        placeholder="যেমন: কেজি, বস্তা" className="w-full h-10 rounded-xl border border-border bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring" />
+                    ) : (
+                      <div className="relative">
+                        <select
+                          value={`${item.sellUnitLabel}|${item.sellUnitToBase}`}
+                          onChange={(e) => { const [l, t] = e.target.value.split('|'); updateCartUnit(idx, l, parseFloat(t)); }}
+                          className="w-full h-10 rounded-xl border border-border bg-background px-3 pr-8 text-sm appearance-none focus:outline-none focus:ring-2 focus:ring-ring"
+                        >
+                          {getSellUnitOptions(products.find(p => p.id === item.productId) || {}).map(opt => (
+                            <option key={`${opt.label}-${opt.toBase}`} value={`${opt.label}|${opt.toBase}`}>{opt.label}</option>
+                          ))}
+                        </select>
+                        <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {cart.length > 0 && (
+            <div className="flex gap-3 pt-2">
+              <Button variant="outline" onClick={resetOrder} className="flex-1 py-5 rounded-xl">
+                <RotateCcw className="w-4 h-4 mr-2" /> মুছে ফেলুন
+              </Button>
+              <Button onClick={handleDone} className="flex-1 btn-primary py-5 rounded-xl">
+                <CheckCircle2 className="w-5 h-5 mr-2" /> সম্পন্ন
+              </Button>
+            </div>
+          )}
+        </>
+      ) : (
+        <>
+          {/* Review / grouped-by-supplier send screen */}
+          <div className="flex items-center justify-between">
+            <button onClick={() => setReviewMode(false)} className="flex items-center gap-1 text-sm text-primary">
+              <ArrowLeft className="w-4 h-4" /> পণ্যে ফিরে যান
+            </button>
+            <button onClick={resetOrder} className="flex items-center gap-1 text-sm text-muted-foreground">
+              <RotateCcw className="w-4 h-4" /> নতুন অর্ডার
+            </button>
+          </div>
+
+          {groupedOrder.supplierGroups.map(group => (
+            <div key={group.key} className="card-elevated p-4 space-y-3">
+              <div className="flex items-start justify-between">
+                <div>
+                  <h3 className="font-semibold text-foreground flex items-center gap-2">
+                    {group.name}
+                    {sentGroups.has(group.key) && <span className="text-[10px] px-1.5 py-0.5 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 rounded-full">পাঠানো হয়েছে</span>}
+                  </h3>
+                  <p className="text-sm text-muted-foreground flex items-center gap-1 mt-0.5"><Phone className="w-3.5 h-3.5" /> {group.phone}</p>
+                </div>
               </div>
 
-              {/* Phone with Country Code */}
+              <div className="space-y-1">
+                {group.items.map((it, i) => (
+                  <p key={it.id} className="text-sm text-foreground">{i + 1}. {it.name} — {it.sellAmount} {it.sellUnitLabel}</p>
+                ))}
+              </div>
+
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="text-xs font-medium text-muted-foreground">বার্তা</label>
+                  <button
+                    onClick={() => setEditingGroupKey(editingGroupKey === group.key ? null : group.key)}
+                    className="text-xs text-primary"
+                  >
+                    {editingGroupKey === group.key ? 'ডিফল্ট করুন' : 'সম্পাদনা করুন'}
+                  </button>
+                </div>
+                {editingGroupKey === group.key ? (
+                  <textarea
+                    value={getGroupMessage(group.key, group.items)}
+                    onChange={(e) => setGroupMessageOverrides(prev => ({ ...prev, [group.key]: e.target.value }))}
+                    className="input-field min-h-[160px] text-sm"
+                  />
+                ) : (
+                  <div className="p-3 bg-muted/50 rounded-xl text-xs whitespace-pre-line max-h-[140px] overflow-y-auto">
+                    {getGroupMessage(group.key, group.items)}
+                  </div>
+                )}
+              </div>
+
+              <Button onClick={() => sendGroupMessage(group.key, group.phone, group.items)} className="w-full bg-green-500 hover:bg-green-600 text-white py-4 rounded-xl">
+                <MessageCircle className="w-5 h-5 mr-2" /> WhatsApp এ পাঠান
+              </Button>
+            </div>
+          ))}
+
+          {groupedOrder.noContact.length > 0 && (
+            <div className="card-elevated p-4 space-y-3 border-amber-200 dark:border-amber-800">
+              <div>
+                <h3 className="font-semibold text-foreground flex items-center gap-2">
+                  কাস্টম / সরবরাহকারীহীন পণ্য
+                  {sentGroups.has(NO_CONTACT_KEY) && <span className="text-[10px] px-1.5 py-0.5 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 rounded-full">পাঠানো হয়েছে</span>}
+                </h3>
+                <p className="text-xs text-muted-foreground mt-0.5">এই পণ্যগুলোর কোনো সরবরাহকারীর নম্বর সংরক্ষিত নেই — পাঠানোর আগে নম্বর দিন</p>
+              </div>
+
+              <div className="space-y-1">
+                {groupedOrder.noContact.map((it, i) => (
+                  <p key={it.id} className="text-sm text-foreground">{i + 1}. {it.name} — {it.sellAmount} {it.sellUnitLabel}</p>
+                ))}
+              </div>
+
               <PhoneInputWithCode
-                value={formData.phone}
-                onChange={(phone, code) => setFormData({ ...formData, phone, countryCode: code })}
-                label="WhatsApp নম্বর"
+                value={noContactPhone}
+                onChange={(phone) => setNoContactPhone(phone)}
+                label="সরবরাহকারীর নম্বর"
                 required
               />
 
-              {/* Product Selection */}
-              <div className="border-t border-border pt-4">
-                <label className="block text-sm font-medium mb-2">
-                  <Package className="w-4 h-4 inline mr-1" />
-                  সরবরাহকৃত পণ্য নির্বাচন করুন *
-                </label>
-                <p className="text-xs text-muted-foreground -mt-1 mb-2">
-                  কমপক্ষে একটি পণ্য নির্বাচন করতে হবে
-                </p>
-                
-                <input
-                  type="text"
-                  value={productSearch}
-                  onChange={(e) => setProductSearch(e.target.value)}
-                  placeholder="পণ্য খুঁজুন..."
-                  className="input-field mb-3"
-                />
-
-                <div className="max-h-40 overflow-y-auto border border-border rounded-xl">
-                  {filteredProducts.map(product => (
-                    <label
-                      key={product.id}
-                      className={`flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-muted transition-colors ${
-                        formData.productIds.includes(product.id) ? 'bg-primary/10' : ''
-                      }`}
-                    >
-                      <input
-                        type="checkbox"
-                        checked={formData.productIds.includes(product.id)}
-                        onChange={() => toggleProduct(product.id)}
-                        className="w-4 h-4 text-primary rounded"
-                      />
-                      <span className="font-medium">{product.name}</span>
-                    </label>
-                  ))}
-                  {filteredProducts.length === 0 && (
-                    <p className="text-center py-4 text-muted-foreground text-sm">পণ্য পাওয়া যায়নি</p>
-                  )}
-                </div>
-
-                {formData.productIds.length > 0 && (
-                  <p className="text-sm text-primary mt-2">
-                    {formData.productIds.length}টি পণ্য নির্বাচিত
-                  </p>
-                )}
-              </div>
-
-              <div className="flex gap-3 pt-4">
-                <Button variant="outline" onClick={resetForm} className="flex-1 py-5 rounded-xl">
-                  বাতিল
-                </Button>
-                <Button onClick={handleSubmit} className="flex-1 btn-primary py-5 rounded-xl">
-                  {editingId ? 'আপডেট করুন' : 'যোগ করুন'}
-                </Button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Order Message Modal */}
-      {showOrderModal && (
-        <div className="fixed inset-0 bg-foreground/20 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="w-full max-w-lg bg-card rounded-2xl shadow-soft border border-border p-6 animate-slide-up max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="text-xl font-bold text-foreground">অর্ডার বার্তা পাঠান</h2>
-              <button onClick={() => setShowOrderModal(null)} className="p-2 hover:bg-muted rounded-lg">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <div className="space-y-4">
-              {/* Item list */}
-              {orderItems.length > 0 && (
-                <div className="space-y-2">
-                  {orderItems.map((item, idx) => (
-                    <div key={item.id} className="p-3 bg-muted/50 rounded-xl space-y-2">
-                      <div className="flex items-center justify-between gap-2">
-                        {item.isCustom ? (
-                          <input
-                            type="text"
-                            value={item.name}
-                            onChange={(e) => updateOrderItem(idx, { name: e.target.value })}
-                            placeholder="পণ্যের নাম"
-                            className="input-field text-sm flex-1"
-                          />
-                        ) : (
-                          <p className="font-medium text-sm truncate flex-1">{item.name}</p>
-                        )}
-                        <button onClick={() => removeOrderItem(idx)} className="shrink-0 p-1.5 hover:bg-background rounded-lg">
-                          <X className="w-4 h-4 text-muted-foreground" />
-                        </button>
-                      </div>
-                      <div className="flex gap-2">
-                        <input
-                          type="text"
-                          value={item.quantity}
-                          onChange={(e) => updateOrderItem(idx, { quantity: e.target.value })}
-                          placeholder="পরিমাণ"
-                          className="input-field text-sm flex-1"
-                        />
-                        <input
-                          type="text"
-                          value={item.unit}
-                          onChange={(e) => updateOrderItem(idx, { unit: e.target.value })}
-                          placeholder="একক (কেজি, বস্তা...)"
-                          className="input-field text-sm flex-1"
-                        />
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              {/* Add item buttons */}
-              <div className="flex gap-2">
-                <button type="button" onClick={() => { setShowOrderProductPicker(v => !v); setShowOrderCustomForm(false); }}
-                  className="flex-1 py-2.5 rounded-xl border border-dashed border-primary text-primary text-sm font-medium hover:bg-primary/5 flex items-center justify-center gap-1">
-                  <Plus className="w-4 h-4" /> পণ্য যোগ করুন
-                </button>
-                <button type="button" onClick={() => { setShowOrderCustomForm(v => !v); setShowOrderProductPicker(false); }}
-                  className="flex-1 py-2.5 rounded-xl border border-dashed border-amber-500 text-amber-700 dark:text-amber-400 text-sm font-medium hover:bg-amber-50 dark:hover:bg-amber-900/10 flex items-center justify-center gap-1">
-                  <Plus className="w-4 h-4" /> কাস্টম পণ্য
-                </button>
-              </div>
-
-              {/* Product picker — ONLY this supplier's own linked products */}
-              {showOrderProductPicker && (
-                <div className="p-3 bg-muted/30 rounded-xl space-y-2">
-                  <p className="text-xs text-muted-foreground">শুধু এই সরবরাহকারীর পণ্য দেখানো হচ্ছে</p>
-                  {orderModalSupplierProducts.length > 0 ? (
-                    <div className="grid grid-cols-2 gap-2 max-h-48 overflow-y-auto">
-                      {orderModalSupplierProducts.map(p => (
-                        <button key={p.id} type="button" onClick={() => addProductOrderItem(p)}
-                          className="p-3 rounded-xl border border-border hover:border-primary/50 bg-background text-left transition-all">
-                          <p className="font-medium text-sm truncate">{p.name}</p>
-                          <p className="text-xs text-muted-foreground">{p.baseUnit}</p>
-                        </button>
-                      ))}
-                    </div>
-                  ) : (
-                    <p className="text-xs text-muted-foreground">
-                      এই সরবরাহকারীর সাথে কোনো পণ্য যুক্ত নেই। পণ্য পেজ থেকে যুক্ত করুন, অথবা নিচের "কাস্টম পণ্য" ব্যবহার করুন।
-                    </p>
-                  )}
-                </div>
-              )}
-
-              {/* Custom item form */}
-              {showOrderCustomForm && (
-                <div className="p-4 bg-amber-50/60 dark:bg-amber-900/10 border border-amber-200 dark:border-amber-800 rounded-xl space-y-3">
-                  <div>
-                    <label className="text-xs text-muted-foreground mb-1 block">পণ্যের নাম *</label>
-                    <input type="text" value={customItemName} onChange={(e) => setCustomItemName(e.target.value)}
-                      placeholder="যেমন: বিশেষ চাল" className="input-field text-sm" />
-                  </div>
-                  <div className="flex gap-2">
-                    <div className="flex-1">
-                      <label className="text-xs text-muted-foreground mb-1 block">পরিমাণ</label>
-                      <input type="text" value={customItemQty} onChange={(e) => setCustomItemQty(e.target.value)}
-                        placeholder="যেমন: ৫" className="input-field text-sm" />
-                    </div>
-                    <div className="flex-1">
-                      <label className="text-xs text-muted-foreground mb-1 block">একক</label>
-                      <input type="text" value={customItemUnit} onChange={(e) => setCustomItemUnit(e.target.value)}
-                        placeholder="যেমন: কেজি, বস্তা" className="input-field text-sm" />
-                    </div>
-                  </div>
-                  <div className="flex gap-2 pt-1">
-                    <button type="button" onClick={() => { setShowOrderCustomForm(false); setCustomItemName(''); setCustomItemQty(''); setCustomItemUnit(''); }}
-                      className="flex-1 text-xs text-muted-foreground py-2">বাতিল</button>
-                    <Button type="button" onClick={addCustomOrderItem} className="flex-1 btn-primary py-2 rounded-lg text-sm">যোগ করুন</Button>
-                  </div>
-                </div>
-              )}
-
-              {/* Message Preview/Edit */}
               <div>
-                <div className="flex items-center justify-between mb-2">
-                  <label className="text-sm font-medium">বার্তা:</label>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="text-xs font-medium text-muted-foreground">বার্তা</label>
                   <button
-                    onClick={() => {
-                      if (!editingMessage) setOrderMessage(generateDefaultMessage(orderItems));
-                      setEditingMessage(!editingMessage);
-                    }}
-                    className="text-sm text-primary flex items-center gap-1"
+                    onClick={() => setEditingGroupKey(editingGroupKey === NO_CONTACT_KEY ? null : NO_CONTACT_KEY)}
+                    className="text-xs text-primary"
                   >
-                    {editingMessage ? 'ডিফল্ট করুন' : 'সম্পাদনা করুন'}
+                    {editingGroupKey === NO_CONTACT_KEY ? 'ডিফল্ট করুন' : 'সম্পাদনা করুন'}
                   </button>
                 </div>
-                {editingMessage ? (
+                {editingGroupKey === NO_CONTACT_KEY ? (
                   <textarea
-                    value={orderMessage}
-                    onChange={(e) => setOrderMessage(e.target.value)}
-                    className="input-field min-h-[200px] text-sm"
+                    value={getGroupMessage(NO_CONTACT_KEY, groupedOrder.noContact)}
+                    onChange={(e) => setGroupMessageOverrides(prev => ({ ...prev, [NO_CONTACT_KEY]: e.target.value }))}
+                    className="input-field min-h-[160px] text-sm"
                   />
                 ) : (
-                  <div className="p-3 bg-muted/50 rounded-xl text-sm whitespace-pre-line max-h-[200px] overflow-y-auto">
-                    {generateDefaultMessage(orderItems)}
+                  <div className="p-3 bg-muted/50 rounded-xl text-xs whitespace-pre-line max-h-[140px] overflow-y-auto">
+                    {getGroupMessage(NO_CONTACT_KEY, groupedOrder.noContact)}
                   </div>
                 )}
               </div>
 
-              <div className="flex gap-3 pt-4">
-                <Button variant="outline" onClick={() => setShowOrderModal(null)} className="flex-1 py-5 rounded-xl">
-                  বাতিল
-                </Button>
-                <Button onClick={handleSendMessage} className="flex-1 bg-green-500 hover:bg-green-600 text-white py-5 rounded-xl">
-                  <MessageCircle className="w-5 h-5 mr-2" />
-                  WhatsApp এ পাঠান
-                </Button>
-              </div>
+              <Button onClick={sendNoContactMessage} className="w-full bg-green-500 hover:bg-green-600 text-white py-4 rounded-xl">
+                <MessageCircle className="w-5 h-5 mr-2" /> WhatsApp এ পাঠান
+              </Button>
             </div>
-          </div>
-        </div>
+          )}
+        </>
       )}
     </div>
   );
