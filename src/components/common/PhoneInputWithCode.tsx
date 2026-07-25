@@ -9,6 +9,8 @@ interface PhoneInputWithCodeProps {
   required?: boolean;
   label?: string;
   showLabel?: boolean;
+  onFocus?: () => void;
+  onBlur?: () => void;
 }
 
 export function PhoneInputWithCode({
@@ -17,7 +19,9 @@ export function PhoneInputWithCode({
   placeholder = 'ফোন নম্বর',
   required = false,
   label = 'ফোন নম্বর',
-  showLabel = true
+  showLabel = true,
+  onFocus,
+  onBlur,
 }: PhoneInputWithCodeProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [search, setSearch] = useState('');
@@ -147,6 +151,8 @@ export function PhoneInputWithCode({
           type="tel"
           value={localPhone}
           onChange={handlePhoneChange}
+          onFocus={onFocus}
+          onBlur={onBlur}
           placeholder={placeholder}
           className="input-field flex-1"
           required={required}
