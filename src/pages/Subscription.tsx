@@ -60,20 +60,57 @@ function PlanCard({ id, selected, onSelect, monthlyPrice, isCurrent }: {
   );
 }
 
-function DaysRemainingCard({ daysRemaining, planLabel }: { daysRemaining: number; planLabel: string }) {
+// Live countdown to plan expiry — pure client-side math against the
+// device clock, so it keeps ticking correctly even with no internet
+// connection (expiresAt itself is already cached locally by
+// SubscriptionContext, so nothing here needs a network call).
+function useCountdown(expiresAt: string | null) {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    if (!expiresAt) return;
+    const id = setInterval(() => setNow(Date.now()), 30000);
+    return () => clearInterval(id);
+  }, [expiresAt]);
+  if (!expiresAt) return null;
+  const diff = Math.max(0, new Date(expiresAt).getTime() - now);
+  return {
+    expired: diff <= 0,
+    days: Math.floor(diff / 86400000),
+    hours: Math.floor((diff % 86400000) / 3600000),
+    minutes: Math.floor((diff % 3600000) / 60000),
+  };
+}
+
+function CountdownCard({ expiresAt, planLabel }: { expiresAt: string; planLabel: string }) {
+  const cd = useCountdown(expiresAt);
+  if (!cd) return null;
   return (
     <div className="card-elevated rounded-2xl p-5 mb-6 bg-card">
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-3 mb-1">
         <div className="w-11 h-11 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
           <Clock className="w-5 h-5 text-primary" />
         </div>
         <div>
           <p className="text-xs text-muted-foreground">আপনার {planLabel} প্ল্যানের মেয়াদ</p>
-          <p className="text-xl font-bold text-foreground">
-            {daysRemaining > 0 ? `আর ${toBn(daysRemaining)} দিন বাকি` : 'মেয়াদ শেষ হয়ে গেছে'}
-          </p>
+          <p className="text-sm font-semibold text-foreground">{cd.expired ? 'মেয়াদ শেষ হয়ে গেছে' : 'বাকি সময়'}</p>
         </div>
       </div>
+      {!cd.expired && (
+        <div className="grid grid-cols-3 gap-2 mt-3">
+          <div className="bg-muted/50 rounded-xl p-3 text-center">
+            <p className="text-2xl font-bold text-foreground tabular-nums">{toBn(cd.days)}</p>
+            <p className="text-[11px] text-muted-foreground">দিন</p>
+          </div>
+          <div className="bg-muted/50 rounded-xl p-3 text-center">
+            <p className="text-2xl font-bold text-foreground tabular-nums">{toBn(cd.hours)}</p>
+            <p className="text-[11px] text-muted-foreground">ঘণ্টা</p>
+          </div>
+          <div className="bg-muted/50 rounded-xl p-3 text-center">
+            <p className="text-2xl font-bold text-foreground tabular-nums">{toBn(cd.minutes)}</p>
+            <p className="text-[11px] text-muted-foreground">মিনিট</p>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -198,7 +235,7 @@ export default function Subscription() {
         <div className="mb-6"><UsageDashboard compact /></div>
 
         {hasActivePaidPlan && (
-          <DaysRemainingCard daysRemaining={daysRemaining as number} planLabel={PLAN_LABEL[plan]} />
+          <CountdownCard expiresAt={expiresAt as string} planLabel={PLAN_LABEL[plan]} />
         )}
 
         {hasActivePaidPlan ? (
@@ -311,4 +348,5 @@ export default function Subscription() {
       </div>
     </div>
   );
-}
+    }
+            
