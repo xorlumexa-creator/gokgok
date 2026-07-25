@@ -83,7 +83,7 @@ const STOCK_TYPE_CONFIG: Record<StockType, {
 };
 
 export default function Products() {
-  const { products, addProduct, updateProduct, deleteProduct, getProductSuggestions } = useStore();
+  const { products, addProduct, updateProduct, deleteProduct, getProductSuggestions, suppliers } = useStore();
   const { guardAddProduct } = useSubscription();
   const location = useLocation();
   const [searchTerm, setSearchTerm] = useState('');
@@ -108,6 +108,7 @@ export default function Products() {
     location: '২ নম্বর তাক',
     expiryDate: '',
   });
+  const [showSupplierSuggestions, setShowSupplierSuggestions] = useState(false);
 
   const [sellingUnits, setSellingUnits] = useState<(SellingUnit & { costPrice: number })[]>([
     { id: generateId(), name: '১ পিস', conversionToBase: 1, price: 0, profit: 0, costPrice: 0 }
@@ -134,6 +135,21 @@ export default function Products() {
     if (!formData.name.trim() || editingId) return [];
     return getProductSuggestions(formData.name);
   }, [formData.name, editingId, getProductSuggestions]);
+
+  // Previously-used suppliers — from the সরবরাহকারী auto-index (suppliers[],
+  // synced from every product's supplier fields) and, as a fallback, any
+  // product that carries supplier info directly. Deduped by phone number.
+  const supplierSuggestions = useMemo(() => {
+    const map = new Map<string, { name: string; phone: string; countryCode: string }>();
+    suppliers.forEach(s => { if (s.phone) map.set(s.phone, { name: s.name, phone: s.phone, countryCode: s.countryCode }); });
+    products.forEach(p => {
+      const phone = (p as any).supplierPhone as string | undefined;
+      if (phone && !map.has(phone)) {
+        map.set(phone, { name: (p as any).supplierName || 'সরবরাহকারী', phone, countryCode: (p as any).supplierCountryCode || '+880' });
+      }
+    });
+    return Array.from(map.values());
+  }, [suppliers, products]);
 
   const config = STOCK_TYPE_CONFIG[stockType];
 
@@ -458,11 +474,35 @@ export default function Products() {
                   className="input-field"
                 />
               </div>
-              <PhoneInputWithCode
-                value={formData.supplierPhone}
-                onChange={(phone, code) => setFormData({ ...formData, supplierPhone: phone, supplierCountryCode: code || '+880' })}
-                label="সরবরাহকারীর WhatsApp নম্বর (ঐচ্ছিক)"
-              />
+              <div className="relative">
+                <PhoneInputWithCode
+                  value={formData.supplierPhone}
+                  onChange={(phone, code) => setFormData({ ...formData, supplierPhone: phone, supplierCountryCode: code || '+880' })}
+                  onFocus={() => setShowSupplierSuggestions(true)}
+                  onBlur={() => setShowSupplierSuggestions(false)}
+                  label="সরবরাহকারীর WhatsApp নম্বর (ঐচ্ছিক)"
+                />
+                {showSupplierSuggestions && supplierSuggestions.length > 0 && (
+                  <div className="absolute left-0 right-0 top-full mt-1 max-h-56 overflow-y-auto bg-card border border-border rounded-xl shadow-lg z-40 animate-fade-in">
+                    <p className="px-3 py-2 text-xs text-muted-foreground border-b border-border sticky top-0 bg-card">আগের সরবরাহকারী</p>
+                    {supplierSuggestions.map((s) => (
+                      <button
+                        key={s.phone}
+                        type="button"
+                        onMouseDown={(e) => e.preventDefault()}
+                        onClick={() => {
+                          setFormData(prev => ({ ...prev, supplierName: s.name, supplierPhone: s.phone, supplierCountryCode: s.countryCode }));
+                          setShowSupplierSuggestions(false);
+                        }}
+                        className="w-full flex items-center justify-between gap-2 px-3 py-2.5 hover:bg-muted text-left transition-colors"
+                      >
+                        <span className="text-sm font-medium text-foreground truncate">{s.name}</span>
+                        <span className="text-xs text-muted-foreground whitespace-nowrap">{s.phone}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
               {formData.supplierName.trim() && formData.supplierPhone.trim() && (
                 <p className="text-xs text-muted-foreground -mt-2">
                   এই সরবরাহকারী "সরবরাহকারী" পেজে "{formData.name.trim() || 'পণ্যের নাম'} ({formData.supplierName.trim()})" হিসেবে দেখাবে
