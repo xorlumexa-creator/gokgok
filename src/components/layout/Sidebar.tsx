@@ -38,6 +38,7 @@ const navItems = [
   { path: '/suppliers', icon: Truck, label: 'সাপ্লায়ার' },
   { path: '/shop-accounts', icon: Calculator, label: 'দোকানের হিসাব' },
   { path: '/personal-accounts', icon: User, label: 'ব্যক্তিগত হিসাব' },
+  { path: '/subscription', icon: Crown, label: 'সাবস্ক্রিপশন' },
   { path: '/notifications', icon: Bell, label: 'বিজ্ঞপ্তি' },
 ];
 
@@ -163,4 +164,4 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
       </aside>
     </>
   );
-                    }
+}
