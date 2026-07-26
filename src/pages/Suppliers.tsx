@@ -1,4 +1,5 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { Truck, Plus, Search, Phone, MessageCircle, X, Package, Trash2, ChevronDown, ArrowLeft, RotateCcw, CheckCircle2 } from 'lucide-react';
 import { useStore } from '@/context/StoreContext';
 import { useSubscription } from '@/context/SubscriptionContext';
@@ -87,6 +88,43 @@ export default function Suppliers() {
     }
     return [...options, ...customUnits];
   };
+
+  // Dashboard's "স্টক কমে গেছে, অর্ডার করুন" button lands here with the
+  // low-stock product IDs — auto-build the order cart from them instead of
+  // making the shopkeeper search/add each one by hand. Same cart + same
+  // supplier-grouping logic as a manual order from here on.
+  const location = useLocation();
+  const navigate = useNavigate();
+  useEffect(() => {
+    const state = location.state as { autoOrderLowStock?: boolean; productIds?: string[] } | null;
+    if (!state?.autoOrderLowStock || !state.productIds?.length) return;
+    const items: OrderCartItem[] = [];
+    state.productIds.forEach(id => {
+      const product = products.find(p => p.id === id);
+      if (!product) return;
+      const options = getSellUnitOptions(product);
+      const defaultUnit = options[0] || { label: 'পিস', toBase: 1 };
+      const suggestedQty = Math.max(product.restockThreshold ?? 5, 1);
+      items.push({
+        id: `p-${product.id}-${Date.now()}-${Math.random().toString(36).slice(2, 5)}`,
+        productId: product.id,
+        name: product.name,
+        sellAmount: suggestedQty,
+        sellUnitLabel: defaultUnit.label,
+        sellUnitToBase: defaultUnit.toBase,
+        isCustom: false,
+        supplierPhone: product.supplierPhone || undefined,
+        supplierName: product.supplierName || undefined,
+      });
+    });
+    if (items.length) {
+      setCart(items);
+      toast({ title: `কম-স্টক ${items.length}টি পণ্য যোগ হয়েছে — চাইলে পরিমাণ ঠিক করে নিন` });
+    }
+    // Clear the nav state so re-visiting this page (or hitting back) doesn't re-trigger it.
+    navigate(location.pathname, { replace: true, state: null });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location.state, products]);
 
   // --- Cart helpers (Bikri-korun style: pick product → pick unit → edit amount) ---
   const addProductToCart = (product: any, unit?: { label: string; toBase: number }) => {
