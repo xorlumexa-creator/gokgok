@@ -1,6 +1,7 @@
 import { useStore } from '@/context/StoreContext';
-import { AlertTriangle, Package, Phone, MessageCircle } from 'lucide-react';
+import { AlertTriangle, Package, Phone, MessageCircle, Truck } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { Button } from '@/components/ui/button';
 
 export function LowStockAlert() {
   const { products, suppliers, storeInfo } = useStore();
@@ -22,6 +23,15 @@ export function LowStockAlert() {
 
   const callSupplier = (phone: string) => {
     window.location.href = `tel:${phone}`;
+  };
+
+  // "স্টক কমে গেছে, অর্ডার করুন" - jump to the অর্ডার করুন (Suppliers) page
+  // with every low-stock product pre-loaded into the order cart, already
+  // grouped by supplier there — nothing to add by hand.
+  const handleOrderAll = () => {
+    navigate('/suppliers', {
+      state: { autoOrderLowStock: true, productIds: lowStockProducts.map(p => p.id) },
+    });
   };
 
   const messageSupplier = (supplier: typeof suppliers[0], productName: string, stock: number) => {
@@ -97,14 +107,18 @@ ${storeInfo?.name || 'আমাদের দোকান'} থেকে অন�
         })}
       </div>
 
+      <Button onClick={handleOrderAll} className="w-full mt-3 bg-warning hover:bg-warning/90 text-warning-foreground py-5 rounded-xl">
+        <Truck className="w-4 h-4 mr-2" /> স্টক কমে গেছে, অর্ডার করুন
+      </Button>
+
       {lowStockProducts.length > 5 && (
         <button
           onClick={() => navigate('/products')}
-          className="w-full mt-3 py-2 text-sm text-primary hover:underline"
+          className="w-full mt-2 py-2 text-sm text-primary hover:underline"
         >
           আরও {lowStockProducts.length - 5}টি দেখুন →
         </button>
       )}
     </div>
   );
-}
+        }
