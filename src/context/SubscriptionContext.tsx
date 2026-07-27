@@ -97,7 +97,17 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
   // FIX 4: Clear cached user on auth change
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      cachedUserIdRef.current = session?.user?.id ?? null;
+      const newUserId = session?.user?.id ?? null;
+      const prevUserId = cachedUserIdRef.current;
+      // Only reset on a genuine account switch mid-session (logout then a
+      // different login, or a brand-new signup) — not on the initial
+      // SIGNED_IN/INITIAL_SESSION event of a normal app start, where
+      // prevUserId is still null and the cached state is legitimate.
+      if (prevUserId !== null && newUserId !== prevUserId) {
+        setState(defaultState());
+        try { localStorage.removeItem(LS_KEY); } catch {}
+      }
+      cachedUserIdRef.current = newUserId;
     });
     return () => subscription.unsubscribe();
   }, []);
@@ -120,14 +130,20 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
       if (data) {
         setState(prev => {
           const period = currentPeriod();
-          const samePeriod = (data.sales_credit_period || prev.salesCreditPeriod) === period;
+          const samePeriod = (data.sales_credit_period || period) === period;
+          // Once the DB read succeeds, it is the source of truth for THIS
+          // account — including when a field is null (meaning "never
+          // subscribed"). Falling back to `prev` here was the bug: it let
+          // a previous account's cached Pro plan/expiry (from localStorage
+          // on a shared device) leak onto a brand-new signup that has no
+          // subscription row yet.
           return {
-            plan: (data.subscription_plan as PlanId) || prev.plan,
-            storageLevel: data.storage_level || prev.storageLevel || 1,
-            startedAt: data.subscription_started_at || prev.startedAt,
-            expiresAt: data.subscription_expires_at || prev.expiresAt,
+            plan: (data.subscription_plan as PlanId) || 'basic',
+            storageLevel: data.storage_level || 1,
+            startedAt: data.subscription_started_at || null,
+            expiresAt: data.subscription_expires_at || null,
             salesCreditPeriod: period,
-            salesCreditUsed: samePeriod ? (data.sales_credit_used ?? prev.salesCreditUsed) : 0,
+            salesCreditUsed: samePeriod ? (data.sales_credit_used ?? 0) : 0,
           };
         });
       }
