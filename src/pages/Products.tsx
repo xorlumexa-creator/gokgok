@@ -108,7 +108,8 @@ export default function Products() {
     location: '২ নম্বর তাক',
     expiryDate: '',
   });
-  const [showSupplierSuggestions, setShowSupplierSuggestions] = useState(false);
+  const [activeSupplierField, setActiveSupplierField] = useState<'name' | 'phone' | null>(null);
+  const [supplierSearchQuery, setSupplierSearchQuery] = useState('');
 
   const [sellingUnits, setSellingUnits] = useState<(SellingUnit & { costPrice: number })[]>([
     { id: generateId(), name: '১ পিস', conversionToBase: 1, price: 0, profit: 0, costPrice: 0 }
@@ -150,6 +151,15 @@ export default function Products() {
     });
     return Array.from(map.values());
   }, [suppliers, products]);
+
+  const filteredSupplierSuggestions = useMemo(() => {
+    const q = supplierSearchQuery.trim().toLowerCase();
+    if (!q) return supplierSuggestions;
+    const qDigits = q.replace(/\D/g, '');
+    return supplierSuggestions.filter(s =>
+      s.name.toLowerCase().includes(q) || (qDigits && s.phone.replace(/\D/g, '').includes(qDigits))
+    );
+  }, [supplierSuggestions, supplierSearchQuery]);
 
   const config = STOCK_TYPE_CONFIG[stockType];
 
@@ -255,6 +265,24 @@ export default function Products() {
     if (formData.supplierName.trim() && !formData.supplierPhone.trim()) {
       toast({ title: "সরবরাহকারীর নম্বর দিন", variant: "destructive" });
       return;
+    }
+    // One phone number = one supplier name. Otherwise the same supplier
+    // would show up split into two names on the অর্ডার করুন page.
+    if (formData.supplierPhone.trim() && formData.supplierName.trim()) {
+      const conflict = products.find(p =>
+        p.id !== editingId &&
+        (p as any).supplierPhone === formData.supplierPhone.trim() &&
+        (p as any).supplierName &&
+        (p as any).supplierName.trim().toLowerCase() !== formData.supplierName.trim().toLowerCase()
+      );
+      if (conflict) {
+        toast({
+          title: `এই নম্বরটি আগে "${(conflict as any).supplierName}" নামে সংরক্ষিত আছে`,
+          description: 'একই ফোন নম্বরে ভিন্ন নাম দেওয়া যাবে না। নাম ফিল্ডে ট্যাপ করে তালিকা থেকে বেছে নিন, অথবা নাম মিলিয়ে লিখুন।',
+          variant: 'destructive',
+        });
+        return;
+      }
     }
 
     const basePrice = validUnits[0].price / validUnits[0].conversionToBase;
@@ -464,43 +492,53 @@ export default function Products() {
 
 
               {/* Supplier (Optional) */}
-              <div>
+              {activeSupplierField && (
+                <div
+                  className="fixed inset-0 z-30"
+                  onClick={() => { setActiveSupplierField(null); setSupplierSearchQuery(''); }}
+                />
+              )}
+              <div className="relative">
                 <label className="block text-sm font-medium mb-2">সরবরাহকারীর নাম (ঐচ্ছিক)</label>
                 <input
                   type="text"
                   value={formData.supplierName}
                   onChange={(e) => setFormData({ ...formData, supplierName: e.target.value })}
+                  onFocus={() => { setActiveSupplierField('name'); setSupplierSearchQuery(''); }}
                   placeholder="যেমন: করিম ট্রেডার্স"
                   className="input-field"
                 />
+                {activeSupplierField === 'name' && (
+                  <SupplierSuggestionDropdown
+                    items={filteredSupplierSuggestions}
+                    query={supplierSearchQuery}
+                    onQueryChange={setSupplierSearchQuery}
+                    onSelect={(s) => {
+                      setFormData(prev => ({ ...prev, supplierName: s.name, supplierPhone: s.phone, supplierCountryCode: s.countryCode }));
+                      setActiveSupplierField(null);
+                      setSupplierSearchQuery('');
+                    }}
+                  />
+                )}
               </div>
               <div className="relative">
                 <PhoneInputWithCode
                   value={formData.supplierPhone}
                   onChange={(phone, code) => setFormData({ ...formData, supplierPhone: phone, supplierCountryCode: code || '+880' })}
-                  onFocus={() => setShowSupplierSuggestions(true)}
-                  onBlur={() => setShowSupplierSuggestions(false)}
+                  onFocus={() => { setActiveSupplierField('phone'); setSupplierSearchQuery(''); }}
                   label="সরবরাহকারীর WhatsApp নম্বর (ঐচ্ছিক)"
                 />
-                {showSupplierSuggestions && supplierSuggestions.length > 0 && (
-                  <div className="absolute left-0 right-0 top-full mt-1 max-h-56 overflow-y-auto bg-card border border-border rounded-xl shadow-lg z-40 animate-fade-in">
-                    <p className="px-3 py-2 text-xs text-muted-foreground border-b border-border sticky top-0 bg-card">আগের সরবরাহকারী</p>
-                    {supplierSuggestions.map((s) => (
-                      <button
-                        key={s.phone}
-                        type="button"
-                        onMouseDown={(e) => e.preventDefault()}
-                        onClick={() => {
-                          setFormData(prev => ({ ...prev, supplierName: s.name, supplierPhone: s.phone, supplierCountryCode: s.countryCode }));
-                          setShowSupplierSuggestions(false);
-                        }}
-                        className="w-full flex items-center justify-between gap-2 px-3 py-2.5 hover:bg-muted text-left transition-colors"
-                      >
-                        <span className="text-sm font-medium text-foreground truncate">{s.name}</span>
-                        <span className="text-xs text-muted-foreground whitespace-nowrap">{s.phone}</span>
-                      </button>
-                    ))}
-                  </div>
+                {activeSupplierField === 'phone' && (
+                  <SupplierSuggestionDropdown
+                    items={filteredSupplierSuggestions}
+                    query={supplierSearchQuery}
+                    onQueryChange={setSupplierSearchQuery}
+                    onSelect={(s) => {
+                      setFormData(prev => ({ ...prev, supplierName: s.name, supplierPhone: s.phone, supplierCountryCode: s.countryCode }));
+                      setActiveSupplierField(null);
+                      setSupplierSearchQuery('');
+                    }}
+                  />
                 )}
               </div>
               {formData.supplierName.trim() && formData.supplierPhone.trim() && (
@@ -798,6 +836,55 @@ export default function Products() {
           <Package className="w-12 h-12 mx-auto mb-3 opacity-50" />
           <p>কোন পণ্য পাওয়া যায়নি</p>
         </div>
+      )}
+    </div>
+  );
+}
+
+// Tap-to-open list of previously-used suppliers (from the name field or the
+// phone field) with its own search box, so the shopkeeper can find an
+// existing supplier by name or number instead of retyping their info.
+function SupplierSuggestionDropdown({
+  items,
+  query,
+  onQueryChange,
+  onSelect,
+}: {
+  items: { name: string; phone: string; countryCode: string }[];
+  query: string;
+  onQueryChange: (q: string) => void;
+  onSelect: (s: { name: string; phone: string; countryCode: string }) => void;
+}) {
+  return (
+    <div className="absolute left-0 right-0 top-full mt-1 max-h-72 overflow-y-auto bg-card border border-border rounded-xl shadow-lg z-40 animate-fade-in">
+      <div className="p-2 border-b border-border sticky top-0 bg-card">
+        <div className="relative">
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
+          <input
+            type="text"
+            autoFocus={false}
+            value={query}
+            onChange={(e) => onQueryChange(e.target.value)}
+            placeholder="নাম বা নম্বর দিয়ে খুঁজুন"
+            className="w-full pl-8 pr-2 py-1.5 text-sm rounded-lg border border-border bg-background focus:outline-none focus:ring-2 focus:ring-ring"
+          />
+        </div>
+      </div>
+      {items.length === 0 ? (
+        <p className="px-3 py-3 text-xs text-muted-foreground text-center">কোনো সরবরাহকারী পাওয়া যায়নি</p>
+      ) : (
+        items.map((s) => (
+          <button
+            key={s.phone}
+            type="button"
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={() => onSelect(s)}
+            className="w-full flex items-center justify-between gap-2 px-3 py-2.5 hover:bg-muted text-left transition-colors"
+          >
+            <span className="text-sm font-medium text-foreground truncate">{s.name}</span>
+            <span className="text-xs text-muted-foreground whitespace-nowrap">{s.phone}</span>
+          </button>
+        ))
       )}
     </div>
   );
