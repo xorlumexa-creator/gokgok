@@ -1,6 +1,7 @@
 import { useState, useMemo, useRef } from 'react';
 import { CalendarCheck, Plus, Search, User, Phone, X, Package, Trash2, CheckCircle, XCircle, Clock, MessageCircle, AlertTriangle, ShoppingBag, ChevronDown, Info, Tag, Percent, BookOpen } from 'lucide-react';
 import { useStore } from '@/context/StoreContext';
+import { useSubscription } from '@/context/SubscriptionContext';
 import { Button } from '@/components/ui/button';
 import { toast } from '@/hooks/use-toast';
 import { PreOrder, PreOrderStatus, SellingUnit, getUnitLabel, getPreOrderStatusLabel, getPreOrderStatusColor } from '@/types/store';
@@ -60,6 +61,7 @@ interface SellOrderItem {
 
 export default function PreOrders() {
   const { products, preOrders, customers, addPreOrder, updatePreOrderStatus, updateProduct, markPreOrderAsSold, addMultipleSales, addCustomer, updateCustomerDue, storeInfo, searchCustomersByName, searchCustomersByPhone, getExistingCustomersByName } = useStore();
+  const { guardRecordSale, incrementSalesCredit } = useSubscription();
   
   const [searchTerm, setSearchTerm] = useState('');
   const [showAddForm, setShowAddForm] = useState(false);
@@ -364,6 +366,7 @@ export default function PreOrders() {
 
   const completeSellOrder = () => {
     if (!sellingOrder || sellCart.length === 0) return;
+    if (!guardRecordSale(1)) return;
     let customerId: string | undefined;
     let custName = sellingOrder.customerName;
     if (!sellIsPaid) {
@@ -385,6 +388,7 @@ export default function PreOrders() {
       totalPrice: getFinalPrice(item), profit: Math.max(0, getFinalProfit(item)), isPaid: sellIsPaid,
     }));
     addMultipleSales(salesData, customerId, custName, sellIsPaid);
+    incrementSalesCredit(1);
     if (!sellIsPaid && customerId) {
       updateCustomerDue(customerId, sellTotalPrice, sellTotalProfit > 0 ? sellTotalProfit : 0);
     }
