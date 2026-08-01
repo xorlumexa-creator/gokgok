@@ -1,40 +1,35 @@
 import { AlertTriangle } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useProfile } from '@/hooks/useProfile';
-
-const TRIAL_DAYS = 3;
+import { useSubscription, toBn } from '@/context/SubscriptionContext';
 
 export default function TrialWarningBanner() {
   const { profile } = useProfile();
+  const { trialActive, trialDaysLeft, hasActivePaidPlan, expiresAt, isLocked } = useSubscription();
   const navigate = useNavigate();
   if (!profile || profile.role === 'manager') return null;
 
-  const now = Date.now();
-  const trialStart = new Date(profile.trial_start_date || (profile as any).created_at || now);
-  const daysSinceTrial = Math.floor((now - trialStart.getTime()) / 86400000);
-  const trialDaysLeft = Math.max(0, TRIAL_DAYS - daysSinceTrial);
-
-  // Active subscription — warn if expiring within 30 days
-  if (profile.subscription_status === 'active' && profile.plan_expiry) {
-    const daysToExpiry = Math.ceil((new Date(profile.plan_expiry).getTime() - now) / 86400000);
-    if (daysToExpiry > 30 || daysToExpiry < 0) return null;
+  // Active subscription — warn if expiring within 5 days.
+  if (hasActivePaidPlan && expiresAt) {
+    const daysToExpiry = Math.ceil((new Date(expiresAt).getTime() - Date.now()) / 86400000);
+    if (daysToExpiry > 5 || daysToExpiry < 0) return null;
     return (
       <Banner
         title="⏰ সাবস্ক্রিপশন শীঘ্রই শেষ হচ্ছে"
-        message={`আপনার সাবস্ক্রিপশন আর ${daysToExpiry} দিনে শেষ। ব্যবসায় বিঘ্ন এড়াতে এখনই নবায়ন করুন।`}
+        message={`আপনার সাবস্ক্রিপশন আর ${toBn(daysToExpiry)} দিনে শেষ। ব্যবসায় বিঘ্ন এড়াতে এখনই নবায়ন করুন।`}
         onClick={() => navigate('/subscription?focus=renew')}
         cta="এখনই নবায়ন করুন →"
       />
     );
   }
 
-  // In trial
-  if (trialDaysLeft > 0) {
+  // In trial, running low
+  if (trialActive) {
     if (trialDaysLeft > 2) return null;
     return (
       <Banner
         title="⚠️ ফ্রি ট্রায়াল শীঘ্রই শেষ"
-        message={`ফ্রি ট্রায়ালের আর ${trialDaysLeft} দিন বাকি। সাবস্ক্রাইব করে ব্যবসা চালিয়ে যান।`}
+        message={`ফ্রি ট্রায়ালের আর ${toBn(trialDaysLeft)} দিন বাকি। সাবস্ক্রাইব করে ব্যবসা চালিয়ে যান।`}
         onClick={() => navigate('/subscription')}
         cta="সাবস্ক্রাইব করুন →"
       />
@@ -42,14 +37,18 @@ export default function TrialWarningBanner() {
   }
 
   // Trial ended, no subscription
-  return (
-    <Banner
-      title="🚫 ট্রায়াল শেষ — সাবস্ক্রিপশন প্রয়োজন"
-      message="৩ দিনের ফ্রি ট্রায়াল শেষ। নতুন কাজ করতে সাবস্ক্রাইব করুন। ৩ মাস কোনো অ্যাটেম্পট না নিলে অ্যাকাউন্ট মুছে যাবে।"
-      onClick={() => navigate('/subscription')}
-      cta="এখনই সাবস্ক্রাইব করুন →"
-    />
-  );
+  if (isLocked) {
+    return (
+      <Banner
+        title="🚫 ট্রায়াল শেষ — সাবস্ক্রিপশন প্রয়োজন"
+        message="৩ দিনের ফ্রি ট্রায়াল শেষ। নতুন কিছু যোগ/এডিট করতে সাবস্ক্রাইব করুন — আপনার সব তথ্য সুরক্ষিত আছে।"
+        onClick={() => navigate('/subscription')}
+        cta="এখনই সাবস্ক্রাইব করুন →"
+      />
+    );
+  }
+
+  return null;
 }
 
 function Banner({ title, message, onClick, cta }: { title: string; message: string; onClick: () => void; cta: string }) {
