@@ -1,139 +1,86 @@
-import { useState } from 'react';
-import { Upload, Loader2, CheckCircle2, Smartphone } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { supabase } from '@/integrations/supabase/client';
-import { toast } from '@/hooks/use-toast';
-import { withTimeout } from '@/lib/asyncTimeout';
+import { useStore } from '@/context/StoreContext';
+import { useSubscription, toBn, PLAN_LABEL, STORAGE_UNIT, PLAN_BASE_PRICE } from '@/context/SubscriptionContext';
+import { TrendingUp, AlertTriangle } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 
-const PAYMENT_NUMBER = '01305969812';
-
-interface Props {
-  userId: string;
-  userPhone: string;
-  plan: 'basic' | 'pro';
-  amount: string;
-  requestType?: 'new' | 'upgrade';
-  amountTk?: number;
-  onDone?: () => void;
+function Bar({ used, limit }: { used: number; limit: number }) {
+  const pct = Math.min(100, Math.round((used / Math.max(1, limit)) * 100));
+  const color = pct >= 90 ? 'bg-rose-500' : pct >= 70 ? 'bg-amber-500' : 'bg-emerald-500';
+  return (
+    <div className="w-full h-2.5 bg-muted rounded-full overflow-hidden">
+      <div className={`${color} h-full rounded-full transition-all`} style={{ width: `${pct}%` }} />
+    </div>
+  );
 }
 
-export function SubscriptionPaymentForm({ userId, userPhone, plan, amount, requestType = 'new', amountTk, onDone }: Props) {
-  const [method, setMethod] = useState<'bkash' | 'nagad'>('bkash');
-  const [txn, setTxn] = useState('');
-  const [file, setFile] = useState<File | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [done, setDone] = useState(false);
+export function UsageDashboard({ compact = false }: { compact?: boolean }) {
+  const { products, customers } = useStore();
+  const { plan, monthlyPrice, productLimit, bakiLimit, salesCreditLimit, salesCreditUsed, trialActive, hasActivePaidPlan } = useSubscription();
+  const navigate = useNavigate();
 
-  const submit = async () => {
-    if (!txn.trim() && !file) {
-      toast({ title: 'স্ক্রিনশট অথবা ট্রানজেকশন আইডি দিন', variant: 'destructive' });
-      return;
-    }
-    setLoading(true);
-    try {
-      let screenshot_url: string | null = null;
-      if (file) {
-        const path = `${userId}/${Date.now()}-${file.name}`;
-        const { error: upErr } = await withTimeout(supabase.storage.from('payment-screenshots').upload(path, file, { upsert: false }), 8000, 'payment.upload');
-        if (upErr) throw upErr;
-        const { data } = supabase.storage.from('payment-screenshots').getPublicUrl(path);
-        screenshot_url = data.publicUrl;
-      }
-      const { error } = await withTimeout(supabase.from('subscription_requests').insert({
-        user_id: userId,
-        user_phone: userPhone,
-        plan_type: plan,
-        transaction_id: txn.trim() || null,
-        screenshot_url,
-        payment_method: method,
-        status: 'pending',
-        request_type: requestType,
-        amount_tk: amountTk ?? null,
-      }), 6000, 'payment.request');
-      if (error) throw error;
-
-      // Only grant the 2-day bridge access for brand-new purchases — an
-      // upgrade request means the user already has an active plan, so
-      // there's nothing to bridge while the manager reviews it.
-      if (requestType === 'new') {
-        const expiry = new Date(); expiry.setDate(expiry.getDate() + 2);
-        await withTimeout(supabase.from('profiles').update({
-          temporary_access: true,
-          temporary_expiry: expiry.toISOString(),
-        }).eq('user_id', userId), 6000, 'payment.tempAccess');
-      }
-
-      setDone(true);
-      toast({
-        title: requestType === 'upgrade'
-          ? 'আপগ্রেড রিকোয়েস্ট জমা হয়েছে ✓'
-          : 'রিকোয়েস্ট জমা হয়েছে — ২ দিনের অস্থায়ী অ্যাক্সেস চালু হলো 🎉',
-      });
-      onDone?.();
-    } catch (e: any) {
-      toast({ title: e.message || 'সমস্যা হয়েছে', variant: 'destructive' });
-    } finally { setLoading(false); }
-  };
-
-  if (done) {
-    return (
-      <div className="card-elevated p-6 rounded-2xl text-center space-y-3">
-        <CheckCircle2 className="w-14 h-14 text-profit mx-auto" />
-        <h3 className="text-lg font-bold">রিকোয়েস্ট জমা হয়েছে</h3>
-        <p className="text-sm text-muted-foreground">
-          {requestType === 'upgrade'
-            ? 'ম্যানেজার আপনার পেমেন্ট যাচাই করবেন। অনুমোদনের পর WhatsApp ফিচার চালু হবে — আপনার মেয়াদ অপরিবর্তিত থাকবে।'
-            : 'ম্যানেজার আপনার পেমেন্ট যাচাই করবেন। অনুমোদনের আগ পর্যন্ত ২ দিনের ফ্রি অ্যাক্সেস চালু রইলো।'}
-        </p>
-      </div>
-    );
-  }
+  const productPct = Math.round((products.length / productLimit) * 100);
+  const salesPct = Math.round((salesCreditUsed / salesCreditLimit) * 100);
+  const remainingSales = Math.max(0, salesCreditLimit - salesCreditUsed);
+  const extraPrice = PLAN_BASE_PRICE[plan];
 
   return (
-    <div className="card-elevated p-6 rounded-2xl space-y-4">
-      <div>
-        <h3 className="font-bold text-lg">পেমেন্ট তথ্য</h3>
-        <p className="text-sm text-muted-foreground">
-          পরিমাণ <span className="font-bold text-foreground">{amount}</span> পাঠান নিচের নম্বরে
+    <div className="card-elevated rounded-2xl p-5 bg-card">
+      <div className="flex items-center justify-between mb-4">
+        <h3 className="font-bold text-foreground flex items-center gap-2">📊 আপনার ব্যবহারের হিসাব</h3>
+      </div>
+      <div className="rounded-xl bg-muted/60 px-4 py-3 mb-4">
+        <p className="text-xs text-muted-foreground">বর্তমান প্ল্যান</p>
+        <p className="font-bold text-foreground">
+          {trialActive ? 'ফ্রি ট্রায়াল (সব ফিচার আনলক)' : hasActivePaidPlan ? `${PLAN_LABEL[plan]} — ৳${toBn(monthlyPrice)}/মাস` : 'কোনো সক্রিয় প্ল্যান নেই'}
         </p>
       </div>
 
-      <div className="grid grid-cols-2 gap-2">
-        <button onClick={() => setMethod('bkash')} className={`p-3 rounded-xl border-2 ${method === 'bkash' ? 'border-primary bg-primary/5' : 'border-border'}`}>
-          <Smartphone className="w-5 h-5 mx-auto mb-1 text-pink-600" />
-          <p className="text-sm font-medium">bKash</p>
-        </button>
-        <button onClick={() => setMethod('nagad')} className={`p-3 rounded-xl border-2 ${method === 'nagad' ? 'border-primary bg-primary/5' : 'border-border'}`}>
-          <Smartphone className="w-5 h-5 mx-auto mb-1 text-orange-600" />
-          <p className="text-sm font-medium">Nagad</p>
-        </button>
+      <div className="space-y-4">
+        <div>
+          <div className="flex items-center justify-between text-sm mb-1.5">
+            <span className="text-foreground font-medium">পণ্য</span>
+            <span className="text-muted-foreground text-xs">{toBn(products.length.toLocaleString())} / {toBn(productLimit.toLocaleString())}</span>
+          </div>
+          <Bar used={products.length} limit={productLimit} />
+          {productPct >= 80 && productPct < 100 && (
+            <p className="text-[11px] text-amber-700 mt-1.5 flex items-center gap-1"><AlertTriangle className="w-3 h-3" /> {toBn(productPct)}% ব্যবহার হয়েছে — আরও জায়গা লাগতে পারে 😄</p>
+          )}
+        </div>
+
+        <div>
+          <div className="flex items-center justify-between text-sm mb-1.5">
+            <span className="text-foreground font-medium">বাকি হিসাব</span>
+            <span className="text-muted-foreground text-xs">{toBn(customers.length.toLocaleString())} / {toBn(bakiLimit.toLocaleString())}</span>
+          </div>
+          <Bar used={customers.length} limit={bakiLimit} />
+        </div>
+
+        <div>
+          <div className="flex items-center justify-between text-sm mb-1.5">
+            <span className="text-foreground font-medium">মাসিক বিক্রি + বাকি আপডেট</span>
+            <span className="text-muted-foreground text-xs">{toBn(salesCreditUsed.toLocaleString())} / {toBn(salesCreditLimit.toLocaleString())}</span>
+          </div>
+          <Bar used={salesCreditUsed} limit={salesCreditLimit} />
+          <p className="text-[11px] text-muted-foreground mt-1.5">বাকি: {toBn(remainingSales.toLocaleString())} (বিক্রি ও বাকি খাতার পরিবর্তন — দুটো মিলিয়ে)</p>
+          {salesPct >= 80 && salesPct < 100 && (
+            <p className="text-[11px] text-amber-700 mt-1 flex items-center gap-1"><AlertTriangle className="w-3 h-3" /> {toBn(salesPct)}% ব্যবহার হয়ে গেছে — প্ল্যান নবায়নের জন্য প্রস্তুত থাকুন।</p>
+          )}
+        </div>
       </div>
 
-      <div className="bg-primary/5 border border-primary/20 rounded-xl p-4 text-center">
-        <p className="text-xs text-muted-foreground">{method === 'bkash' ? 'bKash' : 'Nagad'} নম্বর</p>
-        <p className="text-xl font-bold tracking-wider">{PAYMENT_NUMBER}</p>
-        <p className="text-xs text-muted-foreground mt-1">"Send Money" ব্যবহার করুন</p>
-      </div>
-
-      <div>
-        <label className="block text-sm font-medium mb-2">স্ক্রিনশট আপলোড (ঐচ্ছিক)</label>
-        <label className="flex items-center justify-center gap-2 p-3 border-2 border-dashed border-border rounded-xl cursor-pointer hover:bg-muted/50">
-          <Upload className="w-4 h-4" />
-          <span className="text-sm">{file ? file.name : 'ছবি বাছাই করুন'}</span>
-          <input type="file" accept="image/*" className="hidden" onChange={e => setFile(e.target.files?.[0] || null)} />
-        </label>
-      </div>
-
-      <div>
-        <label className="block text-sm font-medium mb-2">ট্রানজেকশন আইডি</label>
-        <input value={txn} onChange={e => setTxn(e.target.value)} placeholder="যেমন: TXN12345ABC" className="input-field" />
-        <p className="text-xs text-muted-foreground mt-1">স্ক্রিনশট না থাকলে অবশ্যই ট্রানজেকশন আইডি দিন।</p>
-      </div>
-
-      <Button onClick={submit} disabled={loading} className="w-full py-5 rounded-xl">
-        {loading ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : null}
-        রিকোয়েস্ট জমা দিন
-      </Button>
+      {!compact && (
+        <div className="mt-5 rounded-2xl bg-gradient-to-br from-primary/10 to-primary/5 border border-primary/20 p-4">
+          <div className="flex items-start gap-3">
+            <TrendingUp className="w-5 h-5 text-primary mt-0.5" />
+            <div className="flex-1">
+              <p className="font-semibold text-foreground">🔥 আরও জায়গা দরকার?</p>
+              <p className="text-xs text-muted-foreground mt-1">আরও {toBn(STORAGE_UNIT.toLocaleString())} পণ্য ও {toBn(STORAGE_UNIT.toLocaleString())} বাকি হিসাব যোগ করুন।</p>
+              <p className="text-lg font-bold text-primary mt-2">মাত্র ৳{toBn(extraPrice)} অতিরিক্ত/মাস</p>
+              <button onClick={() => navigate('/subscription?focus=upgrade')} className="mt-3 px-4 py-2 rounded-xl bg-primary text-primary-foreground text-sm font-semibold">আপগ্রেড করুন</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
