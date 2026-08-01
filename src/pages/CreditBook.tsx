@@ -24,7 +24,7 @@ export default function CreditBook() {
     getZeroDueAccounts,
     setCustomerReminderDate
   } = useStore();
-  const { guardAddCustomer, guardFeature } = useSubscription();
+  const { guardAddCustomer, guardFeature, guardRecordSale, incrementSalesCredit } = useSubscription();
   
   const [searchType, setSearchType] = useState<'name' | 'phone'>('name');
   const [searchTerm, setSearchTerm] = useState('');
@@ -195,9 +195,13 @@ ${storeInfo?.name || 'আমাদের দোকানে'} এ আপনা�
       return;
     }
 
+    // Counts toward the combined monthly বিক্রি + বাকি-আপডেট credit.
+    if (!guardRecordSale(1)) return;
+
     // Pay and get proportional profit
     const proportionalProfit = payCustomerDue(customerId, amount);
-    
+    incrementSalesCredit(1);
+
     toast({ 
       title: `৳${amount} পরিশোধ হয়েছে ✓`,
       description: `৳${proportionalProfit.toFixed(2)} বাকির লাভে যোগ হয়েছে`
@@ -213,7 +217,11 @@ ${storeInfo?.name || 'আমাদের দোকানে'} এ আপনা�
       return;
     }
 
+    // Counts toward the combined monthly বিক্রি + বাকি-আপডেট credit.
+    if (!guardRecordSale(1)) return;
+
     updateCustomer(customerId, { totalDue: newDue });
+    incrementSalesCredit(1);
     toast({ title: "বাকির পরিমাণ আপডেট হয়েছে ✓" });
     setEditingDueFor(null);
     setEditDueAmount('');
