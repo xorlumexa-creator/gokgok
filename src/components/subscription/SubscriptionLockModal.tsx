@@ -1,10 +1,10 @@
-import { X, AlertTriangle, Lock, TrendingUp, MessageCircle, Receipt } from 'lucide-react';
+import { X, AlertTriangle, Lock, TrendingUp, MessageCircle, Receipt, ShieldAlert } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useSubscription, toBn, PLAN_BASE_PRICE, PLAN_LABEL, STORAGE_UNIT } from '@/context/SubscriptionContext';
 
 export function SubscriptionLockModal() {
   const navigate = useNavigate();
-  const { lockModal, closeLock, plan, storageLevel } = useSubscription();
+  const { lockModal, closeLock, plan, storageLevel, trialActive } = useSubscription();
 
   if (!lockModal) return null;
 
@@ -16,14 +16,36 @@ export function SubscriptionLockModal() {
     closeLock();
     navigate('/subscription?focus=renew');
   };
+  const goSubscribe = () => {
+    closeLock();
+    navigate('/subscription');
+  };
 
   const basePrice = PLAN_BASE_PRICE[plan];
 
   let content: React.ReactNode = null;
 
-  if (lockModal.type === 'product_limit' || lockModal.type === 'baki_limit') {
+  if (lockModal.type === 'subscription_needed') {
+    content = (
+      <>
+        <div className="flex items-center gap-3 mb-4">
+          <div className="w-12 h-12 rounded-2xl bg-rose-100 dark:bg-rose-950/40 flex items-center justify-center">
+            <ShieldAlert className="w-6 h-6 text-rose-600" />
+          </div>
+          <h2 className="text-lg font-bold text-foreground">🔒 সাবস্ক্রিপশন প্রয়োজন</h2>
+        </div>
+        <p className="text-sm text-foreground leading-relaxed mb-4">
+          আপনার ফ্রি ট্রায়াল অথবা সাবস্ক্রিপশনের মেয়াদ শেষ হয়ে গেছে। দোকান চালিয়ে যেতে একটি প্ল্যান নিন — আপনার সব তথ্য সুরক্ষিত আছে, শুধু নতুন কিছু যোগ/এডিট করা বন্ধ আছে।
+        </p>
+        <p className="text-xs text-muted-foreground mb-4">বাকির খাতা এখনো দেখতে পারবেন — শুধু টাকার পরিমাণ, কোনো এডিট ছাড়া।</p>
+        <button onClick={goSubscribe} className="w-full py-3.5 rounded-xl bg-primary text-primary-foreground font-semibold">
+          সাবস্ক্রিপশন পেজে যান
+        </button>
+      </>
+    );
+  } else if (lockModal.type === 'product_limit' || lockModal.type === 'baki_limit') {
     const isProduct = lockModal.type === 'product_limit';
-    const extraPrice = basePrice; // extra storage costs one base price more
+    const extraPrice = basePrice; // one more storage level costs one more base price
     content = (
       <>
         <div className="flex items-center gap-3 mb-4">
@@ -34,13 +56,13 @@ export function SubscriptionLockModal() {
             <h2 className="text-lg font-bold text-foreground">
               🚫 {isProduct ? 'পণ্যের' : 'বাকি হিসাবের'} সীমা পূর্ণ হয়েছে
             </h2>
-            <p className="text-xs text-muted-foreground mt-0.5">{PLAN_LABEL[plan]} প্ল্যান</p>
+            <p className="text-xs text-muted-foreground mt-0.5">{trialActive ? 'ফ্রি ট্রায়াল' : `${PLAN_LABEL[plan]} প্ল্যান`}</p>
           </div>
         </div>
 
         <div className="rounded-xl bg-muted p-4 mb-4">
           <p className="text-sm text-foreground leading-relaxed">
-            আপনার বর্তমান প্ল্যানে সর্বোচ্চ <b>{toBn(lockModal.limit.toLocaleString())} টি</b> {isProduct ? 'পণ্য' : 'বাকি হিসাব'} রাখা যাবে।
+            আপনার বর্তমান সীমা <b>{toBn(lockModal.limit.toLocaleString())} টি</b> {isProduct ? 'পণ্য' : 'বাকি হিসাব'}।
           </p>
           <p className="text-xs text-muted-foreground mt-2">বর্তমান ব্যবহার: {toBn(lockModal.current.toLocaleString())} / {toBn(lockModal.limit.toLocaleString())}</p>
         </div>
@@ -51,7 +73,7 @@ export function SubscriptionLockModal() {
             <h3 className="font-bold text-foreground">🔥 দোকান বড় হচ্ছে?</h3>
           </div>
           <p className="text-sm text-foreground mb-3">
-            আরও <b>{toBn(STORAGE_UNIT.toLocaleString())} টি পণ্য</b> এবং <b>{toBn(STORAGE_UNIT.toLocaleString())} টি বাকি হিসাব</b> যুক্ত করুন।
+            আরও <b>{toBn(STORAGE_UNIT.toLocaleString())} টি পণ্য</b> এবং <b>{toBn(STORAGE_UNIT.toLocaleString())} টি বাকি হিসাব</b> রাখার জায়গা পান।
           </p>
           <div className="bg-background rounded-xl px-4 py-3 inline-block">
             <p className="text-2xl font-bold text-primary">মাত্র ৳{toBn(extraPrice)} <span className="text-sm font-normal text-muted-foreground">অতিরিক্ত/মাস</span></p>
@@ -76,12 +98,12 @@ export function SubscriptionLockModal() {
             <AlertTriangle className="w-6 h-6 text-amber-600" />
           </div>
           <div>
-            <h2 className="text-lg font-bold text-foreground">⚠️ মাসিক বিক্রির সীমা পূর্ণ হয়েছে</h2>
+            <h2 className="text-lg font-bold text-foreground">⚠️ মাসিক বিক্রি + বাকি আপডেটের সীমা পূর্ণ</h2>
           </div>
         </div>
         <div className="rounded-xl bg-muted p-4 mb-4">
           <p className="text-sm text-foreground leading-relaxed">
-            আপনার এই মাসের <b>{toBn(lockModal.limit.toLocaleString())} টি বিক্রির</b> সীমা পূর্ণ হয়েছে। ব্যবসা চালিয়ে যেতে প্ল্যান নবায়ন করুন অথবা আপগ্রেড করুন।
+            আপনার এই চক্রের <b>{toBn(lockModal.limit.toLocaleString())} টি বিক্রি ও বাকি আপডেটের</b> সীমা পূর্ণ হয়েছে (বিক্রি + বাকি খাতার পরিবর্তন — দুটো মিলিয়ে)। ব্যবসা চালিয়ে যেতে প্ল্যান নবায়ন করুন।
           </p>
           <p className="text-xs text-muted-foreground mt-2">ব্যবহার: {toBn(lockModal.used.toLocaleString())} / {toBn(lockModal.limit.toLocaleString())}</p>
         </div>
@@ -94,7 +116,7 @@ export function SubscriptionLockModal() {
   } else if (lockModal.type === 'feature_whatsapp') {
     const cur = PLAN_BASE_PRICE[plan];
     const next = PLAN_BASE_PRICE.standard;
-    const diff = Math.max(0, next - cur);
+    const diff = Math.max(0, next - cur) * storageLevel;
     content = (
       <>
         <div className="flex items-center gap-3 mb-4">
@@ -104,20 +126,20 @@ export function SubscriptionLockModal() {
           <h2 className="text-lg font-bold text-foreground">🔒 WhatsApp ফিচার আনলক করুন</h2>
         </div>
         <p className="text-sm text-foreground leading-relaxed mb-4">
-          এক ট্যাপে reminder পাঠান, কাস্টমারকে WhatsApp করুন এবং আরও সহজে হিসাব পরিচালনা করুন।
+          এক ট্যাপে reminder পাঠান, কাস্টমার ও সাপ্লায়ারকে WhatsApp করুন এবং আরও সহজে হিসাব পরিচালনা করুন।
         </p>
         <div className="rounded-2xl bg-gradient-to-br from-primary/10 to-primary/5 border border-primary/20 p-4 mb-4">
           <p className="text-xs text-muted-foreground mb-2">Standard প্ল্যানে আনলক করুন</p>
           <div className="flex items-center justify-between text-sm mb-1">
-            <span className="text-muted-foreground">Basic: ৳{toBn(PLAN_BASE_PRICE.basic)}/মাস {plan==='basic' && <em className="not-italic text-primary">(বর্তমান)</em>}</span>
+            <span className="text-muted-foreground">Basic: ৳{toBn(PLAN_BASE_PRICE.basic * storageLevel)}/মাস {plan === 'basic' && <em className="not-italic text-primary">(বর্তমান)</em>}</span>
           </div>
           <div className="flex items-center justify-between text-sm">
-            <span className="text-foreground font-semibold">Standard: ৳{toBn(PLAN_BASE_PRICE.standard)}/মাস</span>
+            <span className="text-foreground font-semibold">Standard: ৳{toBn(PLAN_BASE_PRICE.standard * storageLevel)}/মাস</span>
           </div>
           {diff > 0 && (
             <div className="mt-3 pt-3 border-t border-border">
               <p className="text-base font-bold text-primary">পার্থক্য: মাত্র ৳{toBn(diff)}/মাস</p>
-              <p className="text-xs text-muted-foreground">≈ প্রতিদিন মাত্র ৳{toBn((diff/30).toFixed(1))} 😄</p>
+              <p className="text-xs text-muted-foreground">≈ প্রতিদিন মাত্র ৳{toBn((diff / 30).toFixed(1))} 😄</p>
             </div>
           )}
         </div>
@@ -126,8 +148,8 @@ export function SubscriptionLockModal() {
     );
   } else if (lockModal.type === 'feature_invoice') {
     const cur = PLAN_BASE_PRICE[plan];
-    const next = PLAN_BASE_PRICE.pro;
-    const diff = Math.max(0, next - cur);
+    const next = PLAN_BASE_PRICE.premium;
+    const diff = Math.max(0, next - cur) * storageLevel;
     content = (
       <>
         <div className="flex items-center gap-3 mb-4">
@@ -140,9 +162,9 @@ export function SubscriptionLockModal() {
           প্রিন্টযোগ্য invoice, PDF export এবং পেশাদার receipt ব্যবহার করুন।
         </p>
         <div className="rounded-2xl bg-gradient-to-br from-primary/10 to-primary/5 border border-primary/20 p-4 mb-4">
-          <p className="text-xs text-muted-foreground mb-2">Pro প্ল্যানে আনলক করুন</p>
-          <p className="text-sm text-muted-foreground">বর্তমান প্ল্যান: ৳{toBn(cur)}/মাস</p>
-          <p className="text-sm text-foreground font-semibold">Pro: ৳{toBn(PLAN_BASE_PRICE.pro)}/মাস</p>
+          <p className="text-xs text-muted-foreground mb-2">Premium প্ল্যানে আনলক করুন</p>
+          <p className="text-sm text-muted-foreground">বর্তমান প্ল্যান: ৳{toBn(cur * storageLevel)}/মাস</p>
+          <p className="text-sm text-foreground font-semibold">Premium: ৳{toBn(PLAN_BASE_PRICE.premium * storageLevel)}/মাস</p>
           {diff > 0 && (
             <p className="text-base font-bold text-primary mt-3 pt-3 border-t border-border">মাত্র ৳{toBn(diff)} অতিরিক্ত/মাস</p>
           )}
@@ -162,4 +184,5 @@ export function SubscriptionLockModal() {
       </div>
     </div>
   );
-}
+          }
+  
