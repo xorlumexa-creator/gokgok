@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { ShoppingCart, BookOpen, MessageCircle, BarChart3, Check, Wifi, Smartphone, Sparkles, ArrowRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/hooks/useAuth';
+import { PLAN_BASE_PRICE, PLAN_LABEL, PRODUCT_UNIT, BAKI_UNIT, SALES_CREDIT_UNIT, toBn } from '@/context/SubscriptionContext';
 import logoImg from '@/assets/logo.png';
 
 export default function Landing() {
@@ -94,26 +95,27 @@ export default function Landing() {
       <section className="px-4 py-12 max-w-5xl mx-auto">
         <h2 className="text-2xl sm:text-3xl font-bold text-center mb-2">সাশ্রয়ী প্ল্যান</h2>
         <p className="text-center text-muted-foreground mb-2">৩টি প্ল্যানেই একই ক্যাপাসিটি — পার্থক্য শুধু ফিচারে</p>
-        <div className="text-center text-xs text-muted-foreground mb-8 max-w-2xl mx-auto leading-relaxed">
-          প্রতিটি প্ল্যানে: <b className="text-foreground">১,০০০ পণ্য</b> + <b className="text-foreground">১,০০০ বাকি গ্রাহক</b> + <b className="text-foreground">মাসিক ১২,০০০ বিক্রি</b><br/>
-          <span className="text-rose-600">⚠️ সীমা শেষ হলে বা মাস শেষ হলে আবার সাবস্ক্রিপশন প্রয়োজন।</span>
+        <div className="text-center text-xs text-muted-foreground mb-2 max-w-2xl mx-auto leading-relaxed">
+          প্রতিটি প্ল্যানে: <b className="text-foreground">{toBn(PRODUCT_UNIT.toLocaleString())} পণ্য</b> + <b className="text-foreground">{toBn(BAKI_UNIT.toLocaleString())} বাকি হিসাব</b> + <b className="text-foreground">মাসিক {toBn(SALES_CREDIT_UNIT.toLocaleString())} বিক্রি + বাকি-আপডেট</b><br/>
+          <span className="text-rose-600">⚠️ সীমা শেষ হলে বা ৩০ দিন শেষ হলে নবায়ন প্রয়োজন — বেশি লাগলে ২×/৩× ক্যাপাসিটিতে আপগ্রেড করা যায়।</span>
         </div>
+        <p className="text-center text-xs text-primary font-semibold mb-8">🎁 নতুন সাইনআপে ৩ দিনের ফ্রি ট্রায়াল — সব ফিচার আনলক!</p>
         <div className="grid sm:grid-cols-3 gap-4">
           {[
-            { name: 'Basic', price: 80, features: ['মূল ফিচার সব', 'বাকির খাতা + পণ্য + হিসাব', 'রিপোর্ট ও বিশ্লেষণ'], highlight: false },
-            { name: 'Standard', price: 120, features: ['Basic-এর সব', 'WhatsApp রিমাইন্ডার', 'সরাসরি কল বাটন'], highlight: true },
-            { name: 'Pro', price: 180, features: ['Standard-এর সব', 'Thermal/A4 ইনভয়েস', 'PDF এক্সপোর্ট + WhatsApp শেয়ার'], highlight: false },
-          ].map((p, i) => (
-            <div key={i} className={`rounded-2xl p-6 border-2 transition-all ${p.highlight ? 'border-primary bg-primary/5 shadow-elegant scale-[1.02]' : 'border-border bg-card'}`}>
+            { id: 'basic' as const, features: ['মূল ফিচার সব', 'বাকির খাতা + পণ্য + হিসাব', 'রিপোর্ট ও বিশ্লেষণ'], highlight: false },
+            { id: 'standard' as const, features: ['Basic-এর সব', 'WhatsApp রিমাইন্ডার', 'সরাসরি কল বাটন'], highlight: true },
+            { id: 'premium' as const, features: ['Standard-এর সব', 'Thermal/A4 ইনভয়েস', 'PDF এক্সপোর্ট + WhatsApp শেয়ার'], highlight: false },
+          ].map((p) => (
+            <div key={p.id} className={`rounded-2xl p-6 border-2 transition-all ${p.highlight ? 'border-primary bg-primary/5 shadow-elegant scale-[1.02]' : 'border-border bg-card'}`}>
               {p.highlight && <span className="inline-block bg-primary text-primary-foreground text-xs font-bold px-3 py-1 rounded-full mb-2">জনপ্রিয়</span>}
-              <h3 className="text-xl font-bold">{p.name}</h3>
-              <p className="mt-2"><span className="text-4xl font-extrabold">৳{p.price}</span><span className="text-muted-foreground">/মাস</span></p>
+              <h3 className="text-xl font-bold">{PLAN_LABEL[p.id]}</h3>
+              <p className="mt-2"><span className="text-4xl font-extrabold">৳{toBn(PLAN_BASE_PRICE[p.id])}</span><span className="text-muted-foreground">/মাস</span></p>
               <ul className="mt-4 space-y-2">
                 {p.features.map((f, j) => (
                   <li key={j} className="flex items-center gap-2 text-sm"><Check className="w-4 h-4 text-primary shrink-0" />{f}</li>
                 ))}
               </ul>
-              <Button onClick={goAuth} className="w-full mt-5 rounded-xl py-5" variant={p.highlight ? 'default' : 'outline'}>শুরু করুন</Button>
+              <Button onClick={goAuth} className="w-full mt-5 rounded-xl py-5" variant={p.highlight ? 'default' : 'outline'}>ফ্রি ট্রায়াল শুরু করুন</Button>
             </div>
           ))}
         </div>
