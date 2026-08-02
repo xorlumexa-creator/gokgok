@@ -43,6 +43,7 @@
     "@radix-ui/react-tooltip": "^1.2.7",
     "@supabase/supabase-js": "^2.90.1",
     "@capacitor/app": "latest",
+    "@capgo/capacitor-updater": "latest",
     "@capacitor/network": "latest",
     "@capacitor/preferences": "latest",
     "@tanstack/react-query": "^5.83.0",
