@@ -22,6 +22,14 @@ const config: CapacitorConfig = {
       splashFullScreen: true,
       splashImmersive: true,
     },
+    // OTA (over-the-air) updates for JS/HTML/CSS changes only — no Play
+    // Store, no APK re-download needed for most releases. Native/permission
+    // changes still require a new APK built + distributed from the website.
+    // Replace <YOUR-PROJECT-REF> with your actual Supabase project ref.
+    CapacitorUpdater: {
+      updateUrl: 'https://<YOUR-PROJECT-REF>.supabase.co/functions/v1/check-app-update',
+      autoUpdate: true,
+    },
   },
 };
 
