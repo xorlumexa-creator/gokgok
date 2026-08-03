@@ -42,6 +42,8 @@ interface StoreContextType {
   searchCustomersByName: (name: string) => Customer[];
   getUnpaidCustomers: () => Customer[];
   getCustomersDueFor30Days: () => Customer[];
+  getPendingReminderGroups: () => { date: Date; customers: Customer[] }[];
+  acknowledgeBakiReminders: (customerIds: string[]) => void;
   getZeroDueAccounts: () => Customer[];
   addPreOrder: (preOrder: Omit<PreOrder, 'id' | 'createdAt'>) => void;
   updatePreOrderStatus: (id: string, status: PreOrderStatus) => void;
@@ -321,26 +323,47 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     });
   };
 
-  const getCustomersDueFor30Days = (): Customer[] => {
-    // Shows a reminder 30 days after the baki account was created, OR 30 days
-    // after the last payment (full or partial) — whichever is more recent.
-    // This makes the reminder clock "restart" every time a customer pays
-    // something, instead of disappearing forever after the first payment.
-    // If the shopkeeper has set a custom reminder date (clock icon on the
-    // baki khata list), that date is used instead of the 30-day default.
+  // A customer's reminder is "pending" once its effective date has arrived,
+  // and it STAYS pending (doesn't auto-hide the next day) until the
+  // shopkeeper actually opens/views it — acknowledgeBakiReminders() is what
+  // clears it. Effective date = the custom clock-icon date if the
+  // shopkeeper set one, otherwise the 1st of the current month by default.
+  const getEffectiveReminderDate = (c: Customer): Date => {
+    if (c.customReminderDate) return new Date(c.customReminderDate);
     const now = new Date();
-    const thirtyDaysAgo = new Date();
-    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+    return new Date(now.getFullYear(), now.getMonth(), 1);
+  };
+
+  const getCustomersDueFor30Days = (): Customer[] => {
+    const now = new Date();
     return customers.filter(c => {
       if (c.totalDue <= 0) return false;
-      if (c.customReminderDate) {
-        return new Date(c.customReminderDate) <= now;
-      }
-      const referenceDate = c.lastPaymentDate
-        ? new Date(c.lastPaymentDate)
-        : (c.bakiCreatedAt ? new Date(c.bakiCreatedAt) : new Date(c.createdAt));
-      return referenceDate <= thirtyDaysAgo;
+      const effective = getEffectiveReminderDate(c);
+      if (effective > now) return false;
+      const acked = c.reminderAcknowledgedAt ? new Date(c.reminderAcknowledgedAt) : null;
+      return !acked || acked < effective;
     });
+  };
+
+  // Same pending customers as above, grouped by their effective reminder
+  // date so the UI can show "just this date's" list instead of everything
+  // mixed together (e.g. someone's custom-set date alongside this month's
+  // 1st-of-month group).
+  const getPendingReminderGroups = (): { date: Date; customers: Customer[] }[] => {
+    const pending = getCustomersDueFor30Days();
+    const groups = new Map<string, { date: Date; customers: Customer[] }>();
+    pending.forEach(c => {
+      const d = getEffectiveReminderDate(c);
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      if (!groups.has(key)) groups.set(key, { date: d, customers: [] });
+      groups.get(key)!.customers.push(c);
+    });
+    return Array.from(groups.values()).sort((a, b) => a.date.getTime() - b.date.getTime());
+  };
+
+  const acknowledgeBakiReminders = (customerIds: string[]) => {
+    const now = new Date();
+    setCustomers(prev => prev.map(c => customerIds.includes(c.id) ? { ...c, reminderAcknowledgedAt: now } : c));
   };
 
   // Accounts sitting at ৳0 baki for 30+ days — still counted against the account
@@ -716,7 +739,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       addExpense, addCustomEarning, getProductSuggestions,
       generateCustomerDisplayName, getExistingCustomersByName,
       searchCustomersByPhone, searchCustomersByName,
-      getUnpaidCustomers, getCustomersDueFor30Days, getZeroDueAccounts,
+      getUnpaidCustomers, getCustomersDueFor30Days, getPendingReminderGroups, acknowledgeBakiReminders, getZeroDueAccounts,
       addPreOrder, updatePreOrderStatus, markPreOrderAsSold,
       getWeeklyBulkSales, getTodaysSalesSerial,
       addSupplier, updateSupplier, deleteSupplier,
