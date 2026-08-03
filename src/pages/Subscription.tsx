@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams, useLocation } from 'react-router-dom';
 import { Check, Crown, ShieldCheck, ArrowLeft, Clock, MessageCircle, Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
@@ -73,6 +73,7 @@ function CountdownCard({ expiresAt, label }: { expiresAt: string; label: string 
 
 export default function Subscription() {
   const navigate = useNavigate();
+  const location = useLocation();
   const [searchParams] = useSearchParams();
   const focus = searchParams.get('focus'); // 'renew' | 'upgrade' | null
   const { profile } = useProfile();
@@ -100,19 +101,28 @@ export default function Subscription() {
 
   useEffect(() => {
     if (hasActivePaidPlan) { setSelectedPlan(plan); setDesiredLevel(storageLevel); }
-  }, [hasActivePaidPlan, plan, storageLevel]);
+    const suggested = (location.state as { suggestedLevel?: number } | null)?.suggestedLevel;
+    if (suggested) setDesiredLevel(Math.max(1, Math.min(10, suggested)));
+  }, [hasActivePaidPlan, plan, storageLevel, location.state]);
 
   if (checkingAuth) return null;
 
   const isRenewIntent = focus === 'renew' || isLocked || creditExhausted;
-  const isUpgradeIntent = focus === 'upgrade' && hasActivePaidPlan;
+  const isLevelChange = desiredLevel !== storageLevel;
+
+  // Only a same-storage-level tier change (e.g. Basic → Standard just for
+  // WhatsApp) keeps the current cycle running — pay the price difference,
+  // expiry untouched. ANY storage-level change (2×/3× for more product/baki
+  // room) always starts a fresh 30-day cycle at full price, same as a
+  // renewal — matching what actually happens server-side.
+  const isPureFeatureUpgrade = focus === 'upgrade' && hasActivePaidPlan && !isLevelChange && selectedPlan !== plan;
 
   const targetPrice = PLAN_BASE_PRICE[selectedPlan] * desiredLevel;
   const currentPrice = hasActivePaidPlan ? monthlyPrice : 0;
   const upgradeDiff = Math.max(0, targetPrice - currentPrice);
 
   const openPayment = () => {
-    if (isUpgradeIntent && hasActivePaidPlan) {
+    if (isPureFeatureUpgrade) {
       setShowPaymentFor({ plan: selectedPlan, level: desiredLevel, type: 'upgrade', amount: upgradeDiff });
     } else {
       setShowPaymentFor({ plan: selectedPlan, level: desiredLevel, type: 'new', amount: targetPrice });
@@ -167,7 +177,7 @@ export default function Subscription() {
 
         {/* ── Plan picker ────────────────────────────────────────────── */}
         <h2 className="text-lg font-bold text-foreground mb-1">
-          {isUpgradeIntent ? 'প্ল্যান আপগ্রেড করুন' : isRenewIntent ? 'প্ল্যান নবায়ন / সাবস্ক্রাইব করুন' : 'সব প্ল্যান দেখুন'}
+          {isPureFeatureUpgrade ? 'প্ল্যান আপগ্রেড করুন' : isRenewIntent ? 'প্ল্যান নবায়ন / সাবস্ক্রাইব করুন' : 'সব প্ল্যান দেখুন'}
         </h2>
         <p className="text-sm text-muted-foreground mb-4">সহজ বাংলায়: যত বেশি ফিচার, দাম তত বেশি — কিন্তু পণ্য/বাকি/বিক্রির সীমা তিনটা প্ল্যানেই সমান।</p>
 
@@ -214,16 +224,17 @@ export default function Subscription() {
         {/* Storage level (capacity) selector */}
         <div className="rounded-2xl border border-border p-4 mb-6">
           <p className="font-semibold text-foreground mb-1">দোকানের সাইজ (ক্যাপাসিটি)</p>
-          <p className="text-xs text-muted-foreground mb-3">বেশি পণ্য/বাকি হিসাব দরকার হলে লেভেল বাড়ান — দামও একই হারে বাড়বে।</p>
-          <div className="flex gap-2">
-            {[1, 2, 3].map(lvl => (
+          <p className="text-xs text-muted-foreground mb-3">বেশি পণ্য/বাকি হিসাব দরকার হলে লেভেল বাড়ান — দামও একই হারে বাড়বে। সর্বোচ্চ ১০×।</p>
+          <div className="grid grid-cols-5 gap-2">
+            {Array.from({ length: 10 }, (_, i) => i + 1).map(lvl => (
               <button
                 key={lvl}
                 onClick={() => setDesiredLevel(lvl)}
-                className={`flex-1 rounded-xl border-2 py-3 text-center transition-all ${desiredLevel === lvl ? 'border-primary bg-primary/5' : 'border-border'}`}
+                className={`rounded-xl border-2 py-2.5 px-1 text-center transition-all ${desiredLevel === lvl ? 'border-primary bg-primary/5' : 'border-border'}`}
               >
-                <p className="font-bold text-foreground">{toBn(lvl)}×</p>
-                <p className="text-[11px] text-muted-foreground">{toBn((PRODUCT_UNIT * lvl).toLocaleString())} পণ্য</p>
+                <p className="font-bold text-foreground text-sm">{toBn(lvl)}×</p>
+                <p className="text-[10px] text-muted-foreground leading-tight mt-0.5">{toBn((PRODUCT_UNIT * lvl).toLocaleString())} পণ্য</p>
+                <p className="text-[10px] text-muted-foreground leading-tight">{toBn((BAKI_UNIT * lvl).toLocaleString())} বাকি</p>
               </button>
             ))}
           </div>
@@ -232,11 +243,16 @@ export default function Subscription() {
         {/* CTA */}
         <div className="rounded-2xl bg-muted/50 p-4 mb-4">
           <div className="flex items-center justify-between mb-3">
-            <span className="text-sm text-muted-foreground">{isUpgradeIntent ? 'অতিরিক্ত দিতে হবে' : 'মোট দাম'}</span>
-            <span className="text-2xl font-bold text-foreground">৳{toBn(isUpgradeIntent ? upgradeDiff : targetPrice)}<span className="text-sm font-normal text-muted-foreground">/মাস</span></span>
+            <span className="text-sm text-muted-foreground">{isPureFeatureUpgrade ? 'অতিরিক্ত দিতে হবে' : 'মোট দাম'}</span>
+            <span className="text-2xl font-bold text-foreground">৳{toBn(isPureFeatureUpgrade ? upgradeDiff : targetPrice)}<span className="text-sm font-normal text-muted-foreground">/মাস</span></span>
           </div>
-          <Button onClick={openPayment} className="w-full btn-primary py-6 rounded-xl text-base" disabled={isUpgradeIntent && upgradeDiff <= 0}>
-            {isUpgradeIntent ? 'আপগ্রেড করুন' : isRenewIntent ? 'সাবস্ক্রাইব / নবায়ন করুন' : 'এই প্ল্যান নিন'}
+          <p className="text-xs text-muted-foreground mb-3">
+            {isPureFeatureUpgrade
+              ? 'শুধু ফিচার যোগ হচ্ছে — আপনার বর্তমান মেয়াদ (কতদিন বাকি আছে) অপরিবর্তিত থাকবে।'
+              : 'নতুন ৩০ দিনের মেয়াদ আজ থেকে শুরু হবে এবং বিক্রি+বাকি-আপডেটের সীমাও রিসেট হবে।'}
+          </p>
+          <Button onClick={openPayment} className="w-full btn-primary py-6 rounded-xl text-base" disabled={isPureFeatureUpgrade && upgradeDiff <= 0}>
+            {isPureFeatureUpgrade ? 'আপগ্রেড করুন' : isRenewIntent ? 'সাবস্ক্রাইব / নবায়ন করুন' : 'এই প্ল্যান নিন'}
           </Button>
         </div>
 
