@@ -1,10 +1,10 @@
 import { useStore } from '@/context/StoreContext';
-import { AlertTriangle, Package, Phone, MessageCircle, Truck } from 'lucide-react';
+import { AlertTriangle, Package, Truck } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 
 export function LowStockAlert() {
-  const { products, suppliers, storeInfo } = useStore();
+  const { products } = useStore();
   const navigate = useNavigate();
   
   const lowStockProducts = products.filter(p => {
@@ -16,15 +16,6 @@ export function LowStockAlert() {
     return null;
   }
 
-  // Find supplier for a product
-  const findSupplier = (productId: string) => {
-    return suppliers.find(s => s.productIds.includes(productId));
-  };
-
-  const callSupplier = (phone: string) => {
-    window.location.href = `tel:${phone}`;
-  };
-
   // "স্টক কমে গেছে, অর্ডার করুন" - jump to the অর্ডার করুন (Suppliers) page
   // with every low-stock product pre-loaded into the order cart, already
   // grouped by supplier there — nothing to add by hand.
@@ -32,25 +23,6 @@ export function LowStockAlert() {
     navigate('/suppliers', {
       state: { autoOrderLowStock: true, productIds: lowStockProducts.map(p => p.id) },
     });
-  };
-
-  const messageSupplier = (supplier: typeof suppliers[0], productName: string, stock: number) => {
-    const message = `Assalamualaikum,
-${storeInfo?.name || 'আমাদের দোকান'} থেকে অনুরোধ করা হচ্ছে যে, নিচের আইটেমগুলো সরবরাহ করবেন:
-
-আইটেম: ${productName}
-পরিমাণ: [পরিমাণ দিন]
-
-বর্তমান স্টক: ${stock}টি
-
-দোকান লোকেশন: ${storeInfo?.location || '[ঠিকানা]'}
-মোবাইল: ${storeInfo?.phone || '[ফোন নম্বর]'}
-
-ধন্যবাদ।`;
-
-    const phone = supplier.phone.replace(/\+/g, '');
-    const url = `https://wa.me/${phone}?text=${encodeURIComponent(message)}`;
-    window.open(url, '_blank');
   };
 
   return (
@@ -63,48 +35,27 @@ ${storeInfo?.name || 'আমাদের দোকান'} থেকে অন�
       </div>
       
       <div className="space-y-2">
-        {lowStockProducts.slice(0, 5).map((product) => {
-          const supplier = findSupplier(product.id);
-          return (
-            <div 
-              key={product.id}
-              className="flex items-center justify-between py-2 px-3 bg-warning/5 rounded-lg"
-            >
-              <div className="flex items-center gap-2">
-                <Package className="w-4 h-4 text-warning" />
-                <div>
-                  <span className="text-foreground">{product.name}</span>
-                  <span className="text-sm font-semibold text-warning ml-2">
-                    {product.unitType === 'gram' || product.unitType === 'kg'
-                      ? product.stock >= 1000 ? `${(product.stock / 1000).toFixed(1)} কেজি` : `${product.stock} গ্রাম`
-                      : product.unitType === 'litre'
-                        ? product.stock >= 1000 ? `${(product.stock / 1000).toFixed(1)} লিটার` : `${product.stock} মিলি`
-                        : `${product.stock}টি`
-                    } বাকি
-                  </span>
-                </div>
+        {lowStockProducts.slice(0, 5).map((product) => (
+          <div
+            key={product.id}
+            className="flex items-center justify-between py-2 px-3 bg-warning/5 rounded-lg"
+          >
+            <div className="flex items-center gap-2">
+              <Package className="w-4 h-4 text-warning" />
+              <div>
+                <span className="text-foreground">{product.name}</span>
+                <span className="text-sm font-semibold text-warning ml-2">
+                  {product.unitType === 'gram' || product.unitType === 'kg'
+                    ? product.stock >= 1000 ? `${(product.stock / 1000).toFixed(1)} কেজি` : `${product.stock} গ্রাম`
+                    : product.unitType === 'litre'
+                      ? product.stock >= 1000 ? `${(product.stock / 1000).toFixed(1)} লিটার` : `${product.stock} মিলি`
+                      : `${product.stock}টি`
+                  } বাকি
+                </span>
               </div>
-              {supplier && (
-                <div className="flex items-center gap-1">
-                  <button
-                    onClick={() => callSupplier(supplier.phone)}
-                    className="p-1.5 bg-primary/10 hover:bg-primary/20 rounded-lg text-primary transition-colors"
-                    title={`কল: ${supplier.name}`}
-                  >
-                    <Phone className="w-4 h-4" />
-                  </button>
-                  <button
-                    onClick={() => messageSupplier(supplier, product.name, product.stock)}
-                    className="p-1.5 bg-green-100 hover:bg-green-200 rounded-lg text-green-600 transition-colors"
-                    title={`WhatsApp: ${supplier.name}`}
-                  >
-                    <MessageCircle className="w-4 h-4" />
-                  </button>
-                </div>
-              )}
             </div>
-          );
-        })}
+          </div>
+        ))}
       </div>
 
       <Button onClick={handleOrderAll} className="w-full mt-3 bg-warning hover:bg-warning/90 text-warning-foreground py-5 rounded-xl">
@@ -121,4 +72,4 @@ ${storeInfo?.name || 'আমাদের দোকান'} থেকে অন�
       )}
     </div>
   );
-        }
+}
