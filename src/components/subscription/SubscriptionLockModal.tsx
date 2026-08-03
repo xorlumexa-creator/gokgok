@@ -12,6 +12,10 @@ export function SubscriptionLockModal() {
     closeLock();
     navigate('/subscription?focus=upgrade');
   };
+  const goUpgradeLevel = () => {
+    closeLock();
+    navigate('/subscription?focus=upgrade', { state: { suggestedLevel: storageLevel + 1 } });
+  };
   const goRenew = () => {
     closeLock();
     navigate('/subscription?focus=renew');
@@ -45,7 +49,11 @@ export function SubscriptionLockModal() {
     );
   } else if (lockModal.type === 'product_limit' || lockModal.type === 'baki_limit') {
     const isProduct = lockModal.type === 'product_limit';
-    const extraPrice = basePrice; // one more storage level costs one more base price
+    const nextLevel = Math.min(10, storageLevel + 1);
+    const atMaxLevel = storageLevel >= 10;
+    // Price difference between consecutive levels is always one base price,
+    // regardless of current level (price = basePrice × level).
+    const extraPrice = basePrice;
     content = (
       <>
         <div className="flex items-center gap-3 mb-4">
@@ -56,7 +64,7 @@ export function SubscriptionLockModal() {
             <h2 className="text-lg font-bold text-foreground">
               🚫 {isProduct ? 'পণ্যের' : 'বাকি হিসাবের'} সীমা পূর্ণ হয়েছে
             </h2>
-            <p className="text-xs text-muted-foreground mt-0.5">{trialActive ? 'ফ্রি ট্রায়াল' : `${PLAN_LABEL[plan]} প্ল্যান`}</p>
+            <p className="text-xs text-muted-foreground mt-0.5">{trialActive ? 'ফ্রি ট্রায়াল' : `${PLAN_LABEL[plan]} প্ল্যান — ${toBn(storageLevel)}×`}</p>
           </div>
         </div>
 
@@ -72,16 +80,23 @@ export function SubscriptionLockModal() {
             <TrendingUp className="w-5 h-5 text-primary" />
             <h3 className="font-bold text-foreground">🔥 দোকান বড় হচ্ছে?</h3>
           </div>
-          <p className="text-sm text-foreground mb-3">
-            আরও <b>{toBn(STORAGE_UNIT.toLocaleString())} টি পণ্য</b> এবং <b>{toBn(STORAGE_UNIT.toLocaleString())} টি বাকি হিসাব</b> রাখার জায়গা পান।
-          </p>
-          <div className="bg-background rounded-xl px-4 py-3 inline-block">
-            <p className="text-2xl font-bold text-primary">মাত্র ৳{toBn(extraPrice)} <span className="text-sm font-normal text-muted-foreground">অতিরিক্ত/মাস</span></p>
-          </div>
+          {atMaxLevel ? (
+            <p className="text-sm text-foreground mb-3">আপনি সর্বোচ্চ ক্যাপাসিটি (১০×) ব্যবহার করছেন। আরও জায়গা দরকার হলে সরাসরি যোগাযোগ করুন।</p>
+          ) : (
+            <>
+              <p className="text-sm text-foreground mb-3">
+                {toBn(nextLevel)}× ক্যাপাসিটিতে আপগ্রেড করুন — <b>{toBn(STORAGE_UNIT.toLocaleString())} টি পণ্য</b> এবং <b>{toBn(STORAGE_UNIT.toLocaleString())} টি বাকি হিসাব</b> আরও রাখার জায়গা পান।
+              </p>
+              <p className="text-xs text-muted-foreground mb-3">এই আপগ্রেডে নতুন ৩০ দিনের মেয়াদ আজ থেকে শুরু হবে (বিক্রি+বাকি-আপডেটের সীমাও রিসেট হবে)।</p>
+              <div className="bg-background rounded-xl px-4 py-3 inline-block">
+                <p className="text-2xl font-bold text-primary">মাত্র ৳{toBn(extraPrice)} <span className="text-sm font-normal text-muted-foreground">অতিরিক্ত/মাস</span></p>
+              </div>
+            </>
+          )}
         </div>
 
         <div className="flex gap-2">
-          <button onClick={goUpgrade} className="flex-1 py-3.5 rounded-xl bg-primary text-primary-foreground font-semibold hover:opacity-90 transition">
+          <button onClick={goUpgradeLevel} disabled={atMaxLevel} className="flex-1 py-3.5 rounded-xl bg-primary text-primary-foreground font-semibold hover:opacity-90 transition disabled:opacity-50">
             এখনই আপগ্রেড করুন
           </button>
           <button onClick={closeLock} className="px-4 py-3.5 rounded-xl bg-muted text-foreground font-medium hover:bg-muted/70 transition">
@@ -184,5 +199,4 @@ export function SubscriptionLockModal() {
       </div>
     </div>
   );
-          }
-  
+        }
