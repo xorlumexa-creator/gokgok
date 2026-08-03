@@ -118,8 +118,13 @@ export interface Customer {
   // Track when totalDue last became 0 (used for the "০ টাকা বাকি" cleanup reminder)
   dueClearedAt?: Date;
   // Optional custom reminder date set by the shopkeeper (pen-icon-style clock
-  // control on the baki khata list). If not set, the default 30-day rule applies.
+  // control on the baki khata list). If not set, the default monthly rule
+  // (1st of the month) applies.
   customReminderDate?: Date;
+  // When the shopkeeper last opened/viewed this customer's pending
+  // reminder. The reminder keeps showing every day until this catches up
+  // to the effective reminder date — it never silently disappears on its own.
+  reminderAcknowledgedAt?: Date;
 }
 
 // Supplier types
