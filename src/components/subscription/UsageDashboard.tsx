@@ -1,7 +1,6 @@
 import { useStore } from '@/context/StoreContext';
-import { useSubscription, toBn, PLAN_LABEL, STORAGE_UNIT, PLAN_BASE_PRICE } from '@/context/SubscriptionContext';
-import { TrendingUp, AlertTriangle } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { useSubscription, toBn, PLAN_LABEL } from '@/context/SubscriptionContext';
+import { AlertTriangle } from 'lucide-react';
 
 function Bar({ used, limit }: { used: number; limit: number }) {
   const pct = Math.min(100, Math.round((used / Math.max(1, limit)) * 100));
@@ -13,15 +12,13 @@ function Bar({ used, limit }: { used: number; limit: number }) {
   );
 }
 
-export function UsageDashboard({ compact = false }: { compact?: boolean }) {
+export function UsageDashboard() {
   const { products, customers } = useStore();
   const { plan, monthlyPrice, productLimit, bakiLimit, salesCreditLimit, salesCreditUsed, trialActive, hasActivePaidPlan } = useSubscription();
-  const navigate = useNavigate();
 
   const productPct = Math.round((products.length / productLimit) * 100);
   const salesPct = Math.round((salesCreditUsed / salesCreditLimit) * 100);
   const remainingSales = Math.max(0, salesCreditLimit - salesCreditUsed);
-  const extraPrice = PLAN_BASE_PRICE[plan];
 
   return (
     <div className="card-elevated rounded-2xl p-5 bg-card">
@@ -68,19 +65,6 @@ export function UsageDashboard({ compact = false }: { compact?: boolean }) {
         </div>
       </div>
 
-      {!compact && (
-        <div className="mt-5 rounded-2xl bg-gradient-to-br from-primary/10 to-primary/5 border border-primary/20 p-4">
-          <div className="flex items-start gap-3">
-            <TrendingUp className="w-5 h-5 text-primary mt-0.5" />
-            <div className="flex-1">
-              <p className="font-semibold text-foreground">🔥 আরও জায়গা দরকার?</p>
-              <p className="text-xs text-muted-foreground mt-1">আরও {toBn(STORAGE_UNIT.toLocaleString())} পণ্য ও {toBn(STORAGE_UNIT.toLocaleString())} বাকি হিসাব যোগ করুন।</p>
-              <p className="text-lg font-bold text-primary mt-2">মাত্র ৳{toBn(extraPrice)} অতিরিক্ত/মাস</p>
-              <button onClick={() => navigate('/subscription?focus=upgrade')} className="mt-3 px-4 py-2 rounded-xl bg-primary text-primary-foreground text-sm font-semibold">আপগ্রেড করুন</button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
