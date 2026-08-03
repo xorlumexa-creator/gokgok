@@ -4,7 +4,6 @@ import { Sidebar } from './Sidebar';
 import { Header } from './Header';
 import { SubscriptionLock } from './SubscriptionLock';
 import TrialWarningBanner from '@/components/TrialWarningBanner';
-import { SafetyNotice } from '@/components/SafetyNotice';
 import { ensureNotificationPermission, runScheduledChecks, maybeShowDailyReminder } from '@/lib/notifications';
 import { useAndroidBackButton } from '@/hooks/useAndroidBackButton';
 import {
@@ -52,9 +51,6 @@ export function MainLayout({ title }: MainLayoutProps) {
           <SubscriptionLock>
             <TrialWarningBanner />
             <Outlet />
-            <div className="mt-6">
-              <SafetyNotice />
-            </div>
           </SubscriptionLock>
         </main>
       </div>
