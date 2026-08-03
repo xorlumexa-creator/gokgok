@@ -21,6 +21,8 @@ export default function CreditBook() {
     generateCustomerDisplayName,
     getUnpaidCustomers,
     getCustomersDueFor30Days,
+    getPendingReminderGroups,
+    acknowledgeBakiReminders,
     getZeroDueAccounts,
     setCustomerReminderDate
   } = useStore();
@@ -42,6 +44,7 @@ export default function CreditBook() {
 
   // WhatsApp Reminder State
   const [showReminderSection, setShowReminderSection] = useState(false);
+  const [viewingReminderGroup, setViewingReminderGroup] = useState<{ date: Date; customers: Customer[] } | null>(null);
   const [reminderMessage, setReminderMessage] = useState('');
   const [editingMessage, setEditingMessage] = useState(false);
 
@@ -53,17 +56,14 @@ export default function CreditBook() {
   const [reminderDateFor, setReminderDateFor] = useState<string | null>(null);
   const [reminderDateValue, setReminderDateValue] = useState('');
 
-  // Check if today is 1st of month for monthly reminder
-  const isFirstOfMonth = new Date().getDate() === 1;
-
   // Get unpaid customers (no payment in last month)
   const unpaidCustomers = useMemo(() => getUnpaidCustomers(), [getUnpaidCustomers]);
-  
-  // Get customers with baki > 30 days (for reminder)
-  const customersDueFor30Days = useMemo(() => getCustomersDueFor30Days(), [getCustomersDueFor30Days]);
 
-  // Get all customers with any baki (for monthly reminder)
-  const customersWithBaki = useMemo(() => customers.filter(c => c.totalDue > 0), [customers]);
+  // Pending reminders grouped by their effective date (1st-of-month default,
+  // or a shopkeeper-set custom date) — earliest group first. Tapping the
+  // reminder button shows just this one group's holders, not everyone mixed.
+  const pendingReminderGroups = useMemo(() => getPendingReminderGroups(), [getPendingReminderGroups]);
+  const currentReminderGroup = pendingReminderGroups[0] || null;
 
   // Get accounts sitting at ৳0 baki (still occupying an account slot in the limit)
   const zeroDueAccounts = useMemo(() => getZeroDueAccounts(), [getZeroDueAccounts, customers]);
@@ -80,13 +80,11 @@ export default function CreditBook() {
     return remDays === 0 ? `${months} মাস ধরে` : `${months} মাস ${remDays} দিন ধরে`;
   };
 
-  // Default reminder date = 30 days after baki started (or after account creation
-  // if there's no baki yet). This is what shows pre-filled in the date picker.
+  // Default reminder date = the 1st of the current month (shown pre-filled
+  // in the date picker when the shopkeeper hasn't set a custom date yet).
   const getDefaultReminderDate = (customer: Customer): Date => {
-    const base = customer.bakiCreatedAt ? new Date(customer.bakiCreatedAt) : new Date(customer.createdAt);
-    const d = new Date(base);
-    d.setDate(d.getDate() + 30);
-    return d;
+    const now = new Date();
+    return new Date(now.getFullYear(), now.getMonth(), 1);
   };
 
   const openReminderPicker = (customer: Customer) => {
@@ -113,7 +111,7 @@ export default function CreditBook() {
     setCustomerReminderDate(reminderDateFor, null);
     toast({
       title: 'ডিফল্ট রিমাইন্ডারে ফিরিয়ে নেওয়া হয়েছে ✓',
-      description: 'বাকি তৈরির ৩০ দিন পর (অথবা শেষ পেমেন্টের ৩০ দিন পর) রিমাইন্ডার আসবে',
+      description: 'প্রতি মাসের ১ তারিখে (অথবা কাস্টম তারিখ সেট থাকলে সেই তারিখে) রিমাইন্ডার দেখাবে',
     });
     setReminderDateFor(null);
   };
@@ -278,7 +276,16 @@ ${storeInfo?.name || 'আমাদের দোকানে'} এ আপনা�
   };
 
   const handleShowReminders = () => {
-    setShowReminderSection(!showReminderSection);
+    if (showReminderSection) {
+      setShowReminderSection(false);
+      setViewingReminderGroup(null);
+      return;
+    }
+    if (currentReminderGroup) {
+      setViewingReminderGroup(currentReminderGroup);
+      setShowReminderSection(true);
+      acknowledgeBakiReminders(currentReminderGroup.customers.map(c => c.id));
+    }
     if (!reminderMessage) {
       setReminderMessage(defaultReminderMessage);
     }
@@ -311,48 +318,31 @@ ${storeInfo?.name || 'আমাদের দোকানে'} এ আপনা�
         </p>
       </div>
 
-      {/* Monthly Reminder Button (Shows on 1st of month) */}
-      {isFirstOfMonth && customersWithBaki.length > 0 && (
-        <button
-          onClick={handleShowReminders}
-          className="w-full p-4 rounded-xl border-2 border-green-500 bg-green-50 transition-all flex items-center gap-3"
-        >
-          <MessageCircle className="w-6 h-6 text-green-600" />
-          <div className="text-left flex-1">
-            <p className="font-semibold text-foreground">
-              মাসিক রিমাইন্ডার পাঠান ({customersWithBaki.length}জন)
-            </p>
-            <p className="text-sm text-muted-foreground">
-              সব বাকিদারকে WhatsApp এ মনে করিয়ে দিন
-            </p>
-          </div>
-        </button>
-      )}
-
-      {/* 30+ Days Reminder Button */}
-      {customersDueFor30Days.length > 0 && (
+      {/* বাকি রিমাইন্ডার — প্রতি মাসের ১ তারিখে (অথবা ঘড়ি আইকনে সেট করা তারিখে),
+          যতদিন না দেখা হচ্ছে ততদিন এই বাটন থেকে যাবে। */}
+      {currentReminderGroup && (
         <button
           onClick={handleShowReminders}
           className={`w-full p-4 rounded-xl border-2 transition-all flex items-center gap-3 ${
-            showReminderSection 
-              ? 'border-green-500 bg-green-50' 
+            showReminderSection
+              ? 'border-green-500 bg-green-50'
               : 'border-primary bg-primary/5'
           }`}
         >
           <MessageCircle className={`w-6 h-6 ${showReminderSection ? 'text-green-600' : 'text-primary'}`} />
           <div className="text-left flex-1">
             <p className="font-semibold text-foreground">
-              ১ মাসের বেশি বাকি আছে ({customersDueFor30Days.length}জন)
+              বাকি রিমাইন্ডার ({currentReminderGroup.customers.length}জন) — {format(currentReminderGroup.date, 'dd MMMM', { locale: bn })}
             </p>
             <p className="text-sm text-muted-foreground">
-              {showReminderSection ? 'রিমাইন্ডার বন্ধ করুন' : 'WhatsApp এ মনে করিয়ে দিন'}
+              {showReminderSection ? 'রিমাইন্ডার বন্ধ করুন' : 'তালিকা দেখুন ও WhatsApp করুন'}
             </p>
           </div>
         </button>
       )}
 
       {/* WhatsApp Reminder Section */}
-      {showReminderSection && (customersWithBaki.length > 0 || customersDueFor30Days.length > 0) && (
+      {showReminderSection && viewingReminderGroup && (
         <div className="card-elevated p-4 space-y-4 animate-fade-in">
           {/* Message Editor */}
           <div>
@@ -387,7 +377,7 @@ ${storeInfo?.name || 'আমাদের দোকানে'} এ আপনা�
           <div className="border-t border-border pt-4">
             <p className="text-sm font-medium mb-3">গ্রাহক তালিকা:</p>
             <div className="space-y-2 max-h-60 overflow-y-auto">
-              {(isFirstOfMonth ? customersWithBaki : customersDueFor30Days).map((customer) => (
+              {viewingReminderGroup.customers.map((customer) => (
                 <div
                   key={customer.id}
                   className="flex items-center justify-between p-3 bg-muted/30 rounded-xl"
@@ -888,7 +878,7 @@ ${storeInfo?.name || 'আমাদের দোকানে'} এ আপনা�
               <p className="text-sm text-muted-foreground">
                 এই গ্রাহকের বাকির জন্য আপনি কবে রিমাইন্ডার দেখতে চান তা বেছে নিন।
                 কিছু না বদলালে, স্বয়ংক্রিয়ভাবে{' '}
-                <span className="font-semibold text-foreground">৩০ দিন পর</span> রিমাইন্ডার দেখাবে।
+                <span className="font-semibold text-foreground">প্রতি মাসের ১ তারিখে</span> রিমাইন্ডার দেখাবে।
               </p>
 
               <div>
