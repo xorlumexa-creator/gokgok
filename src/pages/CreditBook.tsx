@@ -1,4 +1,5 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
 import { BookOpen, Search, User, Phone, Plus, X, CheckCircle, AlertTriangle, MessageCircle, Send, Edit3, PhoneCall, Trash2, Clock, ChevronDown, ChevronUp } from 'lucide-react';
 import { useStore } from '@/context/StoreContext';
 import { useSubscription } from '@/context/SubscriptionContext';
@@ -21,8 +22,6 @@ export default function CreditBook() {
     generateCustomerDisplayName,
     getUnpaidCustomers,
     getCustomersDueFor30Days,
-    getPendingReminderGroups,
-    acknowledgeBakiReminders,
     getZeroDueAccounts,
     setCustomerReminderDate
   } = useStore();
@@ -59,11 +58,19 @@ export default function CreditBook() {
   // Get unpaid customers (no payment in last month)
   const unpaidCustomers = useMemo(() => getUnpaidCustomers(), [getUnpaidCustomers]);
 
-  // Pending reminders grouped by their effective date (1st-of-month default,
-  // or a shopkeeper-set custom date) — earliest group first. Tapping the
-  // reminder button shows just this one group's holders, not everyone mixed.
-  const pendingReminderGroups = useMemo(() => getPendingReminderGroups(), [getPendingReminderGroups]);
-  const currentReminderGroup = pendingReminderGroups[0] || null;
+  // Baki reminders are now triggered from the Dashboard (not this page) —
+  // tapping the reminder there acknowledges it and hands off the exact
+  // group of customers to show here, auto-opening the section below.
+  const location = useLocation();
+  useEffect(() => {
+    const incoming = (location.state as { viewReminderGroup?: { date: string; customers: Customer[] } } | null)?.viewReminderGroup;
+    if (incoming) {
+      setViewingReminderGroup({ date: new Date(incoming.date), customers: incoming.customers });
+      setShowReminderSection(true);
+      if (!reminderMessage) setReminderMessage(defaultReminderMessage);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location.state]);
 
   // Get accounts sitting at ৳0 baki (still occupying an account slot in the limit)
   const zeroDueAccounts = useMemo(() => getZeroDueAccounts(), [getZeroDueAccounts, customers]);
@@ -275,20 +282,9 @@ ${storeInfo?.name || 'আমাদের দোকানে'} এ আপনা�
     window.location.href = `tel:${phone}`;
   };
 
-  const handleShowReminders = () => {
-    if (showReminderSection) {
-      setShowReminderSection(false);
-      setViewingReminderGroup(null);
-      return;
-    }
-    if (currentReminderGroup) {
-      setViewingReminderGroup(currentReminderGroup);
-      setShowReminderSection(true);
-      acknowledgeBakiReminders(currentReminderGroup.customers.map(c => c.id));
-    }
-    if (!reminderMessage) {
-      setReminderMessage(defaultReminderMessage);
-    }
+  const closeReminderSection = () => {
+    setShowReminderSection(false);
+    setViewingReminderGroup(null);
   };
 
   return (
@@ -318,32 +314,17 @@ ${storeInfo?.name || 'আমাদের দোকানে'} এ আপনা�
         </p>
       </div>
 
-      {/* বাকি রিমাইন্ডার — প্রতি মাসের ১ তারিখে (অথবা ঘড়ি আইকনে সেট করা তারিখে),
-          যতদিন না দেখা হচ্ছে ততদিন এই বাটন থেকে যাবে। */}
-      {currentReminderGroup && (
-        <button
-          onClick={handleShowReminders}
-          className={`w-full p-4 rounded-xl border-2 transition-all flex items-center gap-3 ${
-            showReminderSection
-              ? 'border-green-500 bg-green-50'
-              : 'border-primary bg-primary/5'
-          }`}
-        >
-          <MessageCircle className={`w-6 h-6 ${showReminderSection ? 'text-green-600' : 'text-primary'}`} />
-          <div className="text-left flex-1">
-            <p className="font-semibold text-foreground">
-              বাকি রিমাইন্ডার ({currentReminderGroup.customers.length}জন) — {format(currentReminderGroup.date, 'dd MMMM', { locale: bn })}
-            </p>
-            <p className="text-sm text-muted-foreground">
-              {showReminderSection ? 'রিমাইন্ডার বন্ধ করুন' : 'তালিকা দেখুন ও WhatsApp করুন'}
-            </p>
-          </div>
-        </button>
-      )}
-
       {/* WhatsApp Reminder Section */}
       {showReminderSection && viewingReminderGroup && (
         <div className="card-elevated p-4 space-y-4 animate-fade-in">
+          <div className="flex items-center justify-between">
+            <p className="font-semibold text-foreground">
+              বাকি রিমাইন্ডার ({viewingReminderGroup.customers.length}জন) — {format(viewingReminderGroup.date, 'dd MMMM', { locale: bn })}
+            </p>
+            <button onClick={closeReminderSection} className="p-1.5 hover:bg-muted rounded-lg text-muted-foreground">
+              <X className="w-5 h-5" />
+            </button>
+          </div>
           {/* Message Editor */}
           <div>
             <div className="flex items-center justify-between mb-2">
