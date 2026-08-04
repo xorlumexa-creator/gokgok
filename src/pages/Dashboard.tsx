@@ -7,18 +7,28 @@ import { useStore } from '@/context/StoreContext';
 import { useSubscription, toBn } from '@/context/SubscriptionContext';
 import { LowStockAlert } from '@/components/dashboard/LowStockAlert';
 import { DynamicPriceProducts } from '@/components/dashboard/DynamicPriceProducts';
-import { SyncStatusBar } from '@/components/SyncStatusBar';
-import { Button } from '@/components/ui/button';
+import { format } from 'date-fns';
+import { bn } from 'date-fns/locale';
 
 export default function Dashboard() {
-  const { storeInfo, products, customers, getUnpaidCustomers } = useStore();
+  const { storeInfo, products, customers, getPendingReminderGroups, acknowledgeBakiReminders } = useStore();
   const { productLimit, bakiLimit, salesCreditUsed, salesCreditLimit } = useSubscription();
   const navigate = useNavigate();
 
-  const today = new Date();
-  const isFirstOfMonth = today.getDate() === 1;
-  const unpaidCustomers = getUnpaidCustomers();
-  const showBakiReminder = unpaidCustomers.length > 0;
+  // Baki reminders (১ তারিখে ডিফল্ট, অথবা ঘড়ি আইকনে সেট করা কাস্টম তারিখ)
+  // are surfaced here on the Dashboard — tapping acknowledges the group
+  // (so it won't show again until its next date) and takes the shopkeeper
+  // straight to that exact list on বাকির খাতা.
+  const pendingReminderGroups = getPendingReminderGroups();
+  const currentReminderGroup = pendingReminderGroups[0] || null;
+
+  const handleOpenReminder = () => {
+    if (!currentReminderGroup) return;
+    acknowledgeBakiReminders(currentReminderGroup.customers.map(c => c.id));
+    navigate('/credit-book', {
+      state: { viewReminderGroup: { date: currentReminderGroup.date.toISOString(), customers: currentReminderGroup.customers } },
+    });
+  };
 
   const quickNavItems = [
     { path: '/sell', icon: ShoppingCart, label: 'বিক্রি করুন', primary: true },
@@ -35,9 +45,6 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-6 animate-fade-in">
-      {/* Sync safety bar */}
-      <SyncStatusBar />
-
       {/* Welcome message */}
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-foreground">
@@ -61,23 +68,27 @@ export default function Dashboard() {
         ))}
       </div>
 
-      {/* Monthly Baki Reminder */}
-      {showBakiReminder && (
-        <div className="p-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl">
+      {/* বাকি রিমাইন্ডার — প্রতি মাসের ১ তারিখে (অথবা ঘড়ি আইকনে সেট করা তারিখে),
+          যতদিন না দেখা হচ্ছে ততদিন এটা দেখাতে থাকবে। */}
+      {currentReminderGroup && (
+        <button
+          onClick={handleOpenReminder}
+          className="w-full p-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl text-left"
+        >
           <div className="flex items-center gap-2 mb-2">
             <AlertTriangle className="w-5 h-5 text-amber-600" />
             <h3 className="font-semibold text-amber-800 dark:text-amber-200">
-              {isFirstOfMonth ? '📅 মাসিক বাকি রিমাইন্ডার!' : '⚠️ বাকি বকেয়া আছে!'}
+              বাকি রিমাইন্ডার — {format(currentReminderGroup.date, 'dd MMMM', { locale: bn })}
             </h3>
           </div>
           <p className="text-sm text-amber-700 dark:text-amber-300 mb-3">
-            {unpaidCustomers.length}জন গ্রাহকের বাকি পরিশোধ হয়নি।
+            {currentReminderGroup.customers.length}জন গ্রাহকের বাকি মনে করিয়ে দেওয়ার সময় হয়েছে।
           </p>
-          <Button onClick={() => navigate('/credit-book')} size="sm" className="bg-amber-600 hover:bg-amber-700 text-white">
-            <BookOpen className="w-4 h-4 mr-2" />
-            বাকির তালিকা দেখুন
-          </Button>
-        </div>
+          <span className="inline-flex items-center gap-2 text-sm font-medium bg-amber-600 hover:bg-amber-700 text-white px-3 py-2 rounded-lg">
+            <BookOpen className="w-4 h-4" />
+            তালিকা দেখুন
+          </span>
+        </button>
       )}
 
       {/* Big Sell Button */}
