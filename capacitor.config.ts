@@ -27,7 +27,7 @@ const config: CapacitorConfig = {
     // changes still require a new APK built + distributed from the website.
     // Replace <YOUR-PROJECT-REF> with your actual Supabase project ref.
     CapacitorUpdater: {
-      updateUrl: 'https://ldqneqbljjmcxlbfswun.supabase.co/functions/v1/check-app-update',
+      updateUrl: 'https://ydnttyhlepxyieemkacu.supabase.co/functions/v1/check-app-update',
       autoUpdate: true,
     },
   },
