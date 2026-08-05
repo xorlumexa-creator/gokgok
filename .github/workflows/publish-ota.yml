@@ -1,0 +1,111 @@
+name: Publish OTA Update
+
+# Runs automatically on every push to main that touches app code, and can
+# also be triggered manually from the Actions tab ("Run workflow").
+# This does NOT rebuild/republish the native APK — it only ships JS/HTML/CSS
+# changes to already-installed phones via @capgo/capacitor-updater.
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'src/**'
+      - 'index.html'
+      - 'public/**'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'vite.config.ts'
+  workflow_dispatch: {}
+
+jobs:
+  publish-ota:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Build web bundle
+        run: npm run build
+        env:
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.VITE_SUPABASE_PUBLISHABLE_KEY }}
+
+      - name: Compute release version
+        id: version
+        run: echo "version=1.0.${{ github.run_number }}" >> "$GITHUB_OUTPUT"
+
+      - name: Create Capgo bundle zip
+        id: bundle
+        run: |
+          npx --yes @capgo/cli bundle zip com.openclaw.dukan360 \
+            --path dist \
+            --bundle "${{ steps.version.outputs.version }}" \
+            --json > bundle-output.json
+          cat bundle-output.json
+
+          CHECKSUM=$(node -e "const d=JSON.parse(require('fs').readFileSync('bundle-output.json','utf8')); console.log(d.checksum || d.Checksum || '')")
+          ZIPFILE=$(find . -maxdepth 1 -iname "*.zip" | head -1)
+
+          if [ -z "$CHECKSUM" ] || [ -z "$ZIPFILE" ]; then
+            echo "::error::Could not determine checksum or zip file from Capgo CLI output — check the log above."
+            exit 1
+          fi
+
+          echo "checksum=$CHECKSUM" >> "$GITHUB_OUTPUT"
+          echo "zipfile=$ZIPFILE" >> "$GITHUB_OUTPUT"
+
+      - name: Upload bundle to Supabase Storage
+        id: upload
+        env:
+          SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          ZIPFILE="${{ steps.bundle.outputs.zipfile }}"
+          OBJECT_PATH="releases/android-${VERSION}.zip"
+
+          HTTP_STATUS=$(curl -s -o upload-response.json -w "%{http_code}" \
+            -X POST "${SUPABASE_URL}/storage/v1/object/app-bundles/${OBJECT_PATH}" \
+            -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}" \
+            -H "Content-Type: application/zip" \
+            --data-binary "@${ZIPFILE}")
+
+          cat upload-response.json
+          if [ "$HTTP_STATUS" -ge 300 ]; then
+            echo "::error::Upload to Supabase Storage failed (HTTP $HTTP_STATUS) — see response above."
+            exit 1
+          fi
+
+          echo "bundle_url=${SUPABASE_URL}/storage/v1/object/public/app-bundles/${OBJECT_PATH}" >> "$GITHUB_OUTPUT"
+
+      - name: Publish release row (app_releases)
+        env:
+          SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          CHECKSUM="${{ steps.bundle.outputs.checksum }}"
+          BUNDLE_URL="${{ steps.upload.outputs.bundle_url }}"
+
+          HTTP_STATUS=$(curl -s -o insert-response.json -w "%{http_code}" \
+            -X POST "${SUPABASE_URL}/rest/v1/app_releases" \
+            -H "apikey: ${SUPABASE_SERVICE_ROLE_KEY}" \
+            -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}" \
+            -H "Content-Type: application/json" \
+            -H "Prefer: return=minimal" \
+            -d "{\"platform\":\"android\",\"version\":\"${VERSION}\",\"bundle_url\":\"${BUNDLE_URL}\",\"checksum\":\"${CHECKSUM}\",\"notes\":\"Auto-published from commit ${{ github.sha }}\"}")
+
+          cat insert-response.json
+          if [ "$HTTP_STATUS" -ge 300 ]; then
+            echo "::error::Inserting into app_releases failed (HTTP $HTTP_STATUS) — see response above."
+            exit 1
+          fi
+
+          echo "✅ Published OTA release ${VERSION} — installed apps will pick it up next launch."
