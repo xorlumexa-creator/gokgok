@@ -1,0 +1,8 @@
+project_id = "ydnttyhlepxyieemkacu"
+
+# Capgo's capacitor-updater plugin calls this with a plain POST — it has
+# no way to attach a Supabase auth header, so this function must be
+# publicly callable (it only ever reads the latest published release,
+# nothing user-specific or sensitive).
+[functions.check-app-update]
+verify_jwt = false
