@@ -13,7 +13,6 @@ import { useAuth } from "@/hooks/useAuth";
 import { useProfile } from "@/hooks/useProfile";
 import { startSyncEngine } from "@/lib/syncEngine";
 import { isOnline, subscribeOnlineStatus } from "@/lib/connectivity";
-import { OfflineBanner } from "@/components/OfflineBanner";
 import { LoadingEscape, RouteErrorBoundary, StartupFailsafeProvider, useStartupFailsafe } from "@/components/StartupFailsafe";
 
 const Index = lazy(() => import("./pages/Index"));
@@ -204,7 +203,6 @@ const App = () => {
       <QueryClientProvider client={queryClient}>
         <TooltipProvider>
           <InstallPrompt />
-          <OfflineBanner />
           <Toaster />
           <Sonner />
           <BrowserRouter>
