@@ -1,6 +1,7 @@
 import { Component, ErrorInfo, createContext, ReactNode, useContext, useEffect, useMemo, useState } from 'react';
 import { RefreshCw } from 'lucide-react';
 import { STARTUP_FAILSAFE_MS, reloadApp } from '@/lib/asyncTimeout';
+import { isOnline, subscribeOnlineStatus } from '@/lib/connectivity';
 
 interface StartupFailsafeValue {
   forceRender: boolean;
@@ -13,12 +14,24 @@ const StartupFailsafeContext = createContext<StartupFailsafeValue>({
 });
 
 export function StartupFailsafeProvider({ children }: { children: ReactNode }) {
-  const [expired, setExpired] = useState(false);
+  // Already offline when the app opens? Don't make them stare at a loading
+  // spinner for 6 seconds first — there's nothing to wait for, so show the
+  // reload escape hatch immediately.
+  const [expired, setExpired] = useState(() => !isOnline());
 
   useEffect(() => {
+    if (expired) return;
     const timer = window.setTimeout(() => setExpired(true), STARTUP_FAILSAFE_MS);
-    return () => window.clearTimeout(timer);
-  }, []);
+    // Going offline mid-load (not just already-offline at open) should also
+    // skip straight to the reload option instead of waiting out the timer.
+    const unsubscribe = subscribeOnlineStatus((online) => {
+      if (!online) setExpired(true);
+    });
+    return () => {
+      window.clearTimeout(timer);
+      unsubscribe();
+    };
+  }, [expired]);
 
   const value = useMemo(
     () => ({ forceRender: expired, showReload: expired }),
