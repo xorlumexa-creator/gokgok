@@ -11,6 +11,7 @@ import { LocationPicker } from '@/components/auth/LocationPicker';
 import { Country, defaultCountry } from '@/data/countries';
 import { normalizePhone, phoneToEmail, isManagerPhone } from '@/lib/phone';
 import { withTimeout } from '@/lib/asyncTimeout';
+import { CustomerSupportButton } from '@/components/CustomerSupportButton';
 import logoImg from '@/assets/logo.png';
 
 type Mode = 'login' | 'signup';
@@ -252,7 +253,10 @@ export default function Auth() {
           <ArrowLeft className="w-3 h-3" /> হোমে ফিরে যান
         </button>
       </div>
+
+      <CustomerSupportButton />
     </main>
   );
         }
-    
+
+        
