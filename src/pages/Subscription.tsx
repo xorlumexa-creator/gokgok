@@ -117,11 +117,24 @@ export default function Subscription() {
   // renewal — matching what actually happens server-side.
   const isPureFeatureUpgrade = focus === 'upgrade' && hasActivePaidPlan && !isLevelChange && selectedPlan !== plan;
 
+  // ── Same-plan repurchase lock ─────────────────────────────────────────
+  // A user already sitting on an active, non-expired plan cannot buy that
+  // exact same plan + storage level again. That's only allowed once either
+  // (a) their sales+baki-update credit for this cycle is exhausted, or
+  // (b) the 30-day cycle has actually ended (at which point hasActivePaidPlan
+  // is already false, since planExpiry has passed). The 30-day clock itself
+  // starts from the moment the manager clicked Approve, not from checkout.
+  // Choosing a *different* plan tier or a *different* storage level is
+  // always allowed (that's an upgrade, handled separately above).
+  const isSamePlanAsActive = hasActivePaidPlan && selectedPlan === plan && !isLevelChange;
+  const repurchaseBlocked = isSamePlanAsActive && !creditExhausted;
+
   const targetPrice = PLAN_BASE_PRICE[selectedPlan] * desiredLevel;
   const currentPrice = hasActivePaidPlan ? monthlyPrice : 0;
   const upgradeDiff = Math.max(0, targetPrice - currentPrice);
 
   const openPayment = () => {
+    if (repurchaseBlocked) return;
     if (isPureFeatureUpgrade) {
       setShowPaymentFor({ plan: selectedPlan, level: desiredLevel, type: 'upgrade', amount: upgradeDiff });
     } else {
@@ -240,6 +253,19 @@ export default function Subscription() {
           </div>
         </div>
 
+        {/* Same-plan repurchase lock notice */}
+        {repurchaseBlocked && expiresAt && (
+          <div className="rounded-2xl bg-amber-50 dark:bg-amber-950/30 border-2 border-amber-200 dark:border-amber-900 p-4 mb-4">
+            <p className="font-bold text-amber-700 dark:text-amber-300 mb-1">⚠️ এই প্ল্যান এখন আবার কেনা যাবে না</p>
+            <p className="text-sm text-amber-700/90 dark:text-amber-200 leading-relaxed">
+              আপনি ইতিমধ্যে {PLAN_LABEL[plan]} প্ল্যানে সক্রিয় আছেন। মেয়াদ শেষ না হওয়া পর্যন্ত অথবা এই চক্রের বিক্রি+বাকি-আপডেট সীমা শেষ না হওয়া পর্যন্ত একই প্ল্যান আবার কেনা যাবে না।
+            </p>
+            <p className="text-xs text-amber-700/80 dark:text-amber-300 mt-2">
+              অন্য প্ল্যানে আপগ্রেড করতে চাইলে উপরে থেকে ভিন্ন প্ল্যান বা বড় সাইজ বেছে নিন — সেটা এখনই করা যাবে।
+            </p>
+          </div>
+        )}
+
         {/* CTA */}
         <div className="rounded-2xl bg-muted/50 p-4 mb-4">
           <div className="flex items-center justify-between mb-3">
@@ -247,12 +273,14 @@ export default function Subscription() {
             <span className="text-2xl font-bold text-foreground">৳{toBn(isPureFeatureUpgrade ? upgradeDiff : targetPrice)}<span className="text-sm font-normal text-muted-foreground">/মাস</span></span>
           </div>
           <p className="text-xs text-muted-foreground mb-3">
-            {isPureFeatureUpgrade
+            {repurchaseBlocked
+              ? 'এই প্ল্যান আপনার বর্তমান সক্রিয় প্ল্যানের সাথে হুবহু মিলে যাচ্ছে — তাই এখন কেনা যাবে না।'
+              : isPureFeatureUpgrade
               ? 'শুধু ফিচার যোগ হচ্ছে — আপনার বর্তমান মেয়াদ (কতদিন বাকি আছে) অপরিবর্তিত থাকবে।'
               : 'নতুন ৩০ দিনের মেয়াদ আজ থেকে শুরু হবে এবং বিক্রি+বাকি-আপডেটের সীমাও রিসেট হবে।'}
           </p>
-          <Button onClick={openPayment} className="w-full btn-primary py-6 rounded-xl text-base" disabled={isPureFeatureUpgrade && upgradeDiff <= 0}>
-            {isPureFeatureUpgrade ? 'আপগ্রেড করুন' : isRenewIntent ? 'সাবস্ক্রাইব / নবায়ন করুন' : 'এই প্ল্যান নিন'}
+          <Button onClick={openPayment} className="w-full btn-primary py-6 rounded-xl text-base" disabled={repurchaseBlocked || (isPureFeatureUpgrade && upgradeDiff <= 0)}>
+            {repurchaseBlocked ? 'এই মুহূর্তে কেনা যাবে না' : isPureFeatureUpgrade ? 'আপগ্রেড করুন' : isRenewIntent ? 'সাবস্ক্রাইব / নবায়ন করুন' : 'এই প্ল্যান নিন'}
           </Button>
         </div>
 
