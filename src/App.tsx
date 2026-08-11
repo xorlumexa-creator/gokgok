@@ -7,6 +7,7 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { StoreProvider, useStore } from "@/context/StoreContext";
 import { SubscriptionProvider } from "@/context/SubscriptionContext";
 import { SubscriptionLockModal } from "@/components/subscription/SubscriptionLockModal";
+import { TermsAcceptanceModal } from "@/components/TermsAcceptanceModal";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { InstallPrompt } from "@/components/InstallPrompt";
 import { useAuth } from "@/hooks/useAuth";
@@ -39,6 +40,8 @@ const NotFound = lazy(() => import("./pages/NotFound"));
 const ManagerLayout = lazy(() => import("./pages/manager/ManagerLayout"));
 const ManagerDashboard = lazy(() => import("./pages/manager/ManagerDashboard"));
 const ManagerSubscriptions = lazy(() => import("./pages/manager/SubscriptionRequests"));
+const ManagerRejectedSubscriptions = lazy(() => import("./pages/manager/RejectedSubscriptions"));
+const ManagerMessages = lazy(() => import("./pages/manager/Messages"));
 const ManagerPasswords = lazy(() => import("./pages/manager/PasswordResetRequests"));
 const ManagerUsers = lazy(() => import("./pages/manager/UsersList"));
 const ManagerStats = lazy(() => import("./pages/manager/Statistics"));
@@ -110,7 +113,12 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
     return <Navigate to="/setup" replace />;
   }
 
-  return <>{children}</>;
+  return (
+    <>
+      {children}
+      <TermsAcceptanceModal />
+    </>
+  );
 }
 
 function ManagerRoute({ children }: { children: React.ReactNode }) {
@@ -155,6 +163,8 @@ function AppRoutes() {
         <Route element={<ManagerRoute><ManagerLayout /></ManagerRoute>}>
           <Route path="/manager" element={<ManagerDashboard />} />
           <Route path="/manager/subscriptions" element={<ManagerSubscriptions />} />
+          <Route path="/manager/subscriptions/rejected" element={<ManagerRejectedSubscriptions />} />
+          <Route path="/manager/messages" element={<ManagerMessages />} />
           <Route path="/manager/passwords" element={<ManagerPasswords />} />
           <Route path="/manager/users" element={<ManagerUsers />} />
           <Route path="/manager/stats" element={<ManagerStats />} />
@@ -216,3 +226,4 @@ const App = () => {
 
 export default App;
 
+      
