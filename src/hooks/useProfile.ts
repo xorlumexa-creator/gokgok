@@ -18,6 +18,8 @@ export interface AppProfile {
   temporary_access: boolean;
   temporary_expiry: string | null;
   must_change_password: boolean;
+  terms_accepted: boolean;
+  terms_accepted_at?: string | null;
   created_at?: string;
 }
 
@@ -78,6 +80,8 @@ export function primeProfileFromAuth(userId: string, metadata: Record<string, an
     temporary_access: previous?.temporary_access || false,
     temporary_expiry: previous?.temporary_expiry || null,
     must_change_password: previous?.must_change_password || false,
+    terms_accepted: previous?.terms_accepted || false,
+    terms_accepted_at: previous?.terms_accepted_at || null,
   };
 
   cachedProfile = primed;
@@ -113,7 +117,7 @@ async function loadProfile(userId: string, force = false): Promise<AppProfile | 
   inFlight = withTimeout(
     supabase
       .from('profiles')
-      .select('id,user_id,full_name,shop_name,phone,role,plan,plan_expiry,subscription_status,trial_start_date,temporary_access,temporary_expiry,must_change_password,created_at')
+      .select('id,user_id,full_name,shop_name,phone,role,plan,plan_expiry,subscription_status,trial_start_date,temporary_access,temporary_expiry,must_change_password,terms_accepted,terms_accepted_at,created_at')
       .eq('user_id', userId)
       .maybeSingle(),
     5000,
@@ -200,3 +204,4 @@ export function useProfile() {
   return { profile, loading, refresh };
 }
 
+    
