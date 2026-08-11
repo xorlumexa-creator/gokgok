@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, CreditCard, KeyRound, Users, BarChart3, LogOut } from 'lucide-react';
+import { LayoutDashboard, CreditCard, KeyRound, Users, BarChart3, LogOut, XCircle, MessageCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
 import { useProfile } from '@/hooks/useProfile';
@@ -10,6 +10,8 @@ import logoImg from '@/assets/logo.png';
 const items = [
   { to: '/manager', label: 'ড্যাশবোর্ড', icon: LayoutDashboard, end: true },
   { to: '/manager/subscriptions', label: 'সাবস্ক্রিপশন রিকোয়েস্ট', icon: CreditCard },
+  { to: '/manager/subscriptions/rejected', label: 'প্রত্যাখ্যাত রিকোয়েস্ট', icon: XCircle },
+  { to: '/manager/messages', label: 'মেসেজ (CRM)', icon: MessageCircle },
   { to: '/manager/passwords', label: 'পাসওয়ার্ড রিসেট', icon: KeyRound },
   { to: '/manager/users', label: 'ইউজার তালিকা', icon: Users },
   { to: '/manager/stats', label: 'পরিসংখ্যান', icon: BarChart3 },
@@ -95,4 +97,4 @@ export default function ManagerLayout() {
       <main className="flex-1 min-w-0 p-6 pb-10"><Outlet /></main>
     </div>
   );
-}
+                  }
