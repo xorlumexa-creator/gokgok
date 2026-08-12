@@ -60,6 +60,8 @@ interface SubscriptionContextType extends SubscriptionState {
   trialExpiresAt: string | null;
   hasActivePaidPlan: boolean;
   creditExhausted: boolean;
+  productLimitReached: boolean;
+  bakiLimitReached: boolean;
   isLocked: boolean; // trial over AND no active paid plan AND no temp bridge — full lockout
   hasFeature: (feature: 'whatsapp' | 'invoice') => boolean;
   isPlanActive: boolean;
@@ -231,6 +233,12 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
 
   const creditExhausted = hasActivePaidPlan && state.salesCreditUsed >= salesCreditLimit;
 
+  // Capacity (product/baki) limits are only meaningful once a paid plan is
+  // actually active — this is what gates the 2×/3×/... capacity-upgrade
+  // section on the subscription page (hidden until actually needed).
+  const productLimitReached = hasActivePaidPlan && products.length >= productLimit;
+  const bakiLimitReached = hasActivePaidPlan && customers.length >= bakiLimit;
+
   const isPlanActive = !isLocked;
 
   const hasFeature = useCallback((feature: 'whatsapp' | 'invoice') => {
@@ -323,6 +331,7 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
       expiresAt: state.planExpiry,
       productLimit, bakiLimit, salesCreditLimit, monthlyPrice, hasFeature, isPlanActive,
       trialActive, trialDaysLeft, trialExpiresAt, hasActivePaidPlan, creditExhausted, isLocked,
+      productLimitReached, bakiLimitReached,
       canAddProduct, canAddCustomer, canRecordSale, guardAddProduct, guardAddCustomer, guardRecordSale,
       guardFeature, incrementSalesCredit, setPlan, setStorageLevel, renewPlan, lockModal, openLock, closeLock, refresh,
     }}>
