@@ -87,7 +87,7 @@ export function SubscriptionLockModal() {
               <p className="text-sm text-foreground mb-3">
                 {toBn(nextLevel)}× ক্যাপাসিটিতে আপগ্রেড করুন — <b>{toBn(STORAGE_UNIT.toLocaleString())} টি পণ্য</b> এবং <b>{toBn(STORAGE_UNIT.toLocaleString())} টি বাকি হিসাব</b> আরও রাখার জায়গা পান।
               </p>
-              <p className="text-xs text-muted-foreground mb-3">এই আপগ্রেডে নতুন ৩০ দিনের মেয়াদ আজ থেকে শুরু হবে (বিক্রি+বাকি-আপডেটের সীমাও রিসেট হবে)।</p>
+              <p className="text-xs text-muted-foreground mb-3">এই আপগ্রেডে আপনার বর্তমান মেয়াদ (কতদিন বাকি আছে) পুরোপুরি অপরিবর্তিত থাকবে — শুধু পার্থক্যের টাকা দিতে হবে।</p>
               <div className="bg-background rounded-xl px-4 py-3 inline-block">
                 <p className="text-2xl font-bold text-primary">মাত্র ৳{toBn(extraPrice)} <span className="text-sm font-normal text-muted-foreground">অতিরিক্ত/মাস</span></p>
               </div>
@@ -199,4 +199,4 @@ export function SubscriptionLockModal() {
       </div>
     </div>
   );
-        }
+            }
