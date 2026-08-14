@@ -16,7 +16,17 @@ Deno.serve(async (req) => {
   try { body = await req.json(); } catch { /* */ }
   const action = body.action as string;
 
+  // SECURITY: this branch used to run BEFORE any auth check at all, which
+  // meant anyone on the internet could POST this action with no login and
+  // trigger mass account deletion. It now requires a shared secret (set
+  // as the CRON_SECRET env var and passed by your scheduler as the
+  // x-cron-secret header) instead of trusting the action name alone.
   if (action === 'purge_expired_trials_cron') {
+    const cronSecret = Deno.env.get('CRON_SECRET');
+    const providedSecret = req.headers.get('x-cron-secret') ?? '';
+    if (!cronSecret || providedSecret !== cronSecret) {
+      return j({ ok: false, error: 'unauthorized' }, 401);
+    }
     return await runPurge(admin);
   }
 
@@ -50,7 +60,9 @@ Deno.serve(async (req) => {
 });
 
 async function runPurge(admin: any) {
-  const cutoff = new Date(Date.now() - 35 * 24 * 60 * 60 * 1000).toISOString();
+  // 35 → 60 days: matches the updated terms-and-conditions / lock-screen
+  // warning (unpaid accounts are purged after 60 days, not 35).
+  const cutoff = new Date(Date.now() - 60 * 24 * 60 * 60 * 1000).toISOString();
   const { data: stale } = await admin
     .from('profiles')
     .select('user_id, role, subscription_status, plan, temporary_access, created_at')
@@ -76,4 +88,4 @@ function j(payload: any, status = 200) {
     status,
     headers: { ...corsHeaders, 'Content-Type': 'application/json' },
   });
-}
+                                        }
