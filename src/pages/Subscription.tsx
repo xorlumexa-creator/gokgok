@@ -35,12 +35,27 @@ type Selection = { plan: PlanId; level: number; kind: 'new' | 'upgrade' };
 
 // Live countdown — pure client-side math off the cached expiry, so it
 // keeps ticking correctly with no internet connection.
+//
+// FIX: Android suspends JS timers while the app is backgrounded (not
+// force-closed, just switched away from) — so the 30s setInterval alone
+// could sit frozen for hours/days and only "catch up" whenever it next
+// happens to fire. This adds a visibilitychange/focus listener that
+// force-resyncs `now` to the real current time the instant the app
+// becomes visible again, so reopening after days away is always correct
+// immediately rather than waiting on a possibly-stalled interval.
 function useCountdown(expiresAt: string | null) {
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
     if (!expiresAt) return;
-    const id = setInterval(() => setNow(Date.now()), 30000);
-    return () => clearInterval(id);
+    const resync = () => setNow(Date.now());
+    const id = setInterval(resync, 30000);
+    document.addEventListener('visibilitychange', resync);
+    window.addEventListener('focus', resync);
+    return () => {
+      clearInterval(id);
+      document.removeEventListener('visibilitychange', resync);
+      window.removeEventListener('focus', resync);
+    };
   }, [expiresAt]);
   if (!expiresAt) return null;
   const diff = Math.max(0, new Date(expiresAt).getTime() - now);
